@@ -232,6 +232,11 @@ function TableCell({
 
 // ─── Table field ───────────────────────────────────────────────────────
 
+/** 표가 최소한 유지하는 행 수 — 이 이하로는 삭제 버튼이 행 대신 내용만 비운다 */
+const KEEP_ROWS = 3;
+
+// ───────────────────────────────────────────────────────
+
 function TableInput({
   field, value, onChange, locked,
 }: {
@@ -254,9 +259,13 @@ function TableInput({
     onChange(next);
   };
   const addRow = () => onChange([...rows, emptyRow()]);
+  // 행이 KEEP_ROWS 개보다 많으면 행 자체를 지우고, 그 이하로는 행은 두고 내용만 비운다.
+  // (예전에는 마지막 한 행이 남으면 삭제 버튼이 사라져 그 내용을 지울 방법이 없었다)
+  const canRemoveRow = rows.length > KEEP_ROWS;
   const deleteRow = (idx: number) => {
-    if (rows.length <= 1) return;
-    onChange(rows.filter((_, i) => i !== idx));
+    onChange(canRemoveRow
+      ? rows.filter((_, i) => i !== idx)
+      : rows.map((row, i) => (i === idx ? emptyRow() : row)));
   };
 
   // Fetch dynamic subjects for subject-select columns
@@ -318,9 +327,10 @@ function TableInput({
               </div>
             ))}
             <div className="flex items-center justify-center">
-              {!locked && rows.length > 1 && (
+              {!locked && (canRemoveRow || Object.values(row).some(v => String(v ?? '').trim())) && (
                 <button
                   onClick={() => deleteRow(rowIdx)}
+                  title={canRemoveRow ? '행 삭제' : '내용 지우기'}
                   className="flex h-5 w-5 items-center justify-center rounded text-[#adb2ba] hover:bg-red-50 hover:text-red-400"
                 >
                   <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

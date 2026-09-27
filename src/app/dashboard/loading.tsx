@@ -1,9 +1,11 @@
+import { AppShellLogo } from "@/components/layout/AppShellHeader";
+
 /** 대시보드 진입 시 스켈레톤 — 로그인/워크스페이스에서 돌아올 때 빈 화면을 막는다. */
 export default function DashboardLoading() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       <div className="flex h-[60px] shrink-0 items-center bg-[#2d3339] px-8">
-        <span className="text-[22px] font-bold tracking-tight text-white">Minerva</span>
+        <AppShellLogo className="-ml-8" />
       </div>
 
       <div className="flex min-h-0 flex-1">

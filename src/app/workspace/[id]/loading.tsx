@@ -1,3 +1,5 @@
+import { AppShellLogo } from "@/components/layout/AppShellHeader";
+
 /**
  * 워크스페이스 진입 즉시 표시되는 스켈레톤.
  *
@@ -10,7 +12,7 @@ export default function WorkspaceLoading() {
     <div className="flex h-screen flex-col overflow-hidden">
       {/* 헤더 */}
       <div className="flex h-[60px] shrink-0 items-center gap-6 bg-[#2d3339] px-8">
-        <span className="text-[22px] font-bold tracking-tight text-white">Minerva</span>
+        <AppShellLogo className="-ml-8" />
         <div className="h-6 w-56 animate-pulse rounded-md bg-white/15" />
       </div>
 

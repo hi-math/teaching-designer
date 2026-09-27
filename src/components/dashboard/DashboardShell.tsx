@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AppShellHeader } from "@/components/layout/AppShellHeader";
+import { AppShellHeader, AppShellLogo } from "@/components/layout/AppShellHeader";
 import { getAppShellHeaderSurface } from "@/lib/appThemeHeader";
 import Sidebar from "./Sidebar";
 import ProjectGrid from "./ProjectGrid";
@@ -21,9 +21,7 @@ export default function DashboardShell({ profile }: { profile: UserProfile }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       <AppShellHeader style={getAppShellHeaderSurface()}>
-        <div className="flex min-w-0 items-center px-1">
-          <span className="text-[22px] font-bold tracking-tight text-white whitespace-nowrap">Minerva</span>
-        </div>
+        <AppShellLogo className="-ml-6" />
         <div className="w-8 shrink-0" aria-hidden />
       </AppShellHeader>
 

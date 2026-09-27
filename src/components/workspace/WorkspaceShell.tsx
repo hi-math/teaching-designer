@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } fro
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ProfilePanel, { type UserProfile } from "@/components/dashboard/ProfilePanel";
-import { AppShellBrandIcon, AppShellHeader } from "@/components/layout/AppShellHeader";
+import { AppShellHeader, AppShellLogo } from "@/components/layout/AppShellHeader";
 import { getAppShellHeaderSurface } from "@/lib/appThemeHeader";
 import ChatInterface from "@/components/ChatInterface";
 import TeamChatPanel from "@/components/TeamChatPanel";
@@ -2013,9 +2013,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
         {/* 좌: 로고 자리 + 사이드바 너비만큼 띄운 후 프로젝트 제목 */}
         <div className="flex min-w-0 flex-1 items-center">
           {/* 브랜드 — 고정 너비, 사이드바 상태와 무관 */}
-          <div className="shrink-0 w-[11%] min-w-[150px] flex items-center">
-            <span className="text-[22px] font-bold tracking-tight text-white whitespace-nowrap">Minerva</span>
-          </div>
+          <AppShellLogo className="-ml-6" />
           {/* 저장 표식 + 타이틀 */}
           <div className="flex items-center gap-3">
             <div

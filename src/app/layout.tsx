@@ -14,6 +14,7 @@ const PRELOAD_FONTS = [
 export const metadata: Metadata = {
   title: "Minerva",
   description: "협력적 수업설계 AI 에이전트",
+  icons: { icon: "/favicon.png" },
 };
 
 export default function RootLayout({

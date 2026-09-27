@@ -22,6 +22,7 @@ interface SimulateRequest {
 
 export type SimulatedSession = {
   subject: string;
+  title: string;
   standard: string;
   objective: string;
   content: string;
@@ -39,11 +40,12 @@ const SESSION_TOOL: Anthropic.Tool = {
           type: 'object',
           properties: {
             subject:   { type: 'string', description: '이 차시를 맡는 교과 (융합 차시는 "국어·사회"처럼 병기)' },
+            title:     { type: 'string', description: '이 차시의 수업 타이틀. 학생이 흥미를 느낄 만한 20자 내외의 짧은 제목' },
             standard:  { type: 'string', description: '이 차시에서 다루는 성취기준. 코드가 있으면 "[코드] 내용" 형식' },
             objective: { type: 'string', description: '학습목표 한 문장 ("~할 수 있다" 형식)' },
             content:   { type: 'string', description: '지도내용: 도입·전개·정리 흐름이 드러나게 2~4문장' },
           },
-          required: ['subject', 'standard', 'objective', 'content'],
+          required: ['subject', 'title', 'standard', 'objective', 'content'],
         },
       },
     },
@@ -87,7 +89,7 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
     '',
     '## 요청',
     `위 내용을 바탕으로 이 수업을 정확히 ${sessions}개 차시로 시뮬레이션하세요.`,
-    '- 차시마다 과목, 성취기준, 학습목표, 지도내용을 제시합니다.',
+    '- 차시마다 과목, 수업 타이틀, 성취기준, 학습목표, 지도내용을 제시합니다.',
     '- 선택한 성취기준이 빠짐없이 최소 한 차시에 배치되도록 합니다.',
     '- 흐름이 팀 비전과 통합 수업 목표로 수렴하도록 배열합니다.',
     '- 관련 교과가 여럿이면 교과별 차시와 융합 차시를 자연스럽게 섞습니다.',
@@ -123,6 +125,7 @@ export async function POST(req: Request) {
 
     const result: SimulatedSession[] = raw.map((s) => ({
       subject: String(s.subject ?? ''),
+      title: String(s.title ?? ''),
       standard: String(s.standard ?? ''),
       objective: String(s.objective ?? ''),
       content: String(s.content ?? ''),

@@ -1446,7 +1446,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
       throw new Error(data.error ?? "시뮬레이션 중 오류가 발생했습니다.");
     }
 
-    const sessions = (data.sessions as { subject: string; standard: string; objective: string; content: string }[])
+    const sessions = (data.sessions as { subject: string; title: string; standard: string; objective: string; content: string }[])
       .map((s) => ({ id: newSessionId(), ...s }));
     handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions });
   }, [totalSessions, relatedSubjects, targetGrade, handleStructuredChange]);

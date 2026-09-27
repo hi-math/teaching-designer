@@ -52,15 +52,18 @@ function DialogView({
       <div
         role="alertdialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={title || message}
         className="w-[380px] max-w-[calc(100vw-32px)] rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
       >
-        <div className="mb-2 flex items-center gap-2">
-          <svg className="h-5 w-5 shrink-0 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="text-[15px] font-semibold text-gray-900">{title}</h3>
-        </div>
+        {/* title 을 빈 문자열로 주면 제목 줄 없이 본문만 보인다 */}
+        {title && (
+          <div className="mb-2 flex items-center gap-2">
+            <svg className="h-5 w-5 shrink-0 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-[15px] font-semibold text-gray-900">{title}</h3>
+          </div>
+        )}
         <p className="mb-5 whitespace-pre-line text-[14px] leading-relaxed text-[#5a6066]">{message}</p>
         <div className="flex gap-2">
           {cancelText && (

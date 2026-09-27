@@ -1464,7 +1464,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
     const ds3 = structuredInputsRef.current["Ds-3"] ?? {};
     const ds4 = structuredInputsRef.current["Ds-4"] ?? {};
     if ((hasRows(ds3.activities) || hasRows(ds4.support_tools)) &&
-        !(await showConfirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 시뮬레이션 결과로 바꿉니다.\n계속할까요?", { title: "설계에 반영", confirmText: "바꾸기" }))) {
+        !(await showConfirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 시뮬레이션 결과로 바꿉니다.\n계속할까요?", { title: "", confirmText: "바꾸기" }))) {
       return null;
     }
 

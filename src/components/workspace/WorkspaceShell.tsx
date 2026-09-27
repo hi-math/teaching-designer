@@ -16,6 +16,7 @@ import ActivityCard, { type OpinionEntry } from "@/components/workspace/Activity
 import { CARD_SCHEMAS, serializeStructuredForAI } from "@/components/workspace/cardSchemas";
 import { showAlert, showConfirm } from "@/components/ui/dialog";
 import ChatManageModal from "@/components/workspace/ChatManageModal";
+import { bracketCode, fixDoubleBrackets } from "@/lib/standardCode";
 import { DEFAULT_LLM_MODEL, LLM_MODEL_ROW, resolveLlmModel, type LlmModelId } from "@/lib/llmModels";
 import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
 
@@ -926,6 +927,14 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
           }
           if (c.type === "structured" && c.fields) {
             loadedStructured[code] = c.fields as Record<string, unknown>;
+            // 예전 A-3 성취기준 행은 코드가 "[[9수01-02]]" 두 겹으로 저장돼 있다 — 불러올 때 한 겹으로
+            const stds = loadedStructured[code].achievement_standards;
+            if (code === "A-3" && Array.isArray(stds)) {
+              loadedStructured[code] = {
+                ...loadedStructured[code],
+                achievement_standards: (stds as Record<string, string>[]).map((r) => ({ ...r, standard: fixDoubleBrackets(r.standard ?? "") })),
+              };
+            }
           } else if (c.type === "text" && c.text !== undefined) {
             inputs[code] = c.text;
           }
@@ -1975,7 +1984,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
             setSelectedStandards(items);
             selectedStandardsRef.current = items;
             const rows = items.length > 0
-              ? items.map(item => ({ subject: item.subject, standard: `[${item.code}] ${item.content}` }))
+              ? items.map(item => ({ subject: item.subject, standard: `${bracketCode(item.code)} ${item.content}` }))
               : [{ subject: '', standard: '' }, { subject: '', standard: '' }];
             handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), achievement_standards: rows });
             createClient().from("activity_contents").upsert(

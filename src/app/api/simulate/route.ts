@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { resolveLlmModel } from '@/lib/llmModels';
+import { bracketCode, extractCodes } from '@/lib/standardCode';
 
 // A-5 수업 시뮬레이션 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
 // 채팅과 달리 결과를 카드에 바로 넣어야 하므로, 도구 호출로 JSON 을 강제한다.
@@ -87,7 +88,7 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
   }
   if (body.selectedStandards?.length) {
     lines.push('', '## 선택한 성취기준');
-    for (const s of body.selectedStandards) lines.push(`- [${s.code ?? ''}] (${s.subject}) ${s.content}`);
+    for (const s of body.selectedStandards) lines.push(`- ${s.code ? bracketCode(s.code) : ''} (${s.subject}) ${s.content}`);
   }
 
   lines.push(
@@ -107,8 +108,8 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
 
 /** 모델이 성취기준 본문까지 붙여 보내도 대괄호 코드만 남긴다 */
 function codesOnly(text: string): string {
-  const codes = text.match(/\[[^\]\n]+\]/g);
-  return codes ? codes.join(', ') : text.trim();
+  const codes = extractCodes(text);
+  return codes.length ? codes.join(', ') : text.trim();
 }
 
 export async function POST(req: Request) {

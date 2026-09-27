@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { AutoResizeTextarea, getSubjectBadge } from './CardFields';
 import { showConfirm } from '@/components/ui/dialog';
+import { extractCodes } from '@/lib/standardCode';
 
 /**
  * 수업 시뮬레이션 보드.
@@ -31,8 +32,8 @@ export function newSessionId(): string {
 
 /** "[9수01-02] 내용…" 처럼 본문이 붙어 있어도 대괄호 코드만 남긴다. 코드가 없으면 그대로. */
 export function standardCodesOnly(text: string): string {
-  const codes = text.match(/\[[^\]\n]+\]/g);
-  return codes ? codes.join(', ') : text;
+  const codes = extractCodes(text);
+  return codes.length ? codes.join(', ') : text;
 }
 
 /** 지도내용 문자열 → 불릿 항목 배열 (앞의 "-", "•" 표식은 떼어 낸다) */

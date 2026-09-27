@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { bracketCode, extractCodes, fixDoubleBrackets } from "@/lib/standardCode";
 import chromium from "@sparticuz/chromium-min";
 import { chromium as playwrightChromium } from "playwright-core";
 import { existsSync } from "fs";
@@ -324,8 +325,8 @@ function renderTocOverview(d: RenderData): string {
     const stdHtml = stdList.length > 0
       ? `<ul class="bullets">${stdList.map((s) => {
           const text = s.code
-            ? `<strong>[${esc(s.code)}]</strong> ${esc(s.statement)}`
-            : esc((s as Record<string, unknown>).standard as string ?? s.statement ?? "");
+            ? `<strong>${esc(bracketCode(s.code))}</strong> ${esc(s.statement)}`
+            : esc(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? "")));
           return `<li>• ${text}</li>`;
         }).join("")}</ul>`
       : "(미입력)";
@@ -527,8 +528,8 @@ function renderChapterA(d: RenderData): string {
         ["교과", "성취기준"],
         stdList.map((s) => {
           const inner = s.code
-            ? `<strong>[${esc(s.code)}]</strong> ${esc(s.statement)}`
-            : nl2br((s as Record<string, unknown>).standard as string ?? s.statement ?? "");
+            ? `<strong>${esc(bracketCode(s.code))}</strong> ${esc(s.statement)}`
+            : nl2br(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? "")));
           return [s.subject, { html: inner }];
         }),
         { colWidthsMm: [22, 148] }
@@ -563,7 +564,7 @@ function renderChapterA(d: RenderData): string {
           r.subject,
           r.title ?? "",
           r.objective,
-          (r.standard.match(/\[[^\]\n]+\]/g) ?? [r.standard]).join("\n"),
+          (extractCodes(r.standard).length ? extractCodes(r.standard) : [r.standard]).join("\n"),
           r.content.split("\n").filter((l) => l.trim()).map((l) => `• ${l.replace(/^\s*[-•·*]\s*/, "")}`).join("\n"),
         ]),
         { colWidthsMm: [10, 15, 28, 40, 24, 53], centerCols: [0] }

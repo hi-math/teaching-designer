@@ -1536,6 +1536,42 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
       : `Ds-3 학습 활동과 Ds-4 지원 도구에 ${sessions.length}개 차시를 반영했습니다.`;
   }, [llmModel, handleStructuredChange]);
 
+  // ── Minerva AI 답변 → 카드 반영 ─────────────────────────────
+  const cardLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    for (const sections of Object.values(PHASE_SECTIONS)) {
+      for (const sec of sections) for (const a of sec.activities) labels[a.code] = a.label;
+    }
+    return labels;
+  }, []);
+
+  const getCardFields = useCallback((code: string) => structuredInputsRef.current[code] ?? {}, []);
+
+  const handleApplyToCard = useCallback(async (code: string, fields: Record<string, unknown>): Promise<string | null> => {
+    const st = activityStatusRef.current[code];
+    if (st === "completed" || st === "skipped") {
+      throw new Error("완료했거나 건너뛴 카드라 반영할 수 없습니다.");
+    }
+    const existing = structuredInputsRef.current[code] ?? {};
+    const filled = (v: unknown) =>
+      Array.isArray(v)
+        ? v.some((x) => (typeof x === "string" ? x.trim() : Object.values(x as Record<string, unknown>).some((c) => String(c ?? "").trim())))
+        : typeof v === "string" && v.trim() !== "";
+    // 이미 내용이 있는 칸을 덮어쓰게 되면 먼저 묻는다
+    const overwritten = Object.keys(fields)
+      .filter((k) => filled(existing[k]))
+      .map((k) => CARD_SCHEMAS[code]?.fields.find((f) => f.key === k)?.label ?? k);
+    if (overwritten.length > 0 && !(await showConfirm(
+      `${code} 카드의 기존 내용(${overwritten.join(", ")})을 AI 답변 내용으로 바꿉니다.\n계속할까요?`,
+      { title: "", confirmText: "바꾸기" },
+    ))) {
+      return null;
+    }
+    handleStructuredChange(code, { ...existing, ...fields });
+    setSelectedActivityCode(code);
+    return `${code} 카드에 반영했습니다.`;
+  }, [handleStructuredChange]);
+
   // ── 완료 / 건너뛰기 ──────────────────────────────────────────
   const handleActivityStatusChange = useCallback(async (code: string, newStatus: "active" | "completed" | "skipped") => {
     activityStatusRef.current = { ...activityStatusRef.current, [code]: newStatus };
@@ -2640,6 +2676,9 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 onReady={() => setAiReady(true)}
                 triggerMessage={chatTrigger}
                 model={llmModel}
+                cardLabels={cardLabels}
+                getCardFields={getCardFields}
+                onApplyToCard={handleApplyToCard}
                 pageContext={(() => {
                   // 의견묻기 데이터를 멤버 이름으로 매핑
                   const allMembers = [

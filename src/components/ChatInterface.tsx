@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import MessageBubble, { type Message } from './MessageBubble';
 import { buildChatPayload } from '@/lib/chat/trimPayload';
+import { CARD_SCHEMAS } from '@/components/workspace/cardSchemas';
 
 interface PageContext {
   projectTitle: string;
@@ -29,6 +30,12 @@ interface Props {
   triggerMessage?: string; // auto-sends when changed
   /** 채팅관리에서 고른 LLM 모델 id */
   model?: string;
+  /** 활동 코드 → 카드 이름 (반영 버튼 문구용) */
+  cardLabels?: Record<string, string>;
+  /** 카드의 현재 입력값 (반영 판정 시 참고) */
+  getCardFields?: (code: string) => Record<string, unknown>;
+  /** 답변에서 뽑은 값을 카드에 쓴다. 결과 안내 문구를 돌려주고, 취소되면 null */
+  onApplyToCard?: (code: string, fields: Record<string, unknown>) => Promise<string | null>;
   /**
    * 참고자료 본문(PDF base64 / 텍스트)을 전송 직전에 가져오는 콜백.
    * 페이지 진입 시점에 수십 MB 를 미리 받지 않기 위해 지연 호출한다.
@@ -45,8 +52,18 @@ function nowTimestamp() {
   return `${h >= 12 ? '오후' : '오전'} ${h > 12 ? h - 12 : h === 0 ? 12 : h}:${m}`;
 }
 
-export default function ChatInterface({ stage, onReady, pageContext, lessonId, userId, triggerMessage, model, loadReferenceContents }: Props) {
+/** AI 답변 아래 "카드에 반영하기" — 답변이 끝난 뒤 판정해 반영할 내용이 있을 때만 생긴다 */
+type CardApply = {
+  code: string;
+  fields: Record<string, unknown>;
+  state: 'ready' | 'applying' | 'applied';
+  note?: string;
+};
+
+export default function ChatInterface({ stage, onReady, pageContext, lessonId, userId, triggerMessage, model, loadReferenceContents, cardLabels, getCardFields, onApplyToCard }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
+  // 메시지 인덱스 → 반영 정보 (새로고침하면 사라진다 — 판정 결과는 저장하지 않음)
+  const [cardApply, setCardApply] = useState<Record<number, CardApply>>({});
   const [timestamps, setTimestamps] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -114,6 +131,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
 
     setMessages([]);
     setTimestamps([]);
+    setCardApply({}); // 반영 버튼은 메시지 인덱스 기준이라 히스토리를 새로 부르면 비운다
     setIsLoadingHistory(true);
     const load = async () => {
       try {
@@ -281,6 +299,29 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
         return prev;
       });
 
+      // 이 답변을 선택된 카드에 반영할 수 있는지 판정 — 가능할 때만 버튼이 생긴다
+      const cardCode = pageContext?.selectedActivityCode;
+      const assistantIdx = newMessages.length;
+      if (onApplyToCard && cardCode && (CARD_SCHEMAS[cardCode]?.fields.length ?? 0) > 0 && accumulated.trim().length >= 60) {
+        fetch('/api/chat/card-apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: cardCode,
+            label: cardLabels?.[cardCode],
+            answer: accumulated,
+            current: getCardFields?.(cardCode),
+          }),
+        })
+          .then((r) => r.json())
+          .then((data: { applicable?: boolean; fields?: Record<string, unknown> }) => {
+            if (data.applicable && data.fields) {
+              setCardApply((prev) => ({ ...prev, [assistantIdx]: { code: cardCode, fields: data.fields!, state: 'ready' } }));
+            }
+          })
+          .catch((e) => console.error('[card-apply] 판정 실패:', e));
+      }
+
       // AI 응답 DB 저장 (스트리밍 완료 후)
       if (lessonId && saveUid && accumulated) {
         createClient().from('ai_messages').insert({
@@ -355,15 +396,58 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
           const next = messages[i + 1];
           const isFirst = !prev || prev.role !== msg.role;
           const isLast = !next || next.role !== msg.role;
+          const apply = cardApply[i];
           return (
-            <MessageBubble
-              key={i}
-              message={msg}
-              isFirst={isFirst}
-              isLast={isLast}
-              timestamp={timestamps[i] ?? ''}
-              isStreaming={isStreaming && i === messages.length - 1 && msg.role === 'assistant'}
-            />
+            <div key={i}>
+              <MessageBubble
+                message={msg}
+                isFirst={isFirst}
+                isLast={isLast}
+                timestamp={timestamps[i] ?? ''}
+                isStreaming={isStreaming && i === messages.length - 1 && msg.role === 'assistant'}
+              />
+              {apply && (
+                <div className="mb-3 ml-9 mt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    disabled={apply.state !== 'ready'}
+                    onClick={async () => {
+                      if (!onApplyToCard) return;
+                      setCardApply((prev) => ({ ...prev, [i]: { ...apply, state: 'applying', note: undefined } }));
+                      try {
+                        const note = await onApplyToCard(apply.code, apply.fields);
+                        setCardApply((prev) => ({ ...prev, [i]: { ...apply, state: note ? 'applied' : 'ready', note: note ?? undefined } }));
+                      } catch (e) {
+                        setCardApply((prev) => ({
+                          ...prev,
+                          [i]: { ...apply, state: 'ready', note: e instanceof Error ? e.message : '반영하지 못했습니다.' },
+                        }));
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition ${
+                      apply.state === 'applied'
+                        ? 'border-teal-200 bg-teal-50 text-teal-700'
+                        : 'border-[#5044e3] bg-white text-[#5044e3] hover:bg-[#f4f2ff] disabled:opacity-60'
+                    }`}
+                  >
+                    {apply.state === 'applied' ? (
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6M5 5h14v14H5z" />
+                      </svg>
+                    )}
+                    {apply.state === 'applied'
+                      ? '반영됨'
+                      : apply.state === 'applying'
+                        ? '반영 중…'
+                        : `${apply.code}${cardLabels?.[apply.code] ? ` ${cardLabels[apply.code]}` : ''} 카드에 반영하기`}
+                  </button>
+                  {apply.note && <span className="text-[12px] text-[#757b82]">{apply.note}</span>}
+                </div>
+              )}
+            </div>
           );
         })}
         <div ref={bottomRef} />

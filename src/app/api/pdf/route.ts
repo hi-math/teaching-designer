@@ -54,6 +54,7 @@ type CardContent = {
   achievement_standards?: Array<{ subject: string; code?: string; statement?: string; standard?: string }>;
   integration_narrative?: string;
   integrated_goal?: string;
+  sessions?: Array<{ id: string; subject: string; standard: string; objective: string; content: string }>;
   eval_questions?: string[];
   eval_methods?: Array<{ type: string; target: string; method: string; timing: string }>;
   rubric?: Array<{ axis: string; level_high: string; level_mid: string; level_low: string; level_4?: string; level_3?: string; level_2?: string }>;
@@ -551,9 +552,22 @@ function renderChapterA(d: RenderData): string {
       s24 += textFallback(A22);
     }
 
+    // 2.5 수업 시뮬레이션
+    const A5 = c["A-5"];
+    let s25 = sub("2.5 수업 시뮬레이션 (A-5)");
+    if (hasField(A5, "sessions")) {
+      s25 += table(
+        ["차시", "과목", "성취기준", "학습목표", "지도내용"],
+        A5!.sessions!.map((r, i) => [`${i + 1}`, r.subject, r.standard, r.objective, r.content]),
+        { colWidthsMm: [12, 20, 46, 40, 52], centerCols: [0] }
+      );
+    } else {
+      s25 += textFallback(A5);
+    }
+
     return `<section class="chapter" data-num="2">
   <div class="chapter-header">2. 분석 (A)</div>
-  ${s21}${s22}${s23}${s24}
+  ${s21}${s22}${s23}${s24}${s25}
 </section>`;
   } catch (e) {
     console.error("[pdf/A]", e);

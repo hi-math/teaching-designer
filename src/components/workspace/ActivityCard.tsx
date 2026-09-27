@@ -3,6 +3,7 @@
 import { memo, useState } from "react";
 import CardFieldRenderer from "@/components/workspace/CardFields";
 import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
+import SimulationBoard from "@/components/workspace/SimulationBoard";
 
 /**
  * 활동 카드 한 장.
@@ -58,6 +59,9 @@ interface Props {
   onToggleOpinionHidden: (opinionKey: string) => void;
   onDeleteOpinion: (opinionKey: string) => void;
   onSubmitOpinion: (opinionKey: string, text: string) => void;
+
+  /** A-5 수업 시뮬레이션 생성 */
+  onSimulate?: () => Promise<void>;
 }
 
 /**
@@ -226,6 +230,7 @@ function ActivityCard({
   onToggleOpinionHidden,
   onDeleteOpinion,
   onSubmitOpinion,
+  onSimulate,
 }: Props) {
   const locked = st === "completed" || st === "skipped";
   const getName = (uid: string) => memberNames[uid] ?? uid;
@@ -345,7 +350,14 @@ function ActivityCard({
       )}
 
       {/* 입력 영역 */}
-      {CARD_SCHEMAS[act.code] ? (
+      {act.code === "A-5" ? (
+        <SimulationBoard
+          value={structuredValue}
+          onChange={(fields) => onStructuredChange(act.code, fields)}
+          locked={locked}
+          onSimulate={onSimulate}
+        />
+      ) : CARD_SCHEMAS[act.code] ? (
         <CardFieldRenderer
           schema={CARD_SCHEMAS[act.code]}
           value={structuredValue}

@@ -5,7 +5,7 @@ import type { CardSchema, FieldDef, BulletsFieldDef, TableFieldDef, TableColumn 
 
 // ─── Auto-resize textarea ─────────────────────────────────────────────
 
-function AutoResizeTextarea({
+export function AutoResizeTextarea({
   value, onChange, disabled, placeholder, className,
 }: {
   value: string;
@@ -122,7 +122,7 @@ const SCIENCE  = new Set(['과학','정보','기술·가정']);
 const SOCIAL   = new Set(['사회','역사','도덕']);
 const ARTS     = new Set(['체육','음악','미술']);
 
-function getSubjectBadge(subject: string): { bg: string; text: string } {
+export function getSubjectBadge(subject: string): { bg: string; text: string } {
   if (LANGUAGE.has(subject)) return { bg: '#dbeafe', text: '#1d4ed8' };
   if (MATH.has(subject))     return { bg: '#ede9fe', text: '#6d28d9' };
   if (SCIENCE.has(subject))  return { bg: '#d1fae5', text: '#065f46' };

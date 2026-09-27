@@ -129,6 +129,10 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
       rt('integrated_goal', '통합 수업 목표'),
     ],
   },
+  // 차시 카드는 SimulationBoard 가 직접 그린다 (fields.sessions). 여기 등록은 구조화 카드로 저장되게 하려는 것.
+  'A-5': {
+    fields: [],
+  },
 
   // ── 3단계: 설계 ─────────────────────────────────────────────────
   'Ds-1': {
@@ -245,7 +249,10 @@ export function serializeStructuredForAI(fields: Record<string, unknown>): strin
         // table rows
         lines.push(`[${key}]`);
         (val as Record<string, string>[]).forEach(row => {
-          const cells = Object.values(row).filter(Boolean).join(' | ');
+          const cells = Object.entries(row)
+            .filter(([k, v]) => k !== 'id' && v)
+            .map(([, v]) => v)
+            .join(' | ');
           if (cells) lines.push(`  ${cells}`);
         });
       }

@@ -14,6 +14,7 @@ import IdeasModal, { type IdeaItem } from "@/components/workspace/IdeasModal";
 import ShareModal from "@/components/workspace/ShareModal";
 import ActivityCard, { type OpinionEntry } from "@/components/workspace/ActivityCard";
 import { CARD_SCHEMAS, serializeStructuredForAI } from "@/components/workspace/cardSchemas";
+import { newSessionId } from "@/components/workspace/SimulationBoard";
 
 // ─── 워크스페이스 UI 토큰 (세이지 테마 고정) ─────────────────────
 
@@ -67,6 +68,7 @@ const PHASE_SECTIONS: Record<string, PhaseSection[]> = {
       activities: [
         { code: "A-3", label: "성취 기준 분석", description: "팀원들은 선정된 주제와 관련된 교과별 성취기준을 분석하고, 핵심적으로 반영할 요소를 통합하며 재구조화한다." },
         { code: "A-4", label: "통합된 수업 목표", description: "팀원들은 재구조화한 성취기준을 결합하여 통합된 수업목표로 진술하고, 필요에 따라 평가의 준거가 될 성취수준으로 구체화한다." },
+        { code: "A-5", label: "수업 시뮬레이션", description: "팀 비전, 수업 기본정보, 핵심 아이디어, 성취기준, 분석 단계의 결과를 바탕으로 수업을 차시별로 시뮬레이션하고, 카드를 끌어 차시 순서를 조정한다." },
       ],
     },
   ],
@@ -1416,6 +1418,39 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
     scheduleSave(code, content);
   }, [scheduleSave]);
 
+  // ── A-5 수업 시뮬레이션 생성 ─────────────────────────────────
+  const handleSimulate = useCallback(async () => {
+    const structured = structuredInputsRef.current;
+    const texts = activityInputsRef.current;
+    const cards: Record<string, string> = {};
+    for (const code of ["T-1", "T-2", "A-1", "A-2", "A-3", "A-4"]) {
+      const text = structured[code] ? serializeStructuredForAI(structured[code]) : texts[code];
+      if (text?.trim()) cards[code] = text;
+    }
+
+    const res = await fetch("/api/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: projectTitleRef.current,
+        totalSessions,
+        relatedSubjects,
+        targetGrade,
+        cards,
+        selectedIdeas: selectedIdeasRef.current,
+        selectedStandards: selectedStandardsRef.current,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !Array.isArray(data.sessions)) {
+      throw new Error(data.error ?? "시뮬레이션 중 오류가 발생했습니다.");
+    }
+
+    const sessions = (data.sessions as { subject: string; standard: string; objective: string; content: string }[])
+      .map((s) => ({ id: newSessionId(), ...s }));
+    handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions });
+  }, [totalSessions, relatedSubjects, targetGrade, handleStructuredChange]);
+
   // ── 완료 / 건너뛰기 ──────────────────────────────────────────
   const handleActivityStatusChange = useCallback(async (code: string, newStatus: "active" | "completed" | "skipped") => {
     activityStatusRef.current = { ...activityStatusRef.current, [code]: newStatus };
@@ -2461,6 +2496,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                       onToggleOpinionHidden={handleToggleOpinionHidden}
                       onDeleteOpinion={handleDeleteOpinion}
                       onSubmitOpinion={handleSubmitOpinion}
+                      onSimulate={act.code === "A-5" ? handleSimulate : undefined}
                     />
                   ))}
                 </div>

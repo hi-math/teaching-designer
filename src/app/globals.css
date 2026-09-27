@@ -20,31 +20,31 @@ html {
 
 /* ── Brand Color Overrides ─────────────────────────────────────── */
 @theme {
-  /* Primary: Brand Indigo */
-  --color-indigo-50: #f5f3ff;
-  --color-indigo-100: #ede9fb;
-  --color-indigo-200: #d5cef8;
-  --color-indigo-300: #b3adf2;
-  --color-indigo-400: #8a82eb;
-  --color-indigo-500: #6a63e8;
-  --color-indigo-600: #5044e3;
-  --color-indigo-700: #4035c8;
-  --color-indigo-800: #3328af;
-  --color-indigo-900: #271f8a;
-  --color-indigo-950: #1a1563;
+  /* Primary: Brand Red — 로그인 이미지(함께 만드는 수업)의 빨강 #D1260F 기준 */
+  --color-red-50: #FFF1ED;
+  --color-red-100: #FDE4DD;
+  --color-red-200: #FAC7B9;
+  --color-red-300: #F5A08A;
+  --color-red-400: #EC6A50;
+  --color-red-500: #E0401F;
+  --color-red-600: #D1260F;
+  --color-red-700: #A81A08;
+  --color-red-800: #861606;
+  --color-red-900: #6B1405;
+  --color-red-950: #3D0801;
 
-  /* Secondary: Brand Teal/Mint */
-  --color-teal-50: #eaf9f8;
-  --color-teal-100: #d5f5f2;
-  --color-teal-200: #abe9e3;
-  --color-teal-300: #6ecfc4;
-  --color-teal-400: #44c4b8;
-  --color-teal-500: #35afa3;
-  --color-teal-600: #27968b;
-  --color-teal-700: #1d7870;
-  --color-teal-800: #145754;
-  --color-teal-900: #0c3836;
-  --color-teal-950: #072524;
+  /* Secondary: Brand Coral — 같은 이미지의 코랄 #F0603C 기준 */
+  --color-orange-50: #FFF4EF;
+  --color-orange-100: #FFE6DC;
+  --color-orange-200: #FFCBB8;
+  --color-orange-300: #FBA588;
+  --color-orange-400: #F0603C;
+  --color-orange-500: #E54E28;
+  --color-orange-600: #C83E1B;
+  --color-orange-700: #A23116;
+  --color-orange-800: #7F2814;
+  --color-orange-900: #662212;
+  --color-orange-950: #380F07;
 }
 
 @theme inline {

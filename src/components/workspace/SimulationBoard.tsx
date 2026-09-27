@@ -63,7 +63,7 @@ function BulletEditor({
     <ul className="space-y-1">
       {items.map((item, i) => (
         <li key={i} className="flex items-start gap-1.5">
-          <span className="pt-[7px] text-[13px] font-bold leading-none text-[#5044e3]">•</span>
+          <span className="pt-[7px] text-[13px] font-bold leading-none text-[#D1260F]">•</span>
           <textarea
             ref={(el) => {
               refs.current[i] = el;
@@ -102,7 +102,7 @@ function PencilButton({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title="수정"
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] transition hover:bg-[#ede9fb] hover:text-[#5044e3]"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] transition hover:bg-[#FDE4DD] hover:text-[#D1260F]"
     >
       <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -133,7 +133,7 @@ function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () =>
       </button>
       <button
         onClick={onSave}
-        className="rounded-md bg-[#5044e3] px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-[#4035c8]"
+        className="rounded-md bg-[#D1260F] px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-[#A81A08]"
       >
         수정
       </button>
@@ -244,7 +244,7 @@ export default function SimulationBoard({
 
   // 차시 카드의 학습목표·성취기준·지도내용 칸 — 모두 같은 흰 박스, 편집 중이면 테두리 강조
   const sectionCls = (editing: boolean) =>
-    `rounded-lg px-3 py-2 ${editing ? 'bg-white ring-2 ring-[#5044e3]/30' : 'bg-white/80'}`;
+    `rounded-lg px-3 py-2 ${editing ? 'bg-white ring-2 ring-[#D1260F]/30' : 'bg-white/80'}`;
   // 편집 중 Esc 는 취소 (한 줄 입력칸에서는 Enter 로 수정)
   const editKeys = (e: React.KeyboardEvent) => {
     if (!edit || e.nativeEvent.isComposing) return;
@@ -260,7 +260,7 @@ export default function SimulationBoard({
           <button
             onClick={runSimulate}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg bg-[#5044e3] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[#4035c8] disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-lg bg-[#D1260F] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[#A81A08] disabled:opacity-60"
           >
             {loading ? (
               <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -299,7 +299,7 @@ export default function SimulationBoard({
           const badge = getSubjectBadge(s.subject.split(/[·,/]/)[0]?.trim() ?? '');
           const marker =
             dragId && over?.idx === idx && dragId !== s.id
-              ? over.after ? 'shadow-[4px_0_0_0_#5044e3]' : 'shadow-[-4px_0_0_0_#5044e3]'
+              ? over.after ? 'shadow-[4px_0_0_0_#D1260F]' : 'shadow-[-4px_0_0_0_#D1260F]'
               : '';
           return (
             <div
@@ -324,7 +324,7 @@ export default function SimulationBoard({
                 borderColor: dragId === s.id ? undefined : `color-mix(in srgb, ${badge.bg} 90%, white)`,
               } : undefined}
               className={`flex min-w-0 flex-col rounded-xl border bg-white p-4 transition ${marker} ${
-                dragId === s.id ? 'border-[#5044e3] opacity-40' : 'border-[#e6e9f2]'
+                dragId === s.id ? 'border-[#D1260F] opacity-40' : 'border-[#e6e9f2]'
               }`}
             >
               {/* 헤더: 손잡이 · "N차시 과목 : 수업 타이틀" · 연필 · 삭제 */}
@@ -335,7 +335,7 @@ export default function SimulationBoard({
                       title="끌어서 순서 바꾸기"
                       onMouseDown={() => setArmedId(s.id)}
                       onMouseUp={() => { if (!dragId) setArmedId(null); }}
-                      className="-ml-1 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-[#adb2ba] hover:bg-[#f1f4f9] hover:text-[#5044e3] active:cursor-grabbing"
+                      className="-ml-1 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-[#adb2ba] hover:bg-[#f1f4f9] hover:text-[#D1260F] active:cursor-grabbing"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                         <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
@@ -345,7 +345,7 @@ export default function SimulationBoard({
                     </span>
                   )}
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
-                    <span className="shrink-0 rounded-md bg-[#5044e3] px-2 py-0.5 text-[12px] font-bold text-white">
+                    <span className="shrink-0 rounded-md bg-[#D1260F] px-2 py-0.5 text-[12px] font-bold text-white">
                       {idx + 1}차시
                     </span>
                     {edit && isEditing(s.id, 'head') ? (
@@ -356,14 +356,14 @@ export default function SimulationBoard({
                           onChange={(e) => setDraft('subject', e.target.value)}
                           placeholder="과목"
                           size={Math.max(2, (edit.draft.subject ?? '').length + 1)}
-                          className="shrink-0 rounded-md bg-white px-2 py-0.5 text-center text-[12.5px] font-semibold text-[#2d3339] placeholder-[#adb2ba] outline-none ring-1 ring-[#dde3eb] focus:ring-2 focus:ring-[#5044e3]/30"
+                          className="shrink-0 rounded-md bg-white px-2 py-0.5 text-center text-[12.5px] font-semibold text-[#2d3339] placeholder-[#adb2ba] outline-none ring-1 ring-[#dde3eb] focus:ring-2 focus:ring-[#D1260F]/30"
                         />
                         <span className="shrink-0 font-bold text-[#adb2ba]">:</span>
                         <input
                           value={edit.draft.title ?? ''}
                           onChange={(e) => setDraft('title', e.target.value)}
                           placeholder="수업 타이틀"
-                          className="min-w-[120px] flex-1 rounded-md bg-white px-2 py-0.5 text-[15px] font-bold text-[#2d3339] placeholder-[#adb2ba] outline-none ring-1 ring-[#dde3eb] focus:ring-2 focus:ring-[#5044e3]/30"
+                          className="min-w-[120px] flex-1 rounded-md bg-white px-2 py-0.5 text-[15px] font-bold text-[#2d3339] placeholder-[#adb2ba] outline-none ring-1 ring-[#dde3eb] focus:ring-2 focus:ring-[#D1260F]/30"
                         />
                       </>
                     ) : (
@@ -460,7 +460,7 @@ export default function SimulationBoard({
                     <ul className="space-y-1">
                       {contentBullets(s.content).filter((l) => l.trim()).map((l, i) => (
                         <li key={i} className="flex items-start gap-1.5 text-[13.5px] leading-relaxed text-[#2d3339]">
-                          <span className="font-bold text-[#5044e3]">•</span>
+                          <span className="font-bold text-[#D1260F]">•</span>
                           <span className="min-w-0">{l}</span>
                         </li>
                       ))}
@@ -478,7 +478,7 @@ export default function SimulationBoard({
         {!locked && (
           <button
             onClick={add}
-            className="flex min-h-[120px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#c9cfe0] text-[13px] font-medium text-[#5044e3] transition-colors hover:bg-[#ede9fb]"
+            className="flex min-h-[120px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#c9cfe0] text-[13px] font-medium text-[#D1260F] transition-colors hover:bg-[#FDE4DD]"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -492,12 +492,12 @@ export default function SimulationBoard({
       {!locked && onApplyToDesign && (
         <div className="mt-4 flex items-center justify-end gap-3">
           {applyMsg && (
-            <span className={`text-[13px] ${applyMsg.ok ? 'text-teal-600' : 'text-red-500'}`}>{applyMsg.text}</span>
+            <span className={`text-[13px] ${applyMsg.ok ? 'text-orange-600' : 'text-red-500'}`}>{applyMsg.text}</span>
           )}
           <button
             onClick={runApply}
             disabled={applying || sessions.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-[#5044e3] bg-white px-4 py-2 text-[13px] font-semibold text-[#5044e3] transition-colors hover:bg-[#f4f2ff] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-[#D1260F] bg-white px-4 py-2 text-[13px] font-semibold text-[#D1260F] transition-colors hover:bg-[#FFF1ED] disabled:opacity-50"
           >
             {applying ? (
               <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">

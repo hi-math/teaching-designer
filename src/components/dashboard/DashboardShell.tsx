@@ -42,7 +42,7 @@ export default function DashboardShell({ profile }: { profile: UserProfile }) {
 
       {/* ── 푸터 ── */}
       <footer className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-white px-8 py-3 text-[12px]" style={{ color: "#9ca3af" }}>
-        <span className="font-semibold" style={{ color: "#5044e3" }}>Minerva</span>
+        <span className="font-semibold" style={{ color: "#D1260F" }}>Minerva</span>
         <span>2026 서울특별시교육청</span>
       </footer>
     </div>

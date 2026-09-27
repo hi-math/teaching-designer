@@ -60,7 +60,7 @@ export default function LoginForm() {
       <main className="flex flex-1 items-center justify-center px-6 py-8">
         <div
           className="flex w-full max-w-[960px] overflow-hidden rounded-2xl bg-white"
-          style={{ boxShadow: "0 4px 48px rgba(80,68,227,0.10), 0 1px 8px rgba(0,0,0,0.06)" }}
+          style={{ boxShadow: "0 4px 48px rgba(209,38,15,0.10), 0 1px 8px rgba(0,0,0,0.06)" }}
         >
 
           {/* ── 왼쪽: 메인 이미지 ── */}
@@ -71,7 +71,7 @@ export default function LoginForm() {
             {/* 상단 인디고 바 */}
             <div
               className="h-11 w-full shrink-0"
-              style={{ background: "linear-gradient(to right, #5044e3, #44c4b8)" }}
+              style={{ background: "linear-gradient(to right, #D1260F, #F0603C)" }}
             />
             {/* "함께 만드는 수업, 서로 깊어지는 배움" — 원이 잘리지 않도록 잘라 채우지 않고 통째로 담는다 */}
             <div className="flex flex-1 items-center justify-center p-12">
@@ -117,7 +117,7 @@ export default function LoginForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
                     required
-                    className="w-full rounded-lg border py-3 pl-10 pr-4 text-[14px] text-[#111827] placeholder-[#c4c9d4] outline-none transition focus:border-[#5044e3] focus:ring-2 focus:ring-[#5044e3]/15"
+                    className="w-full rounded-lg border py-3 pl-10 pr-4 text-[14px] text-[#111827] placeholder-[#c4c9d4] outline-none transition focus:border-[#D1260F] focus:ring-2 focus:ring-[#D1260F]/15"
                     style={{ borderColor: "#e5e7eb" }}
                   />
                 </div>
@@ -129,7 +129,7 @@ export default function LoginForm() {
                   <label htmlFor="password" className="text-[13px] font-medium" style={{ color: "#374151" }}>
                     비밀번호
                   </label>
-                  <a href="#" className="text-[12px] font-medium transition hover:opacity-80" style={{ color: "#5044e3" }}>
+                  <a href="#" className="text-[12px] font-medium transition hover:opacity-80" style={{ color: "#D1260F" }}>
                     비밀번호 찾기
                   </a>
                 </div>
@@ -149,7 +149,7 @@ export default function LoginForm() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full rounded-lg border py-3 pl-10 pr-11 text-[14px] text-[#111827] placeholder-[#c4c9d4] outline-none transition focus:border-[#5044e3] focus:ring-2 focus:ring-[#5044e3]/15"
+                    className="w-full rounded-lg border py-3 pl-10 pr-11 text-[14px] text-[#111827] placeholder-[#c4c9d4] outline-none transition focus:border-[#D1260F] focus:ring-2 focus:ring-[#D1260F]/15"
                     style={{ borderColor: "#e5e7eb" }}
                   />
                   <button
@@ -157,7 +157,7 @@ export default function LoginForm() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition"
                     style={{ color: "#9ca3af" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#5044e3")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#D1260F")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
                   >
                     {showPassword ? (
@@ -177,7 +177,7 @@ export default function LoginForm() {
 
               {/* 로그인 상태 유지 */}
               <label className="flex cursor-pointer items-center gap-2.5">
-                <input type="checkbox" className="h-4 w-4 rounded accent-[#5044e3]" />
+                <input type="checkbox" className="h-4 w-4 rounded accent-[#D1260F]" />
                 <span className="text-[13px]" style={{ color: "#6b7280" }}>30일간 로그인 상태 유지</span>
               </label>
 
@@ -197,7 +197,7 @@ export default function LoginForm() {
                 type="submit"
                 disabled={loading}
                 className="flex w-full items-center justify-center gap-2 rounded-lg py-3 text-[14px] font-semibold text-white transition hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
-                style={{ backgroundColor: "#5044e3" }}
+                style={{ backgroundColor: "#D1260F" }}
               >
                 {loading ? (
                   <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -242,7 +242,7 @@ export default function LoginForm() {
               <a
                 href={inviteToken ? `/signup?invite=${inviteToken}` : "/signup"}
                 className="font-semibold transition hover:opacity-80"
-                style={{ color: "#5044e3" }}
+                style={{ color: "#D1260F" }}
               >
                 회원가입
               </a>
@@ -253,7 +253,7 @@ export default function LoginForm() {
 
       {/* ── 푸터 ── */}
       <footer className="flex items-center justify-between px-8 py-4 text-[12px]" style={{ color: "#9ca3af" }}>
-        <span style={{ color: "#5044e3", fontWeight: 600 }}>Minerva</span>
+        <span style={{ color: "#D1260F", fontWeight: 600 }}>Minerva</span>
         <span>2026 서울특별시교육청</span>
       </footer>
     </div>

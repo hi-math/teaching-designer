@@ -78,19 +78,19 @@ export default function SignupForm() {
         <div className="w-full max-w-md text-center">
           <div className="mx-auto mb-4 text-2xl font-bold text-gray-900">LOGO</div>
           <div className="rounded-2xl bg-white px-8 py-10 shadow-sm ring-1 ring-gray-200">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50">
-              <svg className="h-7 w-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
+              <svg className="h-7 w-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
             <h2 className="mb-2 text-xl font-bold text-gray-900">이메일을 확인해주세요</h2>
             <p className="mb-1 text-sm text-gray-600">
-              <span className="font-semibold text-indigo-600">{form.email}</span> 으로
+              <span className="font-semibold text-red-600">{form.email}</span> 으로
             </p>
             <p className="mb-6 text-sm text-gray-600">인증 링크를 보냈습니다. 링크를 클릭하면 로그인됩니다.</p>
             <a
               href="/"
-              className="inline-block w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              className="inline-block w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500"
             >
               로그인 페이지로 이동
             </a>
@@ -127,7 +127,7 @@ export default function SignupForm() {
                 onChange={handleChange}
                 placeholder="홍길동"
                 required
-                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
               />
             </div>
 
@@ -144,7 +144,7 @@ export default function SignupForm() {
                 onChange={handleChange}
                 placeholder="OO중학교 / OO고등학교"
                 required
-                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
               />
             </div>
 
@@ -161,7 +161,7 @@ export default function SignupForm() {
                 onChange={handleChange}
                 placeholder="수학 / 영어 / 과학 등"
                 required
-                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
               />
             </div>
 
@@ -179,7 +179,7 @@ export default function SignupForm() {
                   onChange={handleChange}
                   placeholder="••••••••"
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 pr-10 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 pr-10 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
                 />
                 <button
                   type="button"
@@ -213,7 +213,7 @@ export default function SignupForm() {
                 onChange={handleChange}
                 placeholder="name@example.com"
                 required
-                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
               />
             </div>
 
@@ -228,7 +228,7 @@ export default function SignupForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? "가입 중..." : "회원가입"}
             </button>
@@ -238,7 +238,7 @@ export default function SignupForm() {
         {/* 로그인 링크 */}
         <p className="mt-6 text-center text-sm text-gray-500">
           이미 계정이 있으신가요?{" "}
-          <a href="/" className="font-medium text-indigo-600 hover:text-indigo-500">
+          <a href="/" className="font-medium text-red-600 hover:text-red-500">
             로그인
           </a>
         </p>

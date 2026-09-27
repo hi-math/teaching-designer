@@ -5,8 +5,8 @@ export const APP_SIDEBAR_BG = "#FFFFFF";
 
 export function getAppShellHeaderSurface(): CSSProperties {
   return {
-    backgroundColor: "#5044e3",
-    borderBottom: "1px solid #4035c8",
-    boxShadow: "0 2px 10px 0 rgba(80,68,227,0.25)",
+    backgroundColor: "#D1260F",
+    borderBottom: "1px solid #A81A08",
+    boxShadow: "0 2px 10px 0 rgba(209,38,15,0.25)",
   };
 }

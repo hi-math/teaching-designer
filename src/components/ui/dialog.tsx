@@ -58,7 +58,7 @@ function DialogView({
         {/* title 을 빈 문자열로 주면 제목 줄 없이 본문만 보인다 */}
         {title && (
           <div className="mb-2 flex items-center gap-2">
-            <svg className="h-5 w-5 shrink-0 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5 shrink-0 text-[#D1260F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <h3 className="text-[15px] font-semibold text-gray-900">{title}</h3>
@@ -77,7 +77,7 @@ function DialogView({
           <button
             ref={confirmRef}
             onClick={() => onClose(true)}
-            className="flex-1 rounded-lg bg-[#5044e3] py-2 text-[13px] font-semibold text-white transition hover:bg-[#4035c8] focus:outline-none focus:ring-2 focus:ring-[#5044e3]/30"
+            className="flex-1 rounded-lg bg-[#D1260F] py-2 text-[13px] font-semibold text-white transition hover:bg-[#A81A08] focus:outline-none focus:ring-2 focus:ring-[#D1260F]/30"
           >
             {confirmText}
           </button>

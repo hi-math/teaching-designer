@@ -127,10 +127,10 @@ export default function ProfilePanel({
               <img
                 src={displayAvatar}
                 alt="프로필 사진"
-                className="h-16 w-16 rounded-full object-cover ring-2 ring-indigo-100"
+                className="h-16 w-16 rounded-full object-cover ring-2 ring-red-100"
               />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 text-2xl font-bold text-indigo-600">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-2xl font-bold text-red-600">
                 {initials}
               </div>
             )}
@@ -165,7 +165,7 @@ export default function ProfilePanel({
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="이름을 입력하세요"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
           <div>
@@ -174,7 +174,7 @@ export default function ProfilePanel({
               value={school}
               onChange={(e) => setSchool(e.target.value)}
               placeholder="학교명을 입력하세요"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
           <div>
@@ -183,7 +183,7 @@ export default function ProfilePanel({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="예) 수학, 과학"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function ProfilePanel({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
+            className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>

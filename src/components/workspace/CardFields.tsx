@@ -64,14 +64,14 @@ function BulletsInput({
     <div className="space-y-1.5" onClick={e => e.stopPropagation()}>
       {items.map((item, idx) => (
         <div key={idx} className="flex items-center gap-2">
-          <span className="shrink-0 text-[15px] font-bold text-[#5044e3]">•</span>
+          <span className="shrink-0 text-[15px] font-bold text-[#D1260F]">•</span>
           <input
             type="text"
             value={item}
             onChange={e => update(idx, e.target.value)}
             disabled={locked}
             placeholder={`항목 ${idx + 1}`}
-            className="flex-1 rounded-lg bg-[#f1f4f9] px-3 py-2 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-50"
+            className="flex-1 rounded-lg bg-[#f1f4f9] px-3 py-2 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20 disabled:opacity-50"
           />
           {!locked && items.length > 1 && (
             <button
@@ -88,7 +88,7 @@ function BulletsInput({
       {!locked && (
         <button
           onClick={addRow}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#5044e3] hover:bg-[#ede9fb] transition-colors"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#D1260F] hover:bg-[#FDE4DD] transition-colors"
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -148,7 +148,7 @@ function TableCell({
   dynamicOptions?: string[];
 }) {
   const base =
-    `w-full bg-transparent px-3 py-2 text-[13px] text-[#2d3339] outline-none focus:bg-[#f8f9ff] disabled:opacity-50 ${
+    `w-full bg-transparent px-3 py-2 text-[13px] text-[#2d3339] outline-none focus:bg-[#FFF8F6] disabled:opacity-50 ${
       col.align === 'center' ? 'text-center' : ''
     }`;
 
@@ -314,7 +314,7 @@ function TableInput({
         {rows.map((row, rowIdx) => (
           <div
             key={rowIdx}
-            className="border-b last:border-b-0 border-[#e2e4ea] hover:bg-[#fafbff]"
+            className="border-b last:border-b-0 border-[#e2e4ea] hover:bg-[#FFFAF8]"
             style={{ display: 'grid', gridTemplateColumns: gridTemplate }}
           >
             {field.columns.map((col) => (
@@ -348,7 +348,7 @@ function TableInput({
       {!locked && !field.noAddRow && (
         <button
           onClick={addRow}
-          className="mt-1.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#5044e3] hover:bg-[#ede9fb] transition-colors"
+          className="mt-1.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#D1260F] hover:bg-[#FDE4DD] transition-colors"
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -406,13 +406,13 @@ function FieldRenderer({
     return (
       <div onClick={e => e.stopPropagation()}>
         {labelEl}
-        <div className="rounded-xl border border-[#c4bef5] bg-[#f4f2ff] overflow-hidden">
+        <div className="rounded-xl border border-[#F5B8A8] bg-[#FFF1ED] overflow-hidden">
           <AutoResizeTextarea
             value={typeof value === 'string' ? value : ''}
             onChange={onChange as (v: string) => void}
             disabled={locked}
             placeholder="핵심 결과물을 입력하세요…"
-            className="w-full bg-transparent px-4 py-3 text-[15px] font-semibold text-[#2d3339] placeholder-[#c4bef5] outline-none disabled:opacity-50"
+            className="w-full bg-transparent px-4 py-3 text-[15px] font-semibold text-[#2d3339] placeholder-[#F5B8A8] outline-none disabled:opacity-50"
           />
         </div>
       </div>
@@ -428,7 +428,7 @@ function FieldRenderer({
           onChange={onChange as (v: string) => void}
           disabled={locked}
           placeholder={field.placeholder ?? '내용을 입력하세요…'}
-          className="w-full min-h-[72px] rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-50"
+          className="w-full min-h-[72px] rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20 disabled:opacity-50"
         />
       </div>
     );
@@ -444,7 +444,7 @@ function FieldRenderer({
         onChange={e => (onChange as (v: string) => void)(e.target.value)}
         disabled={locked}
         placeholder={field.placeholder ?? '내용을 입력하세요…'}
-        className="w-full rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-50"
+        className="w-full rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20 disabled:opacity-50"
       />
     </div>
   );

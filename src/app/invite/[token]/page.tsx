@@ -67,7 +67,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
         {/* 로고 */}
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#5044e3] to-[#44c4b8] text-white font-bold text-lg">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#D1260F] to-[#F0603C] text-white font-bold text-lg">
             M
           </div>
           <span className="text-[18px] font-bold text-[#2d3339]">Minerva</span>
@@ -87,7 +87,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
           <>
             <h1 className="mb-2 text-[22px] font-bold text-[#2d3339]">프로젝트에 초대되었습니다</h1>
             <p className="mb-6 text-[15px] text-[#757b82]">
-              <span className="font-semibold text-[#5044e3]">"{info.lessonTitle}"</span> 프로젝트에 참여자로 참여합니다.
+              <span className="font-semibold text-[#D1260F]">"{info.lessonTitle}"</span> 프로젝트에 참여자로 참여합니다.
             </p>
             {info.emailRequired && (
               <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-[13px] text-amber-700">
@@ -96,7 +96,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             )}
             <button
               onClick={accept}
-              className="w-full rounded-xl bg-[#5044e3] py-3 text-[15px] font-semibold text-white transition hover:bg-[#4035c8]"
+              className="w-full rounded-xl bg-[#D1260F] py-3 text-[15px] font-semibold text-white transition hover:bg-[#A81A08]"
             >
               참여하기
             </button>

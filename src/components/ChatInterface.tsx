@@ -384,7 +384,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#5044e3] to-[#44c4b8] text-xs font-bold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#D1260F] to-[#F0603C] text-xs font-bold text-white">
               M
             </div>
             <p className="text-sm font-semibold text-[#2d3339]">Minerva AI</p>
@@ -425,8 +425,8 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
                     }}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition ${
                       apply.state === 'applied'
-                        ? 'border-teal-200 bg-teal-50 text-teal-700'
-                        : 'border-[#5044e3] bg-white text-[#5044e3] hover:bg-[#f4f2ff] disabled:opacity-60'
+                        ? 'border-orange-200 bg-orange-50 text-orange-700'
+                        : 'border-[#D1260F] bg-white text-[#D1260F] hover:bg-[#FFF1ED] disabled:opacity-60'
                     }`}
                   >
                     {apply.state === 'applied' ? (
@@ -464,7 +464,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
             placeholder="메시지를 입력하세요..."
             rows={1}
             disabled={isStreaming}
-            className="w-full resize-none rounded-2xl bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none disabled:opacity-50 min-h-[48px] focus:ring-2 focus:ring-[#5044e3]/20"
+            className="w-full resize-none rounded-2xl bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none disabled:opacity-50 min-h-[48px] focus:ring-2 focus:ring-[#D1260F]/20"
           />
           {isStreaming && (
             <button
@@ -480,7 +480,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
           {!isStreaming && input.trim() && (
             <button
               onClick={() => sendMessage(input)}
-              className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5044e3] to-[#44c4b8] text-white transition hover:opacity-90"
+              className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#D1260F] to-[#F0603C] text-white transition hover:opacity-90"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

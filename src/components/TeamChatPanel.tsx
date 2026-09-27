@@ -518,7 +518,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
               <div
                 id={`msg-${msg.id}`}
                 key={msg.id}
-                className={`${isFirst ? 'mt-3' : 'mt-0.5'} rounded-xl transition-colors duration-300 ${isHighlighted ? 'bg-indigo-50' : ''}`}
+                className={`${isFirst ? 'mt-3' : 'mt-0.5'} rounded-xl transition-colors duration-300 ${isHighlighted ? 'bg-red-50' : ''}`}
                 onMouseEnter={() => setHoveredId(msg.id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
@@ -567,13 +567,13 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
                     {msg.replyTo && (
                       <button
                         onClick={(e) => { e.stopPropagation(); scrollToMessage(msg.replyTo!.id); }}
-                        className="mb-1 w-full text-left rounded-xl rounded-tr-sm bg-[#ede9fb] border-l-[3px] border-[#5044e3] px-3 py-1.5 hover:bg-[#e4dff8] transition-colors cursor-pointer"
+                        className="mb-1 w-full text-left rounded-xl rounded-tr-sm bg-[#FDE4DD] border-l-[3px] border-[#D1260F] px-3 py-1.5 hover:bg-[#e4dff8] transition-colors cursor-pointer"
                       >
-                        <p className="text-[12px] font-semibold text-[#5044e3]">{msg.replyTo.senderName}의 메시지</p>
+                        <p className="text-[12px] font-semibold text-[#D1260F]">{msg.replyTo.senderName}의 메시지</p>
                         <p className="text-[13px] text-[#7c72d6] truncate">{msg.replyTo.content}</p>
                       </button>
                     )}
-                    <div className="rounded-2xl rounded-tr-sm bg-[#5044e3] px-4 py-2.5 text-[16px] leading-relaxed text-white">
+                    <div className="rounded-2xl rounded-tr-sm bg-[#D1260F] px-4 py-2.5 text-[16px] leading-relaxed text-white">
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
                     {hasReactions && (
@@ -600,7 +600,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
             <div
               id={`msg-${msg.id}`}
               key={msg.id}
-              className={`${isFirst ? 'mt-3' : 'mt-0.5'} rounded-xl transition-colors duration-300 ${isHighlighted ? 'bg-indigo-50' : ''}`}
+              className={`${isFirst ? 'mt-3' : 'mt-0.5'} rounded-xl transition-colors duration-300 ${isHighlighted ? 'bg-red-50' : ''}`}
               onMouseEnter={() => setHoveredId(msg.id)}
               onMouseLeave={() => setHoveredId(null)}
             >
@@ -702,8 +702,8 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
       {/* 답장 미리보기 */}
       {replyTo && (
         <div className="shrink-0 bg-white px-4 pt-2 pb-0 flex items-center gap-2">
-          <div className="flex-1 min-w-0 rounded-xl bg-[#f0f2ff] border-l-[3px] border-[#5044e3] px-3 py-1.5">
-            <p className="text-[13px] font-semibold text-[#5044e3]">{replyTo.senderName}에게 답장</p>
+          <div className="flex-1 min-w-0 rounded-xl bg-[#f0f2ff] border-l-[3px] border-[#D1260F] px-3 py-1.5">
+            <p className="text-[13px] font-semibold text-[#D1260F]">{replyTo.senderName}에게 답장</p>
             <p className="text-[13px] text-[#7c72d6] truncate">{replyTo.content}</p>
           </div>
           <button
@@ -727,7 +727,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
             className={`shrink-0 flex h-10 w-10 items-center justify-center rounded-full transition-all ${
               isRecording
                 ? 'bg-red-100 text-red-500 shadow-md shadow-red-100 animate-pulse'
-                : 'bg-[#f1f4f9] text-[#5a6066] hover:bg-[#e5e9f0] hover:text-[#5044e3]'
+                : 'bg-[#f1f4f9] text-[#5a6066] hover:bg-[#e5e9f0] hover:text-[#D1260F]'
             }`}
           >
             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -743,13 +743,13 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
               onKeyDown={handleKeyDown}
               placeholder={isRecording ? '🎙️ 음성 인식 중...' : '메시지를 입력하세요...'}
               rows={1}
-              className="w-full resize-none rounded-2xl bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none min-h-[48px] focus:ring-2 focus:ring-[#5044e3]/20"
+              className="w-full resize-none rounded-2xl bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none min-h-[48px] focus:ring-2 focus:ring-[#D1260F]/20"
             />
             {input.trim() && (
               <button
                 onClick={sendMessage}
                 disabled={sending}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5044e3] to-[#4335d6] text-white transition hover:opacity-90 disabled:opacity-50"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#D1260F] to-[#4335d6] text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

@@ -203,7 +203,7 @@ function VersionModal({
                 <h3 className="text-[15px] font-semibold text-gray-900">버전 복원</h3>
               </div>
               <p className="mb-1 text-[13px] text-[#5a6066]">
-                <span className="font-semibold text-[#5044e3]">v{confirmSnap.version_num}</span> 으로 복원합니다.
+                <span className="font-semibold text-[#D1260F]">v{confirmSnap.version_num}</span> 으로 복원합니다.
               </p>
               <p className="mb-5 text-[13px] text-amber-600">입력 내용이 삭제될 수 있습니다.</p>
               <div className="flex gap-2">
@@ -219,7 +219,7 @@ function VersionModal({
                     await handleRestore(confirmSnap);
                     setConfirmSnap(null);
                   }}
-                  className="flex-1 rounded-lg bg-[#5044e3] py-2 text-[13px] font-semibold text-white transition hover:bg-[#4035c8] disabled:opacity-40"
+                  className="flex-1 rounded-lg bg-[#D1260F] py-2 text-[13px] font-semibold text-white transition hover:bg-[#A81A08] disabled:opacity-40"
                 >
                   {restoring ? "복원 중…" : "복원"}
                 </button>
@@ -231,7 +231,7 @@ function VersionModal({
         {/* 헤더 */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 text-[#D1260F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <h2 className="text-[17px] font-semibold text-gray-900">버전 관리</h2>
@@ -260,28 +260,28 @@ function VersionModal({
           ) : (
             <div className="space-y-1.5">
               {snapshots.map((snap, idx) => (
-                <div key={snap.id} className="rounded-xl border border-[#eef0f6] bg-[#fafbff] overflow-hidden">
+                <div key={snap.id} className="rounded-xl border border-[#eef0f6] bg-[#FFFAF8] overflow-hidden">
                   {/* 버전 행 */}
                   <div
-                    className="flex cursor-pointer items-center justify-between px-4 py-3 transition hover:bg-[#f3f4fc]"
+                    className="flex cursor-pointer items-center justify-between px-4 py-3 transition hover:bg-[#FFF3EF]"
                     onClick={() => handleExpand(snap)}
                   >
                     <div className="flex items-center gap-3">
                       {/* 깃 커밋 dot */}
                       <div className="relative flex flex-col items-center">
-                        <div className="h-3 w-3 rounded-full border-2 border-[#5044e3] bg-white" />
+                        <div className="h-3 w-3 rounded-full border-2 border-[#D1260F] bg-white" />
                         {idx < snapshots.length - 1 && (
                           <div className="absolute top-3 h-full w-px bg-[#dde3eb]" style={{ top: "12px", height: "calc(100% + 6px)" }} />
                         )}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-[13px] font-bold text-[#5044e3]">v{snap.version_num}</span>
+                          <span className="font-mono text-[13px] font-bold text-[#D1260F]">v{snap.version_num}</span>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                               snap.trigger === "session_end"
                                 ? "bg-amber-50 text-amber-600"
-                                : "bg-indigo-50 text-indigo-500"
+                                : "bg-red-50 text-red-500"
                             }`}
                           >
                             {snap.trigger === "session_end" ? "세션 종료" : "자동 저장"}
@@ -293,7 +293,7 @@ function VersionModal({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); setConfirmSnap(snap); }}
-                        className="rounded-lg border border-[#dde3eb] bg-white px-3 py-1 text-[12px] font-medium text-[#5a6066] transition hover:border-[#5044e3] hover:text-[#5044e3]"
+                        className="rounded-lg border border-[#dde3eb] bg-white px-3 py-1 text-[12px] font-medium text-[#5a6066] transition hover:border-[#D1260F] hover:text-[#D1260F]"
                       >
                         복원
                       </button>
@@ -319,7 +319,7 @@ function VersionModal({
                             .filter(([, c]) => c.text?.trim())
                             .map(([code, c]) => (
                               <div key={code}>
-                                <span className="font-mono text-[11px] font-bold text-[#5044e3]">{code}</span>
+                                <span className="font-mono text-[11px] font-bold text-[#D1260F]">{code}</span>
                                 <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-[#5a6066]">{c.text}</p>
                               </div>
                             ))}
@@ -446,7 +446,7 @@ function LessonInfoModal({
       prev.includes(s) ? prev.filter((v) => v !== s) : [...prev, s]
     );
 
-  const fieldCls = `w-full rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 ${readOnly ? "cursor-default" : ""}`;
+  const fieldCls = `w-full rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20 ${readOnly ? "cursor-default" : ""}`;
   const labelCls = "mb-1.5 block text-[13px] font-semibold text-[#5a6066]";
   const rowCls = "flex items-center gap-4";
   const leftCls = "w-[120px] shrink-0 text-[14px] font-semibold text-[#5a6066]";
@@ -496,8 +496,8 @@ function LessonInfoModal({
                   disabled={readOnly}
                   className={`rounded-full px-5 py-2 text-[13px] font-medium transition ${
                     selectedGrades.includes(g)
-                      ? "bg-[#5044e3] text-white"
-                      : "bg-[#f1f4f9] text-[#757b82] hover:bg-[#e8eaf4] hover:text-[#5044e3]"
+                      ? "bg-[#D1260F] text-white"
+                      : "bg-[#f1f4f9] text-[#757b82] hover:bg-[#FBE3DC] hover:text-[#D1260F]"
                   } ${readOnly ? "cursor-default" : ""}`}
                 >
                   {g}
@@ -517,8 +517,8 @@ function LessonInfoModal({
                   disabled={readOnly}
                   className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition ${
                     selectedSubjects.includes(s)
-                      ? "bg-[#5044e3] text-white"
-                      : "bg-[#f1f4f9] text-[#757b82] hover:bg-[#e8eaf4] hover:text-[#5044e3]"
+                      ? "bg-[#D1260F] text-white"
+                      : "bg-[#f1f4f9] text-[#757b82] hover:bg-[#FBE3DC] hover:text-[#D1260F]"
                   } ${readOnly ? "cursor-default" : ""}`}
                 >
                   {s}
@@ -538,7 +538,7 @@ function LessonInfoModal({
                 onChange={(e) => !readOnly && setLocalTotalSessions(e.target.value)}
                 readOnly={readOnly}
                 placeholder="—"
-                className={`w-32 rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 ${readOnly ? "cursor-default" : ""}`}
+                className={`w-32 rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20 ${readOnly ? "cursor-default" : ""}`}
               />
               <span className="text-[14px] text-[#757b82]">차시</span>
             </div>
@@ -553,7 +553,7 @@ function LessonInfoModal({
                 value={createdDate}
                 onChange={(e) => !readOnly && setCreatedDate(e.target.value)}
                 readOnly={readOnly}
-                className={`rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] outline-none focus:ring-2 focus:ring-[#5044e3]/20 ${readOnly ? "cursor-default" : ""}`}
+                className={`rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] outline-none focus:ring-2 focus:ring-[#D1260F]/20 ${readOnly ? "cursor-default" : ""}`}
               />
             </div>
           </div>
@@ -563,7 +563,7 @@ function LessonInfoModal({
         {/* 푸터 */}
         <div className="flex shrink-0 items-center justify-end gap-2.5 border-t border-gray-100 px-8 py-5">
           {readOnly ? (
-            <button onClick={onClose} className="rounded-xl bg-[#5044e3] px-6 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#4035c8]">
+            <button onClick={onClose} className="rounded-xl bg-[#D1260F] px-6 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#A81A08]">
               닫기
             </button>
           ) : (
@@ -574,7 +574,7 @@ function LessonInfoModal({
               <button
                 onClick={handleConfirm}
                 disabled={saving}
-                className="rounded-xl bg-[#5044e3] px-6 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#4035c8] disabled:opacity-50"
+                className="rounded-xl bg-[#D1260F] px-6 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#A81A08] disabled:opacity-50"
               >
                 {saving ? "저장 중…" : "완료"}
               </button>
@@ -658,7 +658,7 @@ function PermissionsModal({
         {/* 헤더 */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 text-[#D1260F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
             <h2 className="text-[17px] font-semibold text-gray-900">권한 관리</h2>
@@ -685,7 +685,7 @@ function PermissionsModal({
               <button
                 type="button"
                 onClick={() => toggle(key)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${permissions[key] ? "bg-[#5044e3]" : "bg-gray-200"}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${permissions[key] ? "bg-[#D1260F]" : "bg-gray-200"}`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${permissions[key] ? "translate-x-6" : "translate-x-1"}`}
@@ -699,7 +699,7 @@ function PermissionsModal({
         <div className="border-t border-gray-100 px-6 py-4 flex justify-end">
           <button
             onClick={onClose}
-            className="rounded-lg bg-[#5044e3] px-5 py-2 text-[14px] font-semibold text-white transition hover:bg-[#4035c8]"
+            className="rounded-lg bg-[#D1260F] px-5 py-2 text-[14px] font-semibold text-white transition hover:bg-[#A81A08]"
           >
             확인
           </button>
@@ -736,8 +736,8 @@ function WorkNavButton({
           collapsed ? "justify-center px-2" : "gap-3 px-3"
         } ${
           active
-            ? "bg-[#5044e3]/10 font-semibold text-[#5044e3]"
-            : "text-[#757b82] hover:bg-[#5044e3]/5 hover:text-[#5044e3]"
+            ? "bg-[#D1260F]/10 font-semibold text-[#D1260F]"
+            : "text-[#757b82] hover:bg-[#D1260F]/5 hover:text-[#D1260F]"
         }`}
       >
         {icon}
@@ -1862,7 +1862,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
             </p>
             <button
               onClick={() => setOwnerOffline(false)}
-              className="w-full rounded-xl bg-[#5044e3] py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#4035c8]"
+              className="w-full rounded-xl bg-[#D1260F] py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#A81A08]"
             >
               계속 이용하기
             </button>
@@ -2094,7 +2094,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 }}
                 placeholder="팀원들에게 묻고 싶은 내용을 입력하세요…"
                 autoFocus
-                className="w-full min-h-[90px] resize-none rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20"
+                className="w-full min-h-[90px] resize-none rounded-xl bg-[#f1f4f9] px-4 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20"
               />
               <div className="mt-4 flex justify-end gap-2">
                 <button
@@ -2122,7 +2122,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                       setOpinionDraft("");
                     }
                   }}
-                  className="rounded-lg bg-[#5044e3] px-4 py-2 text-[14px] font-semibold text-white transition hover:bg-[#4035c8] disabled:opacity-40"
+                  className="rounded-lg bg-[#D1260F] px-4 py-2 text-[14px] font-semibold text-white transition hover:bg-[#A81A08] disabled:opacity-40"
                 >
                   질문 등록
                 </button>
@@ -2224,7 +2224,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 onClick={() => setNotifOpen(v => !v)}
                 className="flex items-center gap-2 rounded-lg px-3 py-1.5 transition hover:bg-white/15"
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-400 text-[11px] font-bold text-white">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-400 text-[11px] font-bold text-white">
                   {pendingOpinionsList.length}
                 </span>
                 <span className="text-[14px] font-semibold text-white whitespace-nowrap">
@@ -2251,9 +2251,9 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                           setSelectedActivityCode(actCode);
                           setNotifOpen(false);
                         }}
-                        className="flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-[#f8f9ff]"
+                        className="flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-[#FFF8F6]"
                       >
-                        <span className="mt-0.5 shrink-0 rounded-md bg-[#ede9fb] px-1.5 py-0.5 text-[11px] font-bold text-[#5044e3]">
+                        <span className="mt-0.5 shrink-0 rounded-md bg-[#FDE4DD] px-1.5 py-0.5 text-[11px] font-bold text-[#D1260F]">
                           {actCode}
                         </span>
                         <span className="text-[13px] leading-snug text-[#2d3339] line-clamp-2">{question}</span>
@@ -2471,7 +2471,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 <button
                   type="button"
                   onClick={handleOpenEdit}
-                  className="flex w-full items-center gap-2 rounded-full px-3 py-2 text-[15px] text-[#5a6066] transition-colors hover:bg-[#5044e3]/5 hover:text-[#5044e3]"
+                  className="flex w-full items-center gap-2 rounded-full px-3 py-2 text-[15px] text-[#5a6066] transition-colors hover:bg-[#D1260F]/5 hover:text-[#D1260F]"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -2496,7 +2496,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
             type="button"
             title={sidebarCollapsed ? (userProfile?.display_name ?? userProfile?.email ?? "프로필") : undefined}
             onClick={() => userProfile && setMenuOpen((v) => !v)}
-            className={`group flex w-full items-center rounded-full px-2 py-2 transition-colors hover:bg-[#5044e3]/5 ${
+            className={`group flex w-full items-center rounded-full px-2 py-2 transition-colors hover:bg-[#D1260F]/5 ${
               sidebarCollapsed ? "justify-center" : "gap-3"
             }`}
           >
@@ -2552,7 +2552,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                             }}
                             className={`relative flex w-40 items-center gap-2.5 rounded-full pl-2 pr-4 py-2 transition-all ${!isHost && !permissions.phaseNav ? "cursor-default" : ""}`}
                             style={{
-                              backgroundColor: status === 'active' ? '#5044e3' : '#f1f4f9',
+                              backgroundColor: status === 'active' ? '#D1260F' : '#f1f4f9',
                             }}
                             onMouseEnter={(e) => { if (status !== 'active' && (isHost || permissions.phaseNav)) e.currentTarget.style.backgroundColor = '#e8eaf0'; }}
                             onMouseLeave={(e) => { if (status !== 'active') e.currentTarget.style.backgroundColor = '#f1f4f9'; }}
@@ -2568,7 +2568,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                                 {idx + 1}
                               </span>
                               {phasesWithPendingOpinions.has(phase.code) && (
-                                <span className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full ring-[1.5px] ring-white" style={{ backgroundColor: "#44c4b8" }} />
+                                <span className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full ring-[1.5px] ring-white" style={{ backgroundColor: "#F0603C" }} />
                               )}
                             </span>
                             <span
@@ -2601,7 +2601,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 <div className="flex-1 overflow-y-auto bg-[#f8f9fd] px-14 pt-8 pb-10">
                   <div className="mb-8">
                     <div className="flex items-baseline gap-4">
-                      <span className="text-6xl font-black text-[#5044e3]/20 leading-none">{activePhaseData?.code}</span>
+                      <span className="text-6xl font-black text-[#D1260F]/20 leading-none">{activePhaseData?.code}</span>
                       <h2 className="text-3xl font-bold text-[#2d3339]">{activePhaseData?.label}</h2>
                     </div>
                     <p className="mt-2 text-[16px] leading-relaxed text-[#5a6066]">{activePhaseData?.description}</p>
@@ -2648,7 +2648,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 onClick={() => setRightTab("team")}
                 className={`flex-1 py-3.5 text-[15px] font-semibold transition-colors ${
                   rightTab === "team"
-                    ? "border-b-2 border-[#5044e3] text-[#2d3339]"
+                    ? "border-b-2 border-[#D1260F] text-[#2d3339]"
                     : "text-[#757b82] hover:text-[#2d3339]"
                 }`}
               >
@@ -2658,13 +2658,13 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 onClick={() => setRightTab("ai")}
                 className={`flex-1 py-3.5 text-[15px] font-semibold transition-colors inline-flex items-center justify-center gap-1.5 ${
                   rightTab === "ai"
-                    ? "border-b-2 border-[#5044e3] text-[#2d3339]"
+                    ? "border-b-2 border-[#D1260F] text-[#2d3339]"
                     : "text-[#757b82] hover:text-[#2d3339]"
                 }`}
               >
                 Minerva AI
                 {aiReady && (
-                  <span className="h-2 w-2 rounded-full bg-[#44c4b8] shrink-0" />
+                  <span className="h-2 w-2 rounded-full bg-[#F0603C] shrink-0" />
                 )}
               </button>
             </div>
@@ -2741,7 +2741,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
 
       {/* ── 푸터 ── */}
       <footer className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-white px-8 py-3 text-[12px]" style={{ color: "#9ca3af" }}>
-        <span className="font-semibold" style={{ color: "#5044e3" }}>Minerva</span>
+        <span className="font-semibold" style={{ color: "#D1260F" }}>Minerva</span>
         <span>2026 서울특별시교육청</span>
       </footer>
 

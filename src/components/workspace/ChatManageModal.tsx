@@ -117,7 +117,7 @@ export default function ChatManageModal({
   const current = LLM_MODELS.find((m) => m.id === model) ?? LLM_MODELS[0];
 
   const rowBtn =
-    "shrink-0 rounded-lg border border-[#dde3eb] bg-white px-3 py-1.5 text-[13px] font-medium text-[#5a6066] transition hover:border-[#5044e3] hover:text-[#5044e3] disabled:opacity-50";
+    "shrink-0 rounded-lg border border-[#dde3eb] bg-white px-3 py-1.5 text-[13px] font-medium text-[#5a6066] transition hover:border-[#D1260F] hover:text-[#D1260F] disabled:opacity-50";
 
   return (
     <div
@@ -128,7 +128,7 @@ export default function ChatManageModal({
         {/* 헤더 */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 text-[#D1260F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             <h2 className="text-[17px] font-semibold text-gray-900">채팅 관리</h2>
@@ -175,14 +175,14 @@ export default function ChatManageModal({
             <select
               value={model}
               onChange={(e) => onModelChange(e.target.value as LlmModelId)}
-              className="w-full cursor-pointer rounded-xl border border-[#dde3eb] bg-white px-4 py-2.5 text-[14px] text-[#2d3339] outline-none focus:border-[#5044e3] focus:ring-2 focus:ring-[#5044e3]/20"
+              className="w-full cursor-pointer rounded-xl border border-[#dde3eb] bg-white px-4 py-2.5 text-[14px] text-[#2d3339] outline-none focus:border-[#D1260F] focus:ring-2 focus:ring-[#D1260F]/20"
             >
               {LLM_MODELS.map((m) => (
                 <option key={m.id} value={m.id}>{m.label} — {m.feature}</option>
               ))}
             </select>
             <p className="mt-2 text-[12px] text-[#adb2ba]">
-              현재: <span className="font-semibold text-[#5044e3]">{current.label}</span> · {current.feature}
+              현재: <span className="font-semibold text-[#D1260F]">{current.label}</span> · {current.feature}
             </p>
           </div>
         </div>
@@ -191,7 +191,7 @@ export default function ChatManageModal({
         <div className="flex justify-end border-t border-gray-100 px-6 py-4">
           <button
             onClick={onClose}
-            className="rounded-lg bg-[#5044e3] px-5 py-2 text-[14px] font-semibold text-white transition hover:bg-[#4035c8]"
+            className="rounded-lg bg-[#D1260F] px-5 py-2 text-[14px] font-semibold text-white transition hover:bg-[#A81A08]"
           >
             확인
           </button>

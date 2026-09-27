@@ -25,7 +25,7 @@ function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp }: Pro
         <div className="flex max-w-[78%] flex-col items-end">
           <div className="flex items-end gap-1.5">
             {isLast && <span className="mb-0.5 shrink-0 text-xs text-[#adb2ba]">{timestamp}</span>}
-            <div className="rounded-xl rounded-br-sm bg-[#5044e3] px-4 py-3 text-[15px] leading-relaxed text-white">
+            <div className="rounded-xl rounded-br-sm bg-[#D1260F] px-4 py-3 text-[15px] leading-relaxed text-white">
               <p className="whitespace-pre-wrap">{message.content}</p>
             </div>
           </div>
@@ -39,7 +39,7 @@ function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp }: Pro
     <div className={`flex items-start gap-3 ${isFirst ? 'mt-4' : 'mt-2'}`}>
       <div className="w-7 shrink-0 pt-0.5">
         {isFirst && (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#5044e3] to-[#44c4b8] text-[11px] font-bold text-white">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#D1260F] to-[#F0603C] text-[11px] font-bold text-white">
             M
           </div>
         )}
@@ -53,7 +53,7 @@ function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp }: Pro
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="h-1.5 w-1.5 rounded-full bg-[#44c4b8] animate-bounce"
+                className="h-1.5 w-1.5 rounded-full bg-[#F0603C] animate-bounce"
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}

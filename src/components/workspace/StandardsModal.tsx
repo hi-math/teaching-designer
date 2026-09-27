@@ -62,7 +62,7 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{ width: 160 }}
-        className="rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 text-[15px] text-[#2C3A52] outline-none focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/20"
+        className="rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 text-[15px] text-[#2C3A52] outline-none focus:border-[#D1260F] focus:ring-1 focus:ring-[#D1260F]/20"
       >
         <option value="">{placeholder}</option>
         {options.map((o) => (
@@ -90,14 +90,14 @@ function StandardCard({
       onClick={onToggle}
       className={`rounded-xl border p-4 transition cursor-pointer ${
         checked
-          ? 'border-[#534AB7] bg-[#F0EFFC]'
+          ? 'border-[#D1260F] bg-[#FFF1ED]'
           : 'border-[#E4EBF5] bg-white hover:border-[#B8C8E8]'
       }`}
     >
       <div className="flex items-start gap-3">
         {/* 체크박스 */}
         <div className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition ${
-          checked ? 'border-[#534AB7] bg-[#534AB7]' : 'border-[#D8E2F0] bg-white'
+          checked ? 'border-[#D1260F] bg-[#D1260F]' : 'border-[#D8E2F0] bg-white'
         }`}>
           {checked && (
             <svg className="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,7 +145,7 @@ function StandardCard({
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-                className="mt-2 text-[13px] text-[#534AB7] hover:underline"
+                className="mt-2 text-[13px] text-[#D1260F] hover:underline"
               >
                 {expanded ? '해설 접기 ▲' : '해설 보기 ▼'}
               </button>
@@ -270,7 +270,7 @@ export default function StandardsModal({
           {/* 헤더 */}
           <div className="shrink-0 flex items-center justify-between border-b border-[#E4EBF5] bg-white px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#534AB7] text-white">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#D1260F] text-white">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -302,7 +302,7 @@ export default function StandardsModal({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="성취기준 코드, 키워드, 내용 검색..."
-                    className="w-full rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 pr-8 text-[15px] text-[#2C3A52] placeholder-[#9AAAC0] outline-none focus:border-[#534AB7]"
+                    className="w-full rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 pr-8 text-[15px] text-[#2C3A52] placeholder-[#9AAAC0] outline-none focus:border-[#D1260F]"
                   />
                   {query && (
                     <button
@@ -331,7 +331,7 @@ export default function StandardsModal({
           <div className="flex-1 overflow-y-auto px-6 py-5">
             {loading && (
               <div className="flex h-32 items-center justify-center">
-                <svg className="h-7 w-7 animate-spin text-[#534AB7]" fill="none" viewBox="0 0 24 24">
+                <svg className="h-7 w-7 animate-spin text-[#D1260F]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                 </svg>
@@ -345,7 +345,7 @@ export default function StandardsModal({
             {!loading && results.length > 0 && (
               <>
                 <p className="mb-4 text-[14px] text-[#9AAAC0]">
-                  <span className="font-semibold text-[#534AB7]">{results.length}</span>개
+                  <span className="font-semibold text-[#D1260F]">{results.length}</span>개
                   {results.length === 50 && ' (최대 50개 표시)'}
                 </p>
                 <div className="flex flex-col gap-3">
@@ -371,7 +371,7 @@ export default function StandardsModal({
             <div className="flex items-center gap-2">
               <h3 className="text-[17px] font-semibold text-[#1C2B3A]">선택된 성취기준</h3>
               {draft.length > 0 && (
-                <span className="rounded-full bg-[#534AB7] px-2 py-0.5 text-[13px] font-medium text-white">
+                <span className="rounded-full bg-[#D1260F] px-2 py-0.5 text-[13px] font-medium text-white">
                   {draft.length}
                 </span>
               )}
@@ -449,7 +449,7 @@ export default function StandardsModal({
           {readOnly ? (
             <button
               onClick={onClose}
-              className="rounded-lg bg-[#534AB7] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
+              className="rounded-lg bg-[#D1260F] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
             >
               닫기
             </button>
@@ -463,7 +463,7 @@ export default function StandardsModal({
               </button>
               <button
                 onClick={handleConfirm}
-                className="rounded-lg bg-[#534AB7] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
+                className="rounded-lg bg-[#D1260F] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
               >
                 완료
               </button>

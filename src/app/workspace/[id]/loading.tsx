@@ -29,7 +29,7 @@ export default function WorkspaceLoading() {
         {/* 본문 */}
         <div className="flex min-w-0 flex-1 flex-col bg-[#f8f9fd] px-14 pt-8">
           <div className="mb-8 flex items-baseline gap-4">
-            <div className="h-12 w-16 animate-pulse rounded-lg bg-[#5044e3]/10" />
+            <div className="h-12 w-16 animate-pulse rounded-lg bg-[#D1260F]/10" />
             <div className="h-8 w-48 animate-pulse rounded-lg bg-black/5" />
           </div>
           {[...Array(3)].map((_, i) => (

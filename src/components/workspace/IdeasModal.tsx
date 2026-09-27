@@ -61,7 +61,7 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{ width: 180 }}
-        className="rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 text-[15px] text-[#2C3A52] outline-none focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/20"
+        className="rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 text-[15px] text-[#2C3A52] outline-none focus:border-[#D1260F] focus:ring-1 focus:ring-[#D1260F]/20"
       >
         <option value="">{placeholder}</option>
         {options.map((o) => (
@@ -177,7 +177,7 @@ export default function IdeasModal({
             {/* 헤더 */}
             <div className="shrink-0 flex items-center justify-between border-b border-[#E4EBF5] bg-white px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#534AB7] text-white">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#D1260F] text-white">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -209,7 +209,7 @@ export default function IdeasModal({
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="핵심아이디어 내용, 영역 검색..."
                       autoFocus
-                      className="w-full rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 pr-8 text-[15px] text-[#2C3A52] placeholder-[#9AAAC0] outline-none focus:border-[#534AB7]"
+                      className="w-full rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 pr-8 text-[15px] text-[#2C3A52] placeholder-[#9AAAC0] outline-none focus:border-[#D1260F]"
                     />
                     {query && (
                       <button
@@ -238,7 +238,7 @@ export default function IdeasModal({
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {allItems.length === 0 && (
                 <div className="flex h-32 items-center justify-center">
-                  <svg className="h-7 w-7 animate-spin text-[#534AB7]" fill="none" viewBox="0 0 24 24">
+                  <svg className="h-7 w-7 animate-spin text-[#D1260F]" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                   </svg>
@@ -247,7 +247,7 @@ export default function IdeasModal({
               {allItems.length > 0 && (
                 <>
                   <p className="mb-4 text-[14px] text-[#9AAAC0]">
-                    <span className="font-semibold text-[#534AB7]">{filteredItems.length}</span>개
+                    <span className="font-semibold text-[#D1260F]">{filteredItems.length}</span>개
                   </p>
                   <div className="flex flex-col gap-3">
                     {filteredItems.map((item) => {
@@ -259,14 +259,14 @@ export default function IdeasModal({
                           onClick={readOnly ? undefined : () => toggle(item)}
                           className={`rounded-xl border p-4 transition cursor-pointer ${
                             checked
-                              ? 'border-[#534AB7] bg-[#F0EFFC]'
+                              ? 'border-[#D1260F] bg-[#FFF1ED]'
                               : 'border-[#E4EBF5] bg-white hover:border-[#B8C8E8]'
                           }`}
                         >
                           <div className="flex items-start gap-3">
                             {/* 체크박스 */}
                             <div className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition ${
-                              checked ? 'border-[#534AB7] bg-[#534AB7]' : 'border-[#D8E2F0] bg-white'
+                              checked ? 'border-[#D1260F] bg-[#D1260F]' : 'border-[#D8E2F0] bg-white'
                             }`}>
                               {checked && (
                                 <svg className="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,7 +309,7 @@ export default function IdeasModal({
               <div className="flex items-center gap-2">
                 <h3 className="text-[17px] font-semibold text-[#1C2B3A]">선택된 핵심아이디어</h3>
                 {draft.length > 0 && (
-                  <span className="rounded-full bg-[#534AB7] px-2 py-0.5 text-[13px] font-medium text-white">
+                  <span className="rounded-full bg-[#D1260F] px-2 py-0.5 text-[13px] font-medium text-white">
                     {draft.length}
                   </span>
                 )}
@@ -388,7 +388,7 @@ export default function IdeasModal({
           {readOnly ? (
             <button
               onClick={onClose}
-              className="rounded-lg bg-[#534AB7] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
+              className="rounded-lg bg-[#D1260F] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
             >
               닫기
             </button>
@@ -402,7 +402,7 @@ export default function IdeasModal({
               </button>
               <button
                 onClick={handleConfirm}
-                className="rounded-lg bg-[#534AB7] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
+                className="rounded-lg bg-[#D1260F] px-5 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#4338A0]"
               >
                 완료
               </button>

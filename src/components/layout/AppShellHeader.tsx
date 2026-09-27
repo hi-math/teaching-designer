@@ -23,7 +23,7 @@ export function AppShellHeader({ children, className = "", style }: AppShellHead
       </header>
       <div
         className="h-[4px] w-full shrink-0"
-        style={{ background: "linear-gradient(to right, #5044e3, #44c4b8)" }}
+        style={{ background: "linear-gradient(to right, #D1260F, #F0603C)" }}
       />
     </>
   );
@@ -43,7 +43,8 @@ export function AppShellLogo({ className = "" }: { className?: string }) {
       style={{ width: "max(150px, 11vw)" }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="Minerva" className="h-[76px] w-auto max-w-none" />
+      {/* 로고 원본은 연보라라 빨간 헤더에서 묻힌다 — 흰색으로 바꿔 표시 */}
+      <img src="/logo.png" alt="Minerva" className="h-[76px] w-auto max-w-none brightness-0 invert" />
     </div>
   );
 }

@@ -130,7 +130,7 @@ export default function ShareModal({
         {/* 헤더 */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5044e3] text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#D1260F] text-white">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -233,14 +233,14 @@ export default function ShareModal({
                 onChange={(e) => { setEmail(e.target.value); if (emailStatus !== 'idle') setEmailStatus('idle'); }}
                 onKeyDown={handleEmailKeyDown}
                 placeholder="example@email.com"
-                className={`flex-1 rounded-xl border px-4 py-2.5 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none transition focus:border-[#5044e3] ${
+                className={`flex-1 rounded-xl border px-4 py-2.5 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none transition focus:border-[#D1260F] ${
                   emailStatus === 'invalid' ? 'border-red-400' : 'border-[#e2e5ea]'
                 }`}
               />
               <button
                 onClick={confirmEmail}
                 disabled={emailStatus === 'loading' || !email.trim()}
-                className="shrink-0 rounded-xl bg-[#5044e3] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#4035c8] disabled:opacity-50"
+                className="shrink-0 rounded-xl bg-[#D1260F] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:bg-[#A81A08] disabled:opacity-50"
               >
                 {emailStatus === 'loading' ? (
                   <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -269,7 +269,7 @@ export default function ShareModal({
             <button
               onClick={generateLink}
               disabled={generating}
-              className="w-full rounded-xl border border-[#e2e5ea] bg-[#f8f9fc] py-2.5 text-[14px] font-medium text-[#5044e3] transition hover:bg-[#ede9fb] disabled:opacity-50"
+              className="w-full rounded-xl border border-[#e2e5ea] bg-[#f8f9fc] py-2.5 text-[14px] font-medium text-[#D1260F] transition hover:bg-[#FDE4DD] disabled:opacity-50"
             >
               {generating ? '링크 생성 중…' : '초대 링크 생성'}
             </button>
@@ -287,7 +287,7 @@ export default function ShareModal({
                 <button
                   onClick={copy}
                   className={`shrink-0 rounded-xl px-4 py-2.5 text-[13px] font-semibold transition ${
-                    copied ? 'bg-[#44c4b8] text-white' : 'bg-[#f1f4f9] text-[#5044e3] hover:bg-[#ede9fb]'
+                    copied ? 'bg-[#F0603C] text-white' : 'bg-[#f1f4f9] text-[#D1260F] hover:bg-[#FDE4DD]'
                   }`}
                 >
                   {copied ? '복사됨 ✓' : '복사'}

@@ -179,7 +179,7 @@ function renderCoreIdeasSvg(
   const subjects = core.slice(0, 3).map((c) => c.subject);
   while (subjects.length < 3) subjects.push("");
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="80"  cy="80"  r="55" fill="#534AB7" fill-opacity="0.42"/>
+    <circle cx="80"  cy="80"  r="55" fill="#D1260F" fill-opacity="0.42"/>
     <circle cx="120" cy="80"  r="55" fill="#9FE1CB" fill-opacity="0.55"/>
     <circle cx="100" cy="120" r="55" fill="#F59E0B" fill-opacity="0.42"/>
     <text x="55"  y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#3E368A">${esc(subjects[0])}</text>
@@ -196,9 +196,9 @@ function buildCss(lessonTitle: string): string {
   return `
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
 :root{
-  --purple:#534AB7;--purple-dark:#3E368A;--mint:#9FE1CB;
+  --purple:#D1260F;--purple-dark:#3E368A;--mint:#9FE1CB;
   --dark:#1F2937;--gray:#6B7280;--light:#F3F4F6;
-  --soft-purple:#EEF0FB;--border:#D1D5DB;
+  --soft-purple:#FFF5F2;--border:#D1D5DB;
 }
 *{box-sizing:border-box}
 html,body{padding:0;margin:0;color:var(--dark);

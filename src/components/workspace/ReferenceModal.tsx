@@ -28,7 +28,7 @@ function formatDate(iso: string) {
 function FileTypeIcon({ mime }: { mime?: string }) {
   if (!mime) return <GenericIcon />;
   if (mime.startsWith("image/")) return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-50 text-purple-500">
+    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-500">
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
@@ -49,7 +49,7 @@ function FileTypeIcon({ mime }: { mime?: string }) {
     </div>
   );
   if (mime.includes("sheet") || mime.includes("excel") || mime.includes("csv")) return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h18M3 14h18M10 3v18M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z" />
       </svg>
@@ -179,7 +179,7 @@ export default function ReferenceModal({
         {/* 헤더 */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-[#5044e3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 text-[#D1260F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
             <h2 className="text-[17px] font-semibold text-gray-900">참고자료</h2>
@@ -212,17 +212,17 @@ export default function ReferenceModal({
           }}
           onClick={() => fileInputRef.current?.click()}
           className={`mx-4 mt-4 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-5 transition ${
-            dragging ? "border-[#5044e3] bg-indigo-50" : "border-[#dde3eb] hover:border-[#5044e3]/50 hover:bg-[#f8f9ff]"
+            dragging ? "border-[#D1260F] bg-red-50" : "border-[#dde3eb] hover:border-[#D1260F]/50 hover:bg-[#FFF8F6]"
           }`}
         >
           {uploading ? (
             <>
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#5044e3] border-t-transparent" />
-              <p className="text-[13px] text-[#5044e3]">{uploadProgress ?? "업로드 중…"}</p>
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#D1260F] border-t-transparent" />
+              <p className="text-[13px] text-[#D1260F]">{uploadProgress ?? "업로드 중…"}</p>
             </>
           ) : (
             <>
-              <svg className={`h-6 w-6 ${dragging ? "text-[#5044e3]" : "text-[#adb2ba]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`h-6 w-6 ${dragging ? "text-[#D1260F]" : "text-[#adb2ba]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <p className="text-[13px] text-[#757b82]">
@@ -252,7 +252,7 @@ export default function ReferenceModal({
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3">
           {loading ? (
             <div className="flex items-center justify-center py-10">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#5044e3] border-t-transparent" />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#D1260F] border-t-transparent" />
             </div>
           ) : files.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-[#adb2ba]">
@@ -266,7 +266,7 @@ export default function ReferenceModal({
               {files.map((file) => (
                 <div
                   key={file.id ?? file.name}
-                  className="flex items-center gap-3 rounded-xl border border-[#eef0f6] bg-[#fafbff] px-4 py-3 transition hover:bg-[#f3f4fc]"
+                  className="flex items-center gap-3 rounded-xl border border-[#eef0f6] bg-[#FFFAF8] px-4 py-3 transition hover:bg-[#FFF3EF]"
                 >
                   <FileTypeIcon mime={file.metadata?.mimetype} />
                   <div className="min-w-0 flex-1">
@@ -280,7 +280,7 @@ export default function ReferenceModal({
                   <button
                     onClick={() => handleDownload(file.name)}
                     title="다운로드"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#adb2ba] transition hover:bg-[#e8eaf4] hover:text-[#5044e3]"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#adb2ba] transition hover:bg-[#FBE3DC] hover:text-[#D1260F]"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

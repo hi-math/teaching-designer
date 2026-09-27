@@ -70,9 +70,9 @@ function NewLessonCard({ onConfirm, onCancel }: { onConfirm: (name: string) => v
   };
 
   return (
-    <div className="flex cursor-default flex-col rounded-xl border-2 border-indigo-300 bg-white p-4 ring-2 ring-indigo-300 ring-offset-1">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50">
-        <svg className="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="flex cursor-default flex-col rounded-xl border-2 border-red-300 bg-white p-4 ring-2 ring-red-300 ring-offset-1">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-red-50">
+        <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
@@ -87,7 +87,7 @@ function NewLessonCard({ onConfirm, onCancel }: { onConfirm: (name: string) => v
         }}
         onBlur={confirm}
         placeholder="프로젝트 이름"
-        className="w-full rounded-lg border border-indigo-300 bg-indigo-50 px-2 py-1 text-[14px] font-medium text-gray-900 outline-none focus:border-indigo-400"
+        className="w-full rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-[14px] font-medium text-gray-900 outline-none focus:border-red-400"
       />
     </div>
   );
@@ -470,12 +470,12 @@ function LessonCard({
       className={`group flex cursor-pointer flex-col rounded-xl border bg-white p-4 shadow-sm transition-all ${
         isDragging
           ? "opacity-40 shadow-none"
-          : "border-gray-200 hover:border-indigo-300 hover:shadow-md"
+          : "border-gray-200 hover:border-red-300 hover:shadow-md"
       }`}
     >
       <div className="mb-3 flex items-start justify-between">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50">
-          <svg className="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50">
+          <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -500,17 +500,17 @@ function LessonCard({
             if (e.key === "Escape") { renameSubmitted.current = true; onRenameConfirm?.(item.title); }
           }}
           onBlur={confirmRename}
-          className="w-full rounded-lg border border-indigo-300 bg-indigo-50 px-2 py-1 text-[14px] font-medium text-gray-900 outline-none focus:border-indigo-400"
+          className="w-full rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-[14px] font-medium text-gray-900 outline-none focus:border-red-400"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <p className="line-clamp-2 text-[15px] font-medium text-gray-900 group-hover:text-indigo-600">
+        <p className="line-clamp-2 text-[15px] font-medium text-gray-900 group-hover:text-red-600">
           {item.title}
         </p>
       )}
       <div className="mt-auto pt-3">
         {item.subject && (
-          <span className="mb-1.5 inline-block rounded-md bg-indigo-50 px-2 py-0.5 text-[15px] font-medium text-indigo-600">
+          <span className="mb-1.5 inline-block rounded-md bg-red-50 px-2 py-0.5 text-[15px] font-medium text-red-600">
             {item.subject}
           </span>
         )}
@@ -537,11 +537,11 @@ function FlatLessonCard({
       onPointerEnter={onPrefetch}
       onFocus={onPrefetch}
       onContextMenu={onContextMenu}
-      className="group flex cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
+      className="group flex cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-red-300 hover:shadow-md"
     >
       <div className="mb-3 flex items-start justify-between">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50">
-          <svg className="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50">
+          <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -552,12 +552,12 @@ function FlatLessonCard({
           </svg>
         )}
       </div>
-      <p className="line-clamp-2 text-[15px] font-medium text-gray-900 group-hover:text-indigo-600">
+      <p className="line-clamp-2 text-[15px] font-medium text-gray-900 group-hover:text-red-600">
         {item.title}
       </p>
       <div className="mt-auto pt-3">
         {item.subject && (
-          <span className="mb-1.5 inline-block rounded-md bg-indigo-50 px-2 py-0.5 text-[15px] font-medium text-indigo-600">
+          <span className="mb-1.5 inline-block rounded-md bg-red-50 px-2 py-0.5 text-[15px] font-medium text-red-600">
             {item.subject}
           </span>
         )}
@@ -598,7 +598,7 @@ function TrashCard({
       <div className="mt-3 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           onClick={onRestore}
-          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-indigo-200 py-1.5 text-[15px] font-medium text-indigo-600 transition hover:bg-indigo-50"
+          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-red-200 py-1.5 text-[15px] font-medium text-red-600 transition hover:bg-red-50"
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -1088,7 +1088,7 @@ export default function ProjectGrid({
       <div className="flex-1 overflow-y-auto bg-gray-50 p-8">
         {loading ? (
           <div className="flex h-48 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#5044e3] border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#D1260F] border-t-transparent" />
           </div>
         ) : visibleItems.length === 0 && !showNewCard && !(isAllView && currentFolderId) ? (
           <div className="flex h-48 flex-col items-center justify-center gap-2 text-gray-300">

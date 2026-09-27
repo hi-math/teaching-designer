@@ -89,9 +89,9 @@ export default function LoginForm() {
 
             {/* 타이틀 */}
             <div className="mb-8">
-              <h1>
+              <h1 className="flex justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/login-right.png" alt="Minerva" className="h-14 w-auto" />
+                <img src="/login-right.png" alt="Minerva" className="h-20 w-auto" />
               </h1>
             </div>
 

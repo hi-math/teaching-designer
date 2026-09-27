@@ -232,24 +232,28 @@ function ActivityCard({
   onSubmitOpinion,
   onSimulate,
 }: Props) {
-  const locked = st === "completed" || st === "skipped";
+  // 수업 시뮬레이션 카드는 코드·완료·건너뛰기·의견묻기 없이 별도 색으로 보여 준다
+  const isSim = act.code === "A-5";
+  const locked = !isSim && (st === "completed" || st === "skipped");
   const getName = (uid: string) => memberNames[uid] ?? uid;
 
   return (
     <div
       onClick={() => onSelect(act.code)}
       className={`relative mb-6 rounded-2xl p-6 border transition-all cursor-pointer overflow-hidden ${
-        st === "completed" ? "bg-[#eff8ff] border-[#bae0ff]"
+        isSim ? "bg-[#effaf7] border-[#bfe6dc]"
+        : st === "completed" ? "bg-[#eff8ff] border-[#bae0ff]"
         : st === "skipped"  ? "bg-[#f5f6f8] border-[#e2e4ea]"
         : "bg-white border-transparent"
       }`}
     >
       {/* 활성화 인디케이터 — 왼쪽 세로 바 */}
       {isSelected && (
-        <span className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-[#5044e3]" />
+        <span className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${isSim ? "bg-teal-500" : "bg-[#5044e3]"}`} />
       )}
 
       {/* 헤더: 코드 + 토글 버튼 */}
+      {!isSim && (
       <div className="mb-2 flex items-center justify-between">
         <p className={`text-[13px] font-bold tracking-widest uppercase ${locked ? "text-[#adb2ba]" : "text-[#5044e3]"}`}>
           {act.code}
@@ -297,6 +301,7 @@ function ActivityCard({
           )}
         </div>
       </div>
+      )}
 
       {/* 제목 + 설명 */}
       <div className="mb-4 flex flex-col gap-1.5">

@@ -554,7 +554,7 @@ function renderChapterA(d: RenderData): string {
 
     // 2.5 수업 시뮬레이션
     const A5 = c["A-5"];
-    let s25 = sub("2.5 수업 시뮬레이션 (A-5)");
+    let s25 = sub("2.5 수업 시뮬레이션");
     if (hasField(A5, "sessions")) {
       s25 += table(
         ["차시", "과목", "성취기준", "학습목표", "지도내용"],

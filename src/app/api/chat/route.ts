@@ -11,7 +11,7 @@ export async function GET() {
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const MODEL = 'claude-sonnet-5';
+const MODEL = 'claude-haiku-4-5-20251001';
 
 /** A-3 후보 선별이 교과 정보 없이도 동작하도록, 분석 단계 카드 입력을 검색어로 쓴다. */
 function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined): string {
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
   const stream = client.messages.stream({
     model: MODEL,
-    max_tokens: 1500,
+    max_tokens: 4000,
     system,
     messages,
   });

@@ -157,11 +157,11 @@ export default function SimulationBoard({
     <div onClick={(e) => e.stopPropagation()}>
       {/* 생성 버튼 */}
       {!locked && onSimulate && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 flex justify-end">
           <button
             onClick={runSimulate}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-[13px] font-medium text-teal-700 transition-colors hover:bg-teal-100 disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-lg bg-[#5044e3] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[#4035c8] disabled:opacity-60"
           >
             {loading ? (
               <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -176,9 +176,6 @@ export default function SimulationBoard({
             )}
             {loading ? '시뮬레이션 중…' : sessions.length > 0 ? '다시 시뮬레이션' : '시뮬레이션 생성'}
           </button>
-          <span className="text-[12px] text-[#adb2ba]">
-            팀 비전 · 수업 기본정보 · 핵심 아이디어 · 성취기준 · 분석 단계 내용을 바탕으로 만듭니다
-          </span>
         </div>
       )}
       {error && <p className="mb-3 text-[13px] text-red-500">{error}</p>}

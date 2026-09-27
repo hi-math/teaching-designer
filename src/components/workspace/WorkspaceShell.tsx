@@ -14,7 +14,7 @@ import IdeasModal, { type IdeaItem } from "@/components/workspace/IdeasModal";
 import ShareModal from "@/components/workspace/ShareModal";
 import ActivityCard, { type OpinionEntry } from "@/components/workspace/ActivityCard";
 import { CARD_SCHEMAS, serializeStructuredForAI } from "@/components/workspace/cardSchemas";
-import { newSessionId } from "@/components/workspace/SimulationBoard";
+import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
 
 // ─── 워크스페이스 UI 토큰 (세이지 테마 고정) ─────────────────────
 
@@ -1451,6 +1451,65 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
     handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions });
   }, [totalSessions, relatedSubjects, targetGrade, handleStructuredChange]);
 
+  // ── 수업 시뮬레이션 → 설계(Ds-3 학습 활동 · Ds-4 지원 도구) 반영 ──
+  // 표는 차시 수만큼 행을 새로 만들어 채운다 — 기존 행 수보다 차시가 많으면 그만큼 늘어난다.
+  const handleApplyToDesign = useCallback(async (): Promise<string | null> => {
+    const sessions = (structuredInputsRef.current["A-5"]?.sessions ?? []) as SimSession[];
+    if (sessions.length === 0) throw new Error("반영할 차시가 없습니다.");
+
+    const hasRows = (rows: unknown) =>
+      Array.isArray(rows) &&
+      rows.some((r) => Object.values(r as Record<string, unknown>).some((v) => String(v ?? "").trim()));
+    const ds3 = structuredInputsRef.current["Ds-3"] ?? {};
+    const ds4 = structuredInputsRef.current["Ds-4"] ?? {};
+    if ((hasRows(ds3.activities) || hasRows(ds4.support_tools)) &&
+        !confirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 시뮬레이션 결과로 바꿉니다. 계속할까요?")) {
+      return null;
+    }
+
+    const bullets = (s: SimSession) => contentBullets(s.content).filter((l) => l.trim());
+
+    // Ds-3: 시뮬레이션 내용을 그대로 옮긴다
+    const activities = sessions.map((s, i) => ({
+      period: `${i + 1}차시`,
+      activity: [
+        [s.subject, s.title].filter(Boolean).join(" : "),
+        ...bullets(s).map((l) => `• ${l}`),
+      ].filter(Boolean).join("\n"),
+      linked_standards: standardCodesOnly(s.standard),
+    }));
+    handleStructuredChange("Ds-3", { ...ds3, activities });
+
+    // Ds-4: 차시별 지원 도구는 AI 가 제안한다. 실패해도 차시 틀은 채워 둔다.
+    let tools: { tool: string; purpose: string }[][] = [];
+    let toolsFailed = false;
+    try {
+      const res = await fetch("/api/simulate/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessions: sessions.map(({ subject, title, objective, standard, content }) => ({ subject, title, objective, standard, content })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(data.tools)) throw new Error();
+      tools = data.tools;
+    } catch {
+      toolsFailed = true;
+    }
+
+    const support_tools = sessions.flatMap((s, i) => {
+      const stage = s.title || s.subject || `${i + 1}차시 활동`;
+      const list = tools[i]?.length ? tools[i] : [{ tool: "", purpose: "" }];
+      return list.map((t) => ({ stage, tool: t.tool, purpose: t.purpose, related_period: `${i + 1}차시` }));
+    });
+    handleStructuredChange("Ds-4", { ...ds4, support_tools });
+
+    return toolsFailed
+      ? `Ds-3에 ${sessions.length}개 차시를 반영했습니다. 지원 도구 제안에 실패해 Ds-4는 차시 틀만 채웠습니다.`
+      : `Ds-3 학습 활동과 Ds-4 지원 도구에 ${sessions.length}개 차시를 반영했습니다.`;
+  }, [handleStructuredChange]);
+
   // ── 완료 / 건너뛰기 ──────────────────────────────────────────
   const handleActivityStatusChange = useCallback(async (code: string, newStatus: "active" | "completed" | "skipped") => {
     activityStatusRef.current = { ...activityStatusRef.current, [code]: newStatus };
@@ -2495,6 +2554,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                       onDeleteOpinion={handleDeleteOpinion}
                       onSubmitOpinion={handleSubmitOpinion}
                       onSimulate={act.code === "A-5" ? handleSimulate : undefined}
+                      onApplyToDesign={act.code === "A-5" ? handleApplyToDesign : undefined}
                     />
                   ))}
                 </div>

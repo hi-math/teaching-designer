@@ -62,6 +62,8 @@ interface Props {
 
   /** A-5 수업 시뮬레이션 생성 */
   onSimulate?: () => Promise<void>;
+  /** 수업 시뮬레이션 → Ds-3·Ds-4 반영 */
+  onApplyToDesign?: () => Promise<string | null>;
 }
 
 /**
@@ -231,6 +233,7 @@ function ActivityCard({
   onDeleteOpinion,
   onSubmitOpinion,
   onSimulate,
+  onApplyToDesign,
 }: Props) {
   // 수업 시뮬레이션 카드는 코드·완료·건너뛰기·의견묻기 없이 보여 준다
   const isSim = act.code === "A-5";
@@ -360,6 +363,7 @@ function ActivityCard({
           onChange={(fields) => onStructuredChange(act.code, fields)}
           locked={locked}
           onSimulate={onSimulate}
+          onApplyToDesign={onApplyToDesign}
         />
       ) : CARD_SCHEMAS[act.code] ? (
         <CardFieldRenderer

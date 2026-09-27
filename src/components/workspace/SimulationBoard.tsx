@@ -98,16 +98,21 @@ export default function SimulationBoard({
   onChange,
   locked,
   onSimulate,
+  onApplyToDesign,
 }: {
   value: Record<string, unknown>;
   onChange: (fields: Record<string, unknown>) => void;
   locked: boolean;
   /** 지금까지의 설계 내용으로 차시 초안을 새로 만든다 */
   onSimulate?: () => Promise<void>;
+  /** 차시 카드를 Ds-3 학습 활동·Ds-4 지원 도구에 옮긴다. 결과 안내 문구를 돌려준다(취소 시 null). */
+  onApplyToDesign?: () => Promise<string | null>;
 }) {
   const sessions = readSessions(value);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [applying, setApplying] = useState(false);
+  const [applyMsg, setApplyMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 손잡이를 누른 카드만 draggable 로 만든다. 카드 전체를 draggable 로 두면
   // textarea 에서 글자를 드래그해 선택하려 할 때 카드가 끌려 간다.
   const [armedId, setArmedId] = useState<string | null>(null);
@@ -148,6 +153,20 @@ export default function SimulationBoard({
       setError(e instanceof Error ? e.message : '시뮬레이션 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runApply = async () => {
+    if (!onApplyToDesign || applying) return;
+    setApplying(true);
+    setApplyMsg(null);
+    try {
+      const msg = await onApplyToDesign();
+      if (msg) setApplyMsg({ ok: true, text: msg });
+    } catch (e) {
+      setApplyMsg({ ok: false, text: e instanceof Error ? e.message : '설계 반영 중 오류가 발생했습니다.' });
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -326,6 +345,32 @@ export default function SimulationBoard({
           </button>
         )}
       </div>
+
+      {/* 설계에 반영하기 — Ds-3 학습 활동 · Ds-4 지원 도구 */}
+      {!locked && onApplyToDesign && (
+        <div className="mt-4 flex items-center justify-end gap-3">
+          {applyMsg && (
+            <span className={`text-[13px] ${applyMsg.ok ? 'text-teal-600' : 'text-red-500'}`}>{applyMsg.text}</span>
+          )}
+          <button
+            onClick={runApply}
+            disabled={applying || sessions.length === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-[#5044e3] bg-white px-4 py-2 text-[13px] font-semibold text-[#5044e3] transition-colors hover:bg-[#f4f2ff] disabled:opacity-50"
+          >
+            {applying ? (
+              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            ) : (
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            )}
+            {applying ? '반영 중…' : '설계에 반영하기'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

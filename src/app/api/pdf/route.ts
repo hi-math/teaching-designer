@@ -59,7 +59,7 @@ type CardContent = {
   eval_methods?: Array<{ type: string; target: string; method: string; timing: string }>;
   rubric?: Array<{ axis: string; level_high: string; level_mid: string; level_low: string; level_4?: string; level_3?: string; level_2?: string }>;
   problem_situations?: Array<{ situation: string; decision: string }>;
-  activities?: Array<{ period: string; activity: string; linked_standards: string[] }>;
+  activities?: Array<{ period: string; activity: string; linked_standards: string[] | string }>;
   support_tools?: Array<{ stage: string; tool: string; purpose: string; related_period: string }>;
   dev_materials?: Array<{ member: string; material: string; content: string; reviewer: string }>;
   exec_schedule?: Array<{ period: string; date: string; time: string; place: string; teacher: string }>;
@@ -642,7 +642,8 @@ function renderChapterDs(d: RenderData): string {
         (Ds13!.activities ?? []).map((r) => [
           r.period,
           r.activity,
-          (r.linked_standards ?? []).join(", "),
+          // 표 입력은 문자열로 저장되므로 배열·문자열을 모두 받는다
+          Array.isArray(r.linked_standards) ? r.linked_standards.join(", ") : (r.linked_standards ?? ""),
         ]),
         { colWidthsMm: [15, 105, 50], centerCols: [0] }
       );

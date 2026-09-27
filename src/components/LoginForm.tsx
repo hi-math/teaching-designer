@@ -66,19 +66,22 @@ export default function LoginForm() {
           {/* ── 왼쪽: 메인 이미지 ── */}
           <div
             className="relative hidden w-[55%] overflow-hidden lg:flex lg:flex-col"
-            style={{ backgroundColor: "#eef0fb" }}
+            style={{ backgroundColor: "#ffffff" }}
           >
             {/* 상단 인디고 바 */}
             <div
               className="h-11 w-full shrink-0"
               style={{ background: "linear-gradient(to right, #5044e3, #44c4b8)" }}
             />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/main.png"
-              alt="Minerva 미리보기"
-              className="h-full w-full object-cover object-center"
-            />
+            {/* "함께 만드는 수업, 서로 깊어지는 배움" — 원이 잘리지 않도록 잘라 채우지 않고 통째로 담는다 */}
+            <div className="flex flex-1 items-center justify-center p-12">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/login-visual.png"
+                alt="함께 만드는 수업, 서로 깊어지는 배움"
+                className="h-auto max-h-[420px] w-full max-w-[440px] object-contain"
+              />
+            </div>
           </div>
 
           {/* ── 오른쪽: 로그인 폼 ── */}

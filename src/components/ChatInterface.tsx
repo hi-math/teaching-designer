@@ -50,6 +50,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // auth UID를 ref로 캐시 — 소유자/참여자 모두 동일하게 auth.uid() 사용
@@ -150,12 +151,28 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
     // messages가 빈 상태(DB 로드 전)에서 초기 플래그를 소비하지 않도록 스킵
     if (messages.length === 0) return;
     if (isInitialLoad.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
       isInitialLoad.current = false;
     } else {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // AI 탭은 처음에 숨겨진(display:none) 상태라 히스토리를 불러올 때 맨 아래로 스크롤해도
+  // 적용되지 않는다. 탭이 보이게 되는 순간(높이 0 → 양수) 최신 메시지로 내린다.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let wasHidden = el.clientHeight === 0;
+    const ro = new ResizeObserver(() => {
+      const hidden = el.clientHeight === 0;
+      if (wasHidden && !hidden) el.scrollTop = el.scrollHeight;
+      wasHidden = hidden;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isStreaming) return;
@@ -311,7 +328,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   return (
     <div className="flex flex-col h-full bg-white">
       {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {isLoadingHistory ? (
           <div className="flex flex-col gap-3 pt-2">
             {[...Array(3)].map((_, i) => (

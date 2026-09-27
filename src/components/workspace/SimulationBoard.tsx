@@ -95,6 +95,52 @@ function BulletEditor({
   );
 }
 
+type EditArea = 'head' | 'objective' | 'standard' | 'content';
+
+function PencilButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="수정"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] transition hover:bg-[#ede9fb] hover:text-[#5044e3]"
+    >
+      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+    </button>
+  );
+}
+
+/** 영역 제목 줄 — 오른쪽에 연필 */
+function SectionHead({ label, showPencil, onEdit }: { label: string; showPencil: boolean; onEdit: () => void }) {
+  return (
+    <div className="mb-0.5 flex min-h-6 items-center justify-between gap-2">
+      <span className="text-[11.5px] font-semibold text-[#5a6066]">{label}</span>
+      {showPencil && <PencilButton onClick={onEdit} />}
+    </div>
+  );
+}
+
+/** 편집 중인 영역 아래의 [취소] [수정] */
+function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
+  return (
+    <div className="mt-2 flex justify-end gap-1.5">
+      <button
+        onClick={onCancel}
+        className="rounded-md border border-[#dde3eb] bg-white px-2.5 py-1 text-[12px] font-medium text-[#757b82] transition hover:bg-gray-50"
+      >
+        취소
+      </button>
+      <button
+        onClick={onSave}
+        className="rounded-md bg-[#5044e3] px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-[#4035c8]"
+      >
+        수정
+      </button>
+    </div>
+  );
+}
+
 export default function SimulationBoard({
   value,
   onChange,
@@ -122,15 +168,39 @@ export default function SimulationBoard({
   // 끌고 있는 카드가 놓일 자리: 어느 카드의 앞/뒤인지
   const [over, setOver] = useState<{ idx: number; after: boolean } | null>(null);
 
+  // 연필 버튼으로 연 편집 — 한 번에 한 영역만. 수정을 누르기 전까지는 draft 에만 반영한다.
+  const [edit, setEdit] = useState<{ id: string; area: EditArea; draft: Partial<SimSession> } | null>(null);
+
   const save = (next: SimSession[]) => onChange({ ...value, sessions: next });
 
-  const update = (id: string, key: keyof Omit<SimSession, 'id'>, text: string) =>
-    save(sessions.map((s) => (s.id === id ? { ...s, [key]: text } : s)));
+  const startEdit = (s: SimSession, area: EditArea) => {
+    const draft: Partial<SimSession> =
+      area === 'head' ? { subject: s.subject, title: s.title ?? '' }
+      : area === 'standard' ? { standard: standardCodesOnly(s.standard) }
+      : { [area]: s[area] };
+    setEdit({ id: s.id, area, draft });
+  };
+  const setDraft = (key: keyof Omit<SimSession, 'id'>, text: string) =>
+    setEdit((e) => (e ? { ...e, draft: { ...e.draft, [key]: text } } : e));
+  const commitEdit = () => {
+    if (!edit) return;
+    save(sessions.map((s) => (s.id === edit.id ? { ...s, ...edit.draft } : s)));
+    setEdit(null);
+  };
+  const cancelEdit = () => setEdit(null);
+  const isEditing = (id: string, area: EditArea) => edit?.id === id && edit.area === area;
 
-  const remove = (id: string) => save(sessions.filter((s) => s.id !== id));
+  const remove = (id: string) => {
+    if (edit?.id === id) setEdit(null);
+    save(sessions.filter((s) => s.id !== id));
+  };
 
-  const add = () =>
-    save([...sessions, { id: newSessionId(), subject: '', title: '', standard: '', objective: '', content: '' }]);
+  // 새 차시는 바로 과목·타이틀 편집을 연다
+  const add = () => {
+    const blank: SimSession = { id: newSessionId(), subject: '', title: '', standard: '', objective: '', content: '' };
+    save([...sessions, blank]);
+    startEdit(blank, 'head');
+  };
 
   const move = (fromId: string, toIdx: number) => {
     const from = sessions.findIndex((s) => s.id === fromId);
@@ -172,9 +242,15 @@ export default function SimulationBoard({
     }
   };
 
-  // 차시 카드의 학습목표·성취기준·지도내용 칸 — 모두 같은 흰 박스
-  const sectionCls = 'rounded-lg bg-white/80 px-3 py-2 focus-within:ring-2 focus-within:ring-[#5044e3]/20';
-  const sectionLabelCls = 'mb-0.5 block text-[11.5px] font-semibold text-[#5a6066]';
+  // 차시 카드의 학습목표·성취기준·지도내용 칸 — 모두 같은 흰 박스, 편집 중이면 테두리 강조
+  const sectionCls = (editing: boolean) =>
+    `rounded-lg px-3 py-2 ${editing ? 'bg-white ring-2 ring-[#5044e3]/30' : 'bg-white/80'}`;
+  // 편집 중 Esc 는 취소 (한 줄 입력칸에서는 Enter 로 수정)
+  const editKeys = (e: React.KeyboardEvent) => {
+    if (!edit || e.nativeEvent.isComposing) return;
+    if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+    else if (e.key === 'Enter' && e.target instanceof HTMLInputElement) { e.preventDefault(); commitEdit(); }
+  };
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
@@ -251,88 +327,147 @@ export default function SimulationBoard({
                 dragId === s.id ? 'border-[#5044e3] opacity-40' : 'border-[#e6e9f2]'
               }`}
             >
-              {/* 헤더: 손잡이 · "N차시 과목 : 수업 타이틀" · 삭제 */}
-              <div className="mb-3 flex items-start gap-1.5">
-                {!locked && (
-                  <span
-                    title="끌어서 순서 바꾸기"
-                    onMouseDown={() => setArmedId(s.id)}
-                    onMouseUp={() => { if (!dragId) setArmedId(null); }}
-                    className="-ml-1 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-[#adb2ba] hover:bg-[#f1f4f9] hover:text-[#5044e3] active:cursor-grabbing"
-                  >
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                      <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
-                      <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
-                      <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
-                    </svg>
-                  </span>
-                )}
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
-                  <span className="shrink-0 rounded-md bg-[#5044e3] px-2 py-0.5 text-[12px] font-bold text-white">
-                    {idx + 1}차시
-                  </span>
-                  <input
-                    value={s.subject}
-                    onChange={(e) => update(s.id, 'subject', e.target.value)}
-                    disabled={locked}
-                    placeholder="과목"
-                    size={Math.max(2, s.subject.length + 1)}
-                    style={{ backgroundColor: s.subject ? badge.bg : undefined, color: s.subject ? badge.text : undefined }}
-                    className="shrink-0 rounded-md bg-[#f1f4f9] px-2 py-0.5 text-center text-[12.5px] font-semibold text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
-                  />
-                  <span className="shrink-0 font-bold text-[#adb2ba]">:</span>
-                  <AutoResizeTextarea
-                    value={s.title ?? ''}
-                    onChange={(v) => update(s.id, 'title', v.replace(/\n/g, ' '))}
-                    disabled={locked}
-                    placeholder="수업 타이틀"
-                    className="min-w-[120px] flex-1 rounded-md bg-transparent px-1 py-0.5 text-[15px] font-bold leading-snug text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-white/80 disabled:opacity-60"
-                  />
+              {/* 헤더: 손잡이 · "N차시 과목 : 수업 타이틀" · 연필 · 삭제 */}
+              <div className="mb-3" onKeyDown={editKeys}>
+                <div className="flex items-start gap-1.5">
+                  {!locked && (
+                    <span
+                      title="끌어서 순서 바꾸기"
+                      onMouseDown={() => setArmedId(s.id)}
+                      onMouseUp={() => { if (!dragId) setArmedId(null); }}
+                      className="-ml-1 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-[#adb2ba] hover:bg-[#f1f4f9] hover:text-[#5044e3] active:cursor-grabbing"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+                        <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+                        <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+                      </svg>
+                    </span>
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <span className="shrink-0 rounded-md bg-[#5044e3] px-2 py-0.5 text-[12px] font-bold text-white">
+                      {idx + 1}차시
+                    </span>
+                    {edit && isEditing(s.id, 'head') ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={edit.draft.subject ?? ''}
+                          onChange={(e) => setDraft('subject', e.target.value)}
+                          placeholder="과목"
+                          size={Math.max(2, (edit.draft.subject ?? '').length + 1)}
+                          className="shrink-0 rounded-md bg-white px-2 py-0.5 text-center text-[12.5px] font-semibold text-[#2d3339] placeholder-[#adb2ba] outline-none ring-1 ring-[#dde3eb] focus:ring-2 focus:ring-[#5044e3]/30"
+                        />
+                        <span className="shrink-0 font-bold text-[#adb2ba]">:</span>
+                        <input
+                          value={edit.draft.title ?? ''}
+                          onChange={(e) => setDraft('title', e.target.value)}
+                          placeholder="수업 타이틀"
+                          className="min-w-[120px] flex-1 rounded-md bg-white px-2 py-0.5 text-[15px] font-bold text-[#2d3339] placeholder-[#adb2ba] outline-none ring-1 ring-[#dde3eb] focus:ring-2 focus:ring-[#5044e3]/30"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span
+                          style={s.subject ? { backgroundColor: badge.bg, color: badge.text } : undefined}
+                          className={`shrink-0 rounded-md px-2 py-0.5 text-[12.5px] font-semibold ${s.subject ? '' : 'bg-[#f1f4f9] text-[#adb2ba]'}`}
+                        >
+                          {s.subject || '과목'}
+                        </span>
+                        <span className="shrink-0 font-bold text-[#adb2ba]">:</span>
+                        <span className={`min-w-0 flex-1 text-[15px] font-bold leading-snug ${s.title ? 'text-[#2d3339]' : 'text-[#adb2ba]'}`}>
+                          {s.title || '수업 타이틀'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {!locked && !isEditing(s.id, 'head') && <PencilButton onClick={() => startEdit(s, 'head')} />}
+                  {!locked && (
+                    <button
+                      onClick={() => remove(s.id)}
+                      title="차시 삭제"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] hover:bg-red-50 hover:text-red-400"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-                {!locked && (
-                  <button
-                    onClick={() => remove(s.id)}
-                    title="차시 삭제"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] hover:bg-red-50 hover:text-red-400"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+                {isEditing(s.id, 'head') && <EditActions onSave={commitEdit} onCancel={cancelEdit} />}
               </div>
 
-              {/* 세 항목 모두 같은 틀: 흰 박스 안에 제목 + 내용 */}
+              {/* 세 항목 모두 같은 틀: 흰 박스 안에 제목 + 내용, 오른쪽 연필로 편집 */}
               <div className="space-y-2">
-                <div className={sectionCls}>
-                  <span className={sectionLabelCls}>학습목표</span>
-                  <AutoResizeTextarea
-                    value={s.objective}
-                    onChange={(v) => update(s.id, 'objective', v)}
-                    disabled={locked}
-                    placeholder="~할 수 있다."
-                    className="w-full bg-transparent text-[14px] font-semibold leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none disabled:opacity-60"
-                  />
+                {/* 학습목표 */}
+                <div className={sectionCls(isEditing(s.id, 'objective'))} onKeyDown={editKeys}>
+                  <SectionHead label="학습목표" showPencil={!locked && !isEditing(s.id, 'objective')} onEdit={() => startEdit(s, 'objective')} />
+                  {edit && isEditing(s.id, 'objective') ? (
+                    <>
+                      <AutoResizeTextarea
+                        value={edit.draft.objective ?? ''}
+                        onChange={(v) => setDraft('objective', v)}
+                        placeholder="~할 수 있다."
+                        className="w-full bg-transparent text-[14px] font-semibold leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none"
+                      />
+                      <EditActions onSave={commitEdit} onCancel={cancelEdit} />
+                    </>
+                  ) : (
+                    <p className={`whitespace-pre-line text-[14px] font-semibold leading-relaxed ${s.objective ? 'text-[#2d3339]' : 'text-[#adb2ba]'}`}>
+                      {s.objective || '~할 수 있다.'}
+                    </p>
+                  )}
                 </div>
 
-                <div className={sectionCls}>
-                  <span className={sectionLabelCls}>성취기준</span>
-                  <input
-                    value={standardCodesOnly(s.standard)}
-                    onChange={(e) => update(s.id, 'standard', e.target.value)}
-                    disabled={locked}
-                    placeholder="[9수01-02]"
-                    className="w-full bg-transparent font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none disabled:opacity-60"
-                  />
+                {/* 성취기준 — 코드만 */}
+                <div className={sectionCls(isEditing(s.id, 'standard'))} onKeyDown={editKeys}>
+                  <SectionHead label="성취기준" showPencil={!locked && !isEditing(s.id, 'standard')} onEdit={() => startEdit(s, 'standard')} />
+                  {edit && isEditing(s.id, 'standard') ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={edit.draft.standard ?? ''}
+                        onChange={(e) => setDraft('standard', e.target.value)}
+                        placeholder="[9수01-02], [9사03-01]"
+                        className="w-full bg-transparent font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none"
+                      />
+                      <EditActions onSave={commitEdit} onCancel={cancelEdit} />
+                    </>
+                  ) : standardCodesOnly(s.standard).trim() ? (
+                    <div className="flex flex-wrap gap-1">
+                      {standardCodesOnly(s.standard).split(/\s*,\s*/).filter(Boolean).map((code, i) => (
+                        <span key={i} className="rounded bg-[#f1f4f9] px-1.5 py-0.5 font-mono text-[12.5px] text-[#2d3339]">{code}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="font-mono text-[13px] text-[#adb2ba]">[9수01-02]</p>
+                  )}
                 </div>
 
-                <div className={sectionCls}>
-                  <span className={sectionLabelCls}>지도내용</span>
-                  <BulletEditor
-                    value={s.content}
-                    onChange={(v) => update(s.id, 'content', v)}
-                    locked={locked}
-                  />
+                {/* 지도내용 — 개조식 불릿 */}
+                <div className={sectionCls(isEditing(s.id, 'content'))} onKeyDown={editKeys}>
+                  <SectionHead label="지도내용" showPencil={!locked && !isEditing(s.id, 'content')} onEdit={() => startEdit(s, 'content')} />
+                  {edit && isEditing(s.id, 'content') ? (
+                    <>
+                      <BulletEditor
+                        value={edit.draft.content ?? ''}
+                        onChange={(v) => setDraft('content', v)}
+                        locked={false}
+                      />
+                      <EditActions onSave={commitEdit} onCancel={cancelEdit} />
+                    </>
+                  ) : contentBullets(s.content).some((l) => l.trim()) ? (
+                    <ul className="space-y-1">
+                      {contentBullets(s.content).filter((l) => l.trim()).map((l, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[13.5px] leading-relaxed text-[#2d3339]">
+                          <span className="font-bold text-[#5044e3]">•</span>
+                          <span className="min-w-0">{l}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[13.5px] text-[#adb2ba]">지도내용</p>
+                  )}
                 </div>
               </div>
             </div>

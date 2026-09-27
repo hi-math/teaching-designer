@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { showAlert } from '@/components/ui/dialog';
 
 const EMOJIS = ['👍', '❤️', '😄', '😮', '😢'];
 
@@ -365,7 +366,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
   // ── 텍스트 파일 다운로드 ─────────────────────────────────────
   const downloadAsText = () => {
     setMgmtOpen(false);
-    if (messages.length === 0) { alert('채팅 내용이 없습니다.'); return; }
+    if (messages.length === 0) { showAlert('채팅 내용이 없습니다.'); return; }
     const content = buildChatText(messages);
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -383,10 +384,10 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
     setMgmtOpen(false);
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
-      alert('Google Docs 연동을 사용하려면 관리자가 NEXT_PUBLIC_GOOGLE_CLIENT_ID 환경 변수를 설정해야 합니다.');
+      showAlert('Google Docs 연동을 사용하려면 관리자가 NEXT_PUBLIC_GOOGLE_CLIENT_ID 환경 변수를 설정해야 합니다.');
       return;
     }
-    if (messages.length === 0) { alert('채팅 내용이 없습니다.'); return; }
+    if (messages.length === 0) { showAlert('채팅 내용이 없습니다.'); return; }
     setGdocLoading(true);
     try {
       await loadGIS();
@@ -411,7 +412,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
       window.open(`https://docs.google.com/document/d/${doc.documentId}/edit`, '_blank');
     } catch (e) {
       console.error('Google Docs 생성 오류:', e);
-      alert('구글 문서 생성에 실패했습니다. 다시 시도해 주세요.');
+      showAlert('구글 문서 생성에 실패했습니다. 다시 시도해 주세요.');
     } finally {
       setGdocLoading(false);
     }
@@ -429,11 +430,11 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
     const w = window as any;
     const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
-      alert('이 브라우저는 음성 인식을 지원하지 않습니다.\n크롬(Chrome) 브라우저를 사용해 주세요.');
+      showAlert('이 브라우저는 음성 인식을 지원하지 않습니다.\n크롬(Chrome) 브라우저를 사용해 주세요.');
       return;
     }
     if (!window.isSecureContext) {
-      alert('음성 인식은 보안 연결(HTTPS)에서만 사용할 수 있습니다.\nhttps 주소 또는 localhost로 접속해 주세요.');
+      showAlert('음성 인식은 보안 연결(HTTPS)에서만 사용할 수 있습니다.\nhttps 주소 또는 localhost로 접속해 주세요.');
       return;
     }
     finalTranscriptRef.current = input;
@@ -470,7 +471,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
       };
       wantRecordingRef.current = false;
       setIsRecording(false);
-      alert(messages[e.error] ?? `음성 인식에 실패했습니다. (${e.error})`);
+      showAlert(messages[e.error] ?? `음성 인식에 실패했습니다. (${e.error})`);
     };
 
     // 무음으로 자동 종료되면 사용자가 중지하기 전까지 다시 시작

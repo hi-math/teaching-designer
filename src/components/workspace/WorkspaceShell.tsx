@@ -14,6 +14,7 @@ import IdeasModal, { type IdeaItem } from "@/components/workspace/IdeasModal";
 import ShareModal from "@/components/workspace/ShareModal";
 import ActivityCard, { type OpinionEntry } from "@/components/workspace/ActivityCard";
 import { CARD_SCHEMAS, serializeStructuredForAI } from "@/components/workspace/cardSchemas";
+import { showAlert, showConfirm } from "@/components/ui/dialog";
 import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
 
 // ─── 워크스페이스 UI 토큰 (세이지 테마 고정) ─────────────────────
@@ -1463,7 +1464,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
     const ds3 = structuredInputsRef.current["Ds-3"] ?? {};
     const ds4 = structuredInputsRef.current["Ds-4"] ?? {};
     if ((hasRows(ds3.activities) || hasRows(ds4.support_tools)) &&
-        !confirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 시뮬레이션 결과로 바꿉니다. 계속할까요?")) {
+        !(await showConfirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 시뮬레이션 결과로 바꿉니다.\n계속할까요?", { title: "설계에 반영", confirmText: "바꾸기" }))) {
       return null;
     }
 
@@ -2258,7 +2259,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 URL.revokeObjectURL(url);
               } catch (e) {
                 console.error("[pdf]", e);
-                alert("PDF 생성 중 오류가 발생했습니다.");
+                showAlert("PDF 생성 중 오류가 발생했습니다.");
               } finally {
                 setPdfLoading(false);
               }

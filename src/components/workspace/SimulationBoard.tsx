@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { AutoResizeTextarea, getSubjectBadge } from './CardFields';
+import { showConfirm } from '@/components/ui/dialog';
 
 /**
  * 수업 시뮬레이션 보드.
@@ -144,7 +145,7 @@ export default function SimulationBoard({
 
   const runSimulate = async () => {
     if (!onSimulate || loading) return;
-    if (sessions.length > 0 && !confirm('현재 차시 카드를 새 시뮬레이션 결과로 바꿉니다. 계속할까요?')) return;
+    if (sessions.length > 0 && !(await showConfirm('현재 차시 카드를 새 시뮬레이션 결과로 바꿉니다.\n계속할까요?', { title: '다시 시뮬레이션', confirmText: '바꾸기' }))) return;
     setLoading(true);
     setError('');
     try {

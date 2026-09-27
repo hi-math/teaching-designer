@@ -89,8 +89,9 @@ export default function LoginForm() {
 
             {/* 타이틀 */}
             <div className="mb-8">
-              <h1 className="text-[26px] font-bold tracking-tight" style={{ color: "#111827" }}>
-                T-CID Assistant
+              <h1>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/login-right.png" alt="Minerva" className="h-14 w-auto" />
               </h1>
             </div>
 

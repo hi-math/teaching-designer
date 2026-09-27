@@ -86,7 +86,7 @@ function BulletEditor({
               }
             }}
             style={{ resize: 'none', overflow: 'hidden' }}
-            className="w-full rounded-md bg-transparent px-1 py-0.5 text-[13.5px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-[#f1f4f9] disabled:opacity-60"
+            className="w-full rounded-md bg-transparent px-1 py-0.5 text-[13.5px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-white/80 disabled:opacity-60"
           />
         </li>
       ))}
@@ -239,6 +239,11 @@ export default function SimulationBoard({
                 const after = e.clientX > rect.left + rect.width / 2;
                 if (over?.idx !== idx || over.after !== after) setOver({ idx, after });
               }}
+              // 카드 배경은 과목 배지 색을 흰색과 섞어 더 연하게 쓴다 (과목이 없으면 흰색)
+              style={s.subject ? {
+                backgroundColor: `color-mix(in srgb, ${badge.bg} 45%, white)`,
+                borderColor: dragId === s.id ? undefined : `color-mix(in srgb, ${badge.bg} 90%, white)`,
+              } : undefined}
               className={`flex min-w-0 flex-col rounded-xl border bg-white p-4 transition ${marker} ${
                 dragId === s.id ? 'border-[#5044e3] opacity-40' : 'border-[#e6e9f2]'
               }`}
@@ -278,7 +283,7 @@ export default function SimulationBoard({
                     onChange={(v) => update(s.id, 'title', v.replace(/\n/g, ' '))}
                     disabled={locked}
                     placeholder="수업 타이틀"
-                    className="min-w-[120px] flex-1 rounded-md bg-transparent px-1 py-0.5 text-[15px] font-bold leading-snug text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-[#f1f4f9] disabled:opacity-60"
+                    className="min-w-[120px] flex-1 rounded-md bg-transparent px-1 py-0.5 text-[15px] font-bold leading-snug text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-white/80 disabled:opacity-60"
                   />
                 </div>
                 {!locked && (
@@ -296,7 +301,7 @@ export default function SimulationBoard({
 
               <div className="space-y-3">
                 {/* 학습목표 — 가장 먼저 */}
-                <div className="rounded-lg bg-[#f4f2ff] px-3 py-2">
+                <div className="rounded-lg bg-white/80 px-3 py-2">
                   <span className="mb-0.5 block text-[11.5px] font-semibold text-[#5044e3]">학습목표</span>
                   <AutoResizeTextarea
                     value={s.objective}
@@ -315,7 +320,7 @@ export default function SimulationBoard({
                     onChange={(e) => update(s.id, 'standard', e.target.value)}
                     disabled={locked}
                     placeholder="[9수01-02]"
-                    className="w-full rounded-lg bg-[#f1f4f9] px-3 py-1.5 font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
+                    className="w-full rounded-lg bg-white/80 px-3 py-1.5 font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
                   />
                 </div>
 

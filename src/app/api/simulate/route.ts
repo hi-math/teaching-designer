@@ -39,7 +39,7 @@ const SESSION_TOOL: Anthropic.Tool = {
         items: {
           type: 'object',
           properties: {
-            subject:   { type: 'string', description: '이 차시를 맡는 교과 (융합 차시는 "국어·사회"처럼 병기)' },
+            subject:   { type: 'string', description: '이 차시를 맡는 교과 하나. 차시가 교과 수보다 부족할 때만 "국어·사회"처럼 두 교과를 병기' },
             title:     { type: 'string', description: '이 차시의 수업 타이틀을 직접 지어 넣는다. 차시 내용을 압축한 20자 내외의 짧은 제목' },
             objective: { type: 'string', description: '학습목표 한 문장 ("~할 수 있다" 형식)' },
             standard:  { type: 'string', description: '이 차시에서 다루는 성취기준의 코드만. 내용 없이 "[9수01-02]" 형식, 여러 개면 ", "로 구분' },
@@ -97,7 +97,8 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
     '- 성취기준은 코드만 적습니다. 지도내용은 개조식 3~4개 항목으로 씁니다.',
     '- 선택한 성취기준이 빠짐없이 최소 한 차시에 배치되도록 합니다.',
     '- 흐름이 팀 비전과 통합 수업 목표로 수렴하도록 배열합니다.',
-    '- 관련 교과가 여럿이면 교과별 차시와 융합 차시를 자연스럽게 섞습니다.',
+    '- 한 차시에는 가급적 한 교과만 배정합니다. 차시 수가 관련 교과 수보다 적어 모든 교과를 담기 어려울 때만 한 차시에 두 교과를 함께 넣습니다.',
+    '- 관련 교과가 여럿이면 교과별 차시가 고르게 돌아가도록 배열하고, 교과 간 연결은 앞뒤 차시의 흐름으로 드러냅니다.',
     '- submit_sessions 도구로만 답합니다.',
   );
   return lines.join('\n');

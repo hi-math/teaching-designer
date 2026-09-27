@@ -743,7 +743,7 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
               onKeyDown={handleKeyDown}
               placeholder={isRecording ? '🎙️ 음성 인식 중...' : '메시지를 입력하세요...'}
               rows={1}
-              className="w-full resize-none rounded-full bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none min-h-[48px] focus:ring-2 focus:ring-[#5044e3]/20"
+              className="w-full resize-none rounded-2xl bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none min-h-[48px] focus:ring-2 focus:ring-[#5044e3]/20"
             />
             {input.trim() && (
               <button

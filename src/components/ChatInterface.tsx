@@ -464,7 +464,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
             placeholder="메시지를 입력하세요..."
             rows={1}
             disabled={isStreaming}
-            className="w-full resize-none rounded-full bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none disabled:opacity-50 min-h-[48px] focus:ring-2 focus:ring-[#5044e3]/20"
+            className="w-full resize-none rounded-2xl bg-[#f1f4f9] pl-5 pr-12 py-3 text-[15px] text-[#2d3339] placeholder-[#adb2ba] outline-none border-none disabled:opacity-50 min-h-[48px] focus:ring-2 focus:ring-[#5044e3]/20"
           />
           {isStreaming && (
             <button

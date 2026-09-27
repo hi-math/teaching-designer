@@ -87,7 +87,7 @@ function BulletEditor({
               }
             }}
             style={{ resize: 'none', overflow: 'hidden' }}
-            className="w-full rounded-md bg-transparent px-1 py-0.5 text-[13.5px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-white/80 disabled:opacity-60"
+            className="w-full bg-transparent py-0.5 text-[13.5px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none disabled:opacity-60"
           />
         </li>
       ))}
@@ -172,7 +172,9 @@ export default function SimulationBoard({
     }
   };
 
-  const labelCls = 'mb-1 block text-[12px] font-semibold text-[#5a6066]';
+  // 차시 카드의 학습목표·성취기준·지도내용 칸 — 모두 같은 흰 박스
+  const sectionCls = 'rounded-lg bg-white/80 px-3 py-2 focus-within:ring-2 focus-within:ring-[#5044e3]/20';
+  const sectionLabelCls = 'mb-0.5 block text-[11.5px] font-semibold text-[#5a6066]';
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
@@ -300,34 +302,32 @@ export default function SimulationBoard({
                 )}
               </div>
 
-              <div className="space-y-3">
-                {/* 학습목표 — 가장 먼저 */}
-                <div className="rounded-lg bg-white/80 px-3 py-2">
-                  <span className="mb-0.5 block text-[11.5px] font-semibold text-[#5044e3]">학습목표</span>
+              {/* 세 항목 모두 같은 틀: 흰 박스 안에 제목 + 내용 */}
+              <div className="space-y-2">
+                <div className={sectionCls}>
+                  <span className={sectionLabelCls}>학습목표</span>
                   <AutoResizeTextarea
                     value={s.objective}
                     onChange={(v) => update(s.id, 'objective', v)}
                     disabled={locked}
                     placeholder="~할 수 있다."
-                    className="w-full bg-transparent text-[14px] font-semibold leading-relaxed text-[#2d3339] placeholder-[#c4bef5] outline-none disabled:opacity-60"
+                    className="w-full bg-transparent text-[14px] font-semibold leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none disabled:opacity-60"
                   />
                 </div>
 
-                {/* 성취기준 — 코드만 */}
-                <div>
-                  <span className={labelCls}>성취기준</span>
+                <div className={sectionCls}>
+                  <span className={sectionLabelCls}>성취기준</span>
                   <input
                     value={standardCodesOnly(s.standard)}
                     onChange={(e) => update(s.id, 'standard', e.target.value)}
                     disabled={locked}
                     placeholder="[9수01-02]"
-                    className="w-full rounded-lg bg-white/80 px-3 py-1.5 font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
+                    className="w-full bg-transparent font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none disabled:opacity-60"
                   />
                 </div>
 
-                {/* 지도내용 — 개조식 불릿 */}
-                <div>
-                  <span className={labelCls}>지도내용</span>
+                <div className={sectionCls}>
+                  <span className={sectionLabelCls}>지도내용</span>
                   <BulletEditor
                     value={s.content}
                     onChange={(v) => update(s.id, 'content', v)}

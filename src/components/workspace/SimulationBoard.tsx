@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AutoResizeTextarea, getSubjectBadge } from './CardFields';
 
 /**
  * 수업 시뮬레이션 보드.
  *
- * 차시별 카드(과목·수업 타이틀·성취기준·학습목표·지도내용)를 가로로 늘어놓고,
- * 손잡이를 끌어 좌우로 순서를 바꾼다. 차시 번호는 저장하지 않고 배열 순서로 매긴다
+ * 차시별 카드(과목·수업 타이틀·학습목표·성취기준 코드·지도내용)를 한 줄에 3개씩 놓고,
+ * 손잡이를 끌어 순서를 바꾼다. 차시 번호는 저장하지 않고 배열 순서로 매긴다
  * — 순서를 바꿀 때마다 번호를 다시 맞출 필요가 없도록.
  */
 
@@ -15,8 +15,10 @@ export type SimSession = {
   id: string;
   subject: string;
   title: string;
+  /** 성취기준 코드만 — "[9수01-02], [9사03-01]" */
   standard: string;
   objective: string;
+  /** 지도내용 — 줄마다 개조식 항목 하나 */
   content: string;
 };
 
@@ -26,8 +28,69 @@ export function newSessionId(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** "[9수01-02] 내용…" 처럼 본문이 붙어 있어도 대괄호 코드만 남긴다. 코드가 없으면 그대로. */
+export function standardCodesOnly(text: string): string {
+  const codes = text.match(/\[[^\]\n]+\]/g);
+  return codes ? codes.join(', ') : text;
+}
+
+/** 지도내용 문자열 → 불릿 항목 배열 (앞의 "-", "•" 표식은 떼어 낸다) */
+export function contentBullets(text: string): string[] {
+  const lines = text.split('\n').map((l) => l.replace(/^\s*(?:[-•·*]|\d+[.)])\s*/, ''));
+  return lines.length ? lines : [''];
+}
+
 function readSessions(value: Record<string, unknown>): SimSession[] {
   return Array.isArray(value.sessions) ? (value.sessions as SimSession[]) : [];
+}
+
+/** 지도내용 불릿 편집기 — Enter 로 다음 항목, 빈 항목에서 Backspace 로 삭제 */
+function BulletEditor({
+  value, onChange, locked,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  locked: boolean;
+}) {
+  const items = contentBullets(value);
+  const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const focus = (i: number) => requestAnimationFrame(() => refs.current[i]?.focus());
+  const save = (next: string[]) => onChange(next.join('\n'));
+
+  return (
+    <ul className="space-y-1">
+      {items.map((item, i) => (
+        <li key={i} className="flex items-start gap-1.5">
+          <span className="pt-[7px] text-[13px] font-bold leading-none text-[#5044e3]">•</span>
+          <textarea
+            ref={(el) => {
+              refs.current[i] = el;
+              if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+            }}
+            rows={1}
+            value={item}
+            disabled={locked}
+            placeholder={i === 0 ? '지도내용' : ''}
+            onChange={(e) => save(items.map((v, j) => (j === i ? e.target.value.replace(/\n/g, ' ') : v)))}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return; // 한글 조합 중 Enter 는 무시
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                save([...items.slice(0, i + 1), '', ...items.slice(i + 1)]);
+                focus(i + 1);
+              } else if (e.key === 'Backspace' && item === '' && items.length > 1) {
+                e.preventDefault();
+                save(items.filter((_, j) => j !== i));
+                focus(Math.max(0, i - 1));
+              }
+            }}
+            style={{ resize: 'none', overflow: 'hidden' }}
+            className="w-full rounded-md bg-transparent px-1 py-0.5 text-[13.5px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-[#f1f4f9] disabled:opacity-60"
+          />
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function SimulationBoard({
@@ -49,7 +112,8 @@ export default function SimulationBoard({
   // textarea 에서 글자를 드래그해 선택하려 할 때 카드가 끌려 간다.
   const [armedId, setArmedId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
+  // 끌고 있는 카드가 놓일 자리: 어느 카드의 앞/뒤인지
+  const [over, setOver] = useState<{ idx: number; after: boolean } | null>(null);
 
   const save = (next: SimSession[]) => onChange({ ...value, sessions: next });
 
@@ -71,7 +135,7 @@ export default function SimulationBoard({
     if (next.some((s, i) => s.id !== sessions[i].id)) save(next);
   };
 
-  const resetDrag = () => { setArmedId(null); setDragId(null); setOverIdx(null); };
+  const resetDrag = () => { setArmedId(null); setDragId(null); setOver(null); };
 
   const runSimulate = async () => {
     if (!onSimulate || loading) return;
@@ -87,13 +151,7 @@ export default function SimulationBoard({
     }
   };
 
-  const fieldCls =
-    'w-full rounded-lg bg-[#f1f4f9] px-3 py-2 text-[14px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60';
   const labelCls = 'mb-1 block text-[12px] font-semibold text-[#5a6066]';
-
-  // 끼워 넣을 위치 표시선 (세로)
-  const dropLine = (idx: number) =>
-    dragId && overIdx === idx ? <div className="w-1 shrink-0 self-stretch rounded-full bg-[#5044e3]/60" /> : null;
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
@@ -126,141 +184,143 @@ export default function SimulationBoard({
       {error && <p className="mb-3 text-[13px] text-red-500">{error}</p>}
 
       {sessions.length === 0 && (
-        <div className="mb-2 rounded-xl border border-dashed border-[#dde3eb] px-4 py-8 text-center text-[14px] text-[#adb2ba]">
+        <div className="mb-3 rounded-xl border border-dashed border-[#dde3eb] px-4 py-8 text-center text-[14px] text-[#adb2ba]">
           아직 차시 카드가 없습니다. 시뮬레이션을 생성하거나 직접 추가하세요.
         </div>
       )}
 
-      {/* 차시 카드 — 가로 스크롤 */}
+      {/* 차시 카드 — 한 줄에 3개 */}
       <div
-        className="flex items-stretch gap-3 overflow-x-auto pb-3"
+        className="grid grid-cols-3 gap-3"
         onDragOver={(e) => { if (dragId) e.preventDefault(); }}
         onDrop={(e) => {
           e.preventDefault();
-          if (dragId && overIdx !== null) move(dragId, overIdx);
+          if (dragId && over) move(dragId, over.after ? over.idx + 1 : over.idx);
           resetDrag();
         }}
       >
         {sessions.map((s, idx) => {
           const badge = getSubjectBadge(s.subject.split(/[·,/]/)[0]?.trim() ?? '');
+          const marker =
+            dragId && over?.idx === idx && dragId !== s.id
+              ? over.after ? 'shadow-[4px_0_0_0_#5044e3]' : 'shadow-[-4px_0_0_0_#5044e3]'
+              : '';
           return (
-            <div key={s.id} className="flex shrink-0 items-stretch gap-3">
-              {dropLine(idx)}
-              <div
-                draggable={!locked && armedId === s.id}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', s.id);
-                  setDragId(s.id);
-                }}
-                onDragEnd={resetDrag}
-                onDragOver={(e) => {
-                  if (!dragId) return;
-                  e.preventDefault();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const after = e.clientX > rect.left + rect.width / 2;
-                  setOverIdx(after ? idx + 1 : idx);
-                }}
-                className={`flex w-[300px] flex-col rounded-xl border bg-white p-4 transition ${
-                  dragId === s.id ? 'border-[#5044e3] opacity-40' : 'border-[#e6e9f2]'
-                }`}
-              >
-                {/* 헤더: 손잡이 · 차시 · 삭제 */}
-                <div className="mb-2 flex items-center gap-2">
-                  {!locked && (
-                    <span
-                      title="끌어서 순서 바꾸기"
-                      onMouseDown={() => setArmedId(s.id)}
-                      onMouseUp={() => { if (!dragId) setArmedId(null); }}
-                      className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-[#adb2ba] hover:bg-[#f1f4f9] hover:text-[#5044e3] active:cursor-grabbing"
-                    >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                        <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
-                        <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
-                        <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
-                      </svg>
-                    </span>
-                  )}
+            <div
+              key={s.id}
+              draggable={!locked && armedId === s.id}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', s.id);
+                setDragId(s.id);
+              }}
+              onDragEnd={resetDrag}
+              onDragOver={(e) => {
+                if (!dragId) return;
+                e.preventDefault();
+                const rect = e.currentTarget.getBoundingClientRect();
+                const after = e.clientX > rect.left + rect.width / 2;
+                if (over?.idx !== idx || over.after !== after) setOver({ idx, after });
+              }}
+              className={`flex min-w-0 flex-col rounded-xl border bg-white p-4 transition ${marker} ${
+                dragId === s.id ? 'border-[#5044e3] opacity-40' : 'border-[#e6e9f2]'
+              }`}
+            >
+              {/* 헤더: 손잡이 · "N차시 과목 : 수업 타이틀" · 삭제 */}
+              <div className="mb-3 flex items-start gap-1.5">
+                {!locked && (
+                  <span
+                    title="끌어서 순서 바꾸기"
+                    onMouseDown={() => setArmedId(s.id)}
+                    onMouseUp={() => { if (!dragId) setArmedId(null); }}
+                    className="-ml-1 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-[#adb2ba] hover:bg-[#f1f4f9] hover:text-[#5044e3] active:cursor-grabbing"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                      <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+                      <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+                      <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+                    </svg>
+                  </span>
+                )}
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
                   <span className="shrink-0 rounded-md bg-[#5044e3] px-2 py-0.5 text-[12px] font-bold text-white">
                     {idx + 1}차시
                   </span>
-                  <div className="flex-1" />
-                  {!locked && (
-                    <button
-                      onClick={() => remove(s.id)}
-                      title="차시 삭제"
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] hover:bg-red-50 hover:text-red-400"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-
-                {/* 과목 + 수업 타이틀 */}
-                <div className="mb-3 flex items-center gap-2">
                   <input
                     value={s.subject}
                     onChange={(e) => update(s.id, 'subject', e.target.value)}
                     disabled={locked}
                     placeholder="과목"
+                    size={Math.max(2, s.subject.length + 1)}
                     style={{ backgroundColor: s.subject ? badge.bg : undefined, color: s.subject ? badge.text : undefined }}
-                    className="w-20 shrink-0 rounded-full bg-[#f1f4f9] px-3 py-1 text-center text-[13px] font-semibold text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
+                    className="shrink-0 rounded-md bg-[#f1f4f9] px-2 py-0.5 text-center text-[12.5px] font-semibold text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
                   />
-                  <input
+                  <span className="shrink-0 font-bold text-[#adb2ba]">:</span>
+                  <AutoResizeTextarea
                     value={s.title ?? ''}
-                    onChange={(e) => update(s.id, 'title', e.target.value)}
+                    onChange={(v) => update(s.id, 'title', v.replace(/\n/g, ' '))}
                     disabled={locked}
                     placeholder="수업 타이틀"
-                    className="min-w-0 flex-1 border-b border-transparent bg-transparent px-1 py-1 text-[15px] font-bold text-[#2d3339] placeholder-[#adb2ba] outline-none focus:border-[#5044e3]/40 disabled:opacity-60"
+                    className="min-w-[120px] flex-1 rounded-md bg-transparent px-1 py-0.5 text-[15px] font-bold leading-snug text-[#2d3339] placeholder-[#adb2ba] outline-none focus:bg-[#f1f4f9] disabled:opacity-60"
+                  />
+                </div>
+                {!locked && (
+                  <button
+                    onClick={() => remove(s.id)}
+                    title="차시 삭제"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#adb2ba] hover:bg-red-50 hover:text-red-400"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {/* 학습목표 — 가장 먼저 */}
+                <div className="rounded-lg bg-[#f4f2ff] px-3 py-2">
+                  <span className="mb-0.5 block text-[11.5px] font-semibold text-[#5044e3]">학습목표</span>
+                  <AutoResizeTextarea
+                    value={s.objective}
+                    onChange={(v) => update(s.id, 'objective', v)}
+                    disabled={locked}
+                    placeholder="~할 수 있다."
+                    className="w-full bg-transparent text-[14px] font-semibold leading-relaxed text-[#2d3339] placeholder-[#c4bef5] outline-none disabled:opacity-60"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <div>
-                    <span className={labelCls}>성취기준</span>
-                    <AutoResizeTextarea
-                      value={s.standard}
-                      onChange={(v) => update(s.id, 'standard', v)}
-                      disabled={locked}
-                      placeholder="[코드] 성취기준"
-                      className={fieldCls}
-                    />
-                  </div>
-                  <div>
-                    <span className={labelCls}>학습목표</span>
-                    <AutoResizeTextarea
-                      value={s.objective}
-                      onChange={(v) => update(s.id, 'objective', v)}
-                      disabled={locked}
-                      placeholder="~할 수 있다."
-                      className={`${fieldCls} font-medium`}
-                    />
-                  </div>
-                  <div>
-                    <span className={labelCls}>지도내용</span>
-                    <AutoResizeTextarea
-                      value={s.content}
-                      onChange={(v) => update(s.id, 'content', v)}
-                      disabled={locked}
-                      placeholder="도입 · 전개 · 정리"
-                      className={fieldCls}
-                    />
-                  </div>
+                {/* 성취기준 — 코드만 */}
+                <div>
+                  <span className={labelCls}>성취기준</span>
+                  <input
+                    value={standardCodesOnly(s.standard)}
+                    onChange={(e) => update(s.id, 'standard', e.target.value)}
+                    disabled={locked}
+                    placeholder="[9수01-02]"
+                    className="w-full rounded-lg bg-[#f1f4f9] px-3 py-1.5 font-mono text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#5044e3]/20 disabled:opacity-60"
+                  />
+                </div>
+
+                {/* 지도내용 — 개조식 불릿 */}
+                <div>
+                  <span className={labelCls}>지도내용</span>
+                  <BulletEditor
+                    value={s.content}
+                    onChange={(v) => update(s.id, 'content', v)}
+                    locked={locked}
+                  />
                 </div>
               </div>
             </div>
           );
         })}
-        {dropLine(sessions.length)}
 
-        {/* 차시 추가 — 줄 끝의 빈 카드 */}
+        {/* 차시 추가 — 격자 마지막 칸 */}
         {!locked && (
           <button
             onClick={add}
-            className="flex w-[140px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#c9cfe0] text-[13px] font-medium text-[#5044e3] transition-colors hover:bg-[#ede9fb]"
-            style={{ minHeight: sessions.length ? undefined : 96 }}
+            className="flex min-h-[120px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#c9cfe0] text-[13px] font-medium text-[#5044e3] transition-colors hover:bg-[#ede9fb]"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

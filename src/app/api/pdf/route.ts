@@ -557,9 +557,16 @@ function renderChapterA(d: RenderData): string {
     let s25 = sub("2.5 수업 시뮬레이션");
     if (hasField(A5, "sessions")) {
       s25 += table(
-        ["차시", "과목", "수업 타이틀", "성취기준", "학습목표", "지도내용"],
-        A5!.sessions!.map((r, i) => [`${i + 1}`, r.subject, r.title ?? "", r.standard, r.objective, r.content]),
-        { colWidthsMm: [10, 16, 26, 40, 34, 44], centerCols: [0] }
+        ["차시", "과목", "수업 타이틀", "학습목표", "성취기준", "지도내용"],
+        A5!.sessions!.map((r, i) => [
+          `${i + 1}`,
+          r.subject,
+          r.title ?? "",
+          r.objective,
+          (r.standard.match(/\[[^\]\n]+\]/g) ?? [r.standard]).join("\n"),
+          r.content.split("\n").filter((l) => l.trim()).map((l) => `• ${l.replace(/^\s*[-•·*]\s*/, "")}`).join("\n"),
+        ]),
+        { colWidthsMm: [10, 15, 28, 40, 24, 53], centerCols: [0] }
       );
     } else {
       s25 += textFallback(A5);

@@ -10,6 +10,7 @@ export interface TableColumn {
   subjectSource?: 'ideas' | 'standards'; // for subject-select type
   align?: 'left' | 'center';
   flex?: number; // CSS flex-grow weight, default 1
+  width?: number; // 고정 폭(px). 지정하면 flex 대신 쓴다
 }
 
 export type FieldType = 'text' | 'textarea' | 'bullets' | 'table' | 'richtext';
@@ -114,11 +115,11 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
   'A-3': {
     fields: [
       { ...tb('core_ideas', '핵심 아이디어', [
-        { key: 'subject',   label: '교과',        type: 'subject-select', subjectSource: 'ideas', flex: 1 },
+        { key: 'subject',   label: '교과',        type: 'subject-select', subjectSource: 'ideas', width: 76, align: 'center' },
         { key: 'core_idea', label: '핵심 아이디어', type: 'textarea',       flex: 4 },
       ], 2), noAddRow: true },
       tb('achievement_standards', '성취기준', [
-        { key: 'subject',  label: '교과',   type: 'subject-select', subjectSource: 'standards', flex: 1 },
+        { key: 'subject',  label: '교과',   type: 'subject-select', subjectSource: 'standards', width: 76, align: 'center' },
         { key: 'standard', label: '성취기준', type: 'textarea',       flex: 5 },
       ], 2),
     ],

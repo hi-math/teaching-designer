@@ -30,6 +30,17 @@ function getBadgeColor(subject: string): string {
   return '#64748B';
 }
 
+// ─── 검색어 강조 ───────────────────────────────────────────────────
+
+function highlight(text: string, terms: string[]) {
+  if (terms.length === 0) return text;
+  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const parts = text.split(new RegExp(`(${escaped.join('|')})`, 'gi'));
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <mark key={i} className="rounded bg-[#FFF1A8] px-0.5 text-inherit">{part}</mark> : part
+  );
+}
+
 // ─── 드롭다운 ─────────────────────────────────────────────────────
 
 function Select({
@@ -80,6 +91,7 @@ export default function IdeasModal({
   const [domains, setDomains] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [domain, setDomain] = useState('');
+  const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<IdeaItem[]>(() => [...selectedIdeas]);
 
   // JSON 로드 → 전체 아이템 플랫 리스트 생성
@@ -117,10 +129,17 @@ export default function IdeasModal({
     setDomain('');
   }, [subject, ideasData]);
 
+  // 검색어는 공백으로 나눠 모두 포함하는 항목만 남긴다 (교과·영역·내용 대상)
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
   // 현재 필터에 맞는 아이템
   const filteredItems = allItems.filter((item) => {
     if (subject && item.subject !== subject) return false;
     if (domain && item.domain !== domain) return false;
+    if (terms.length) {
+      const hay = `${item.subject} ${item.domain} ${item.content}`.toLowerCase();
+      if (!terms.every((t) => hay.includes(t))) return false;
+    }
     return true;
   });
 
@@ -182,9 +201,31 @@ export default function IdeasModal({
               <div className="flex items-end gap-4">
                 <Select label="교과" value={subject} options={subjects} placeholder="전체" onChange={setSubject} />
                 <Select label="영역" value={domain} options={domains} placeholder="전체" onChange={setDomain} />
-                {(subject || domain) && (
+                <div className="flex flex-1 flex-col gap-1">
+                  <label className="text-[13px] font-semibold uppercase tracking-wider text-[#9AAAC0]">검색어</label>
+                  <div className="relative">
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="핵심아이디어 내용, 영역 검색..."
+                      autoFocus
+                      className="w-full rounded-lg border border-[#D8E2F0] bg-white px-3 py-2 pr-8 text-[15px] text-[#2C3A52] placeholder-[#9AAAC0] outline-none focus:border-[#534AB7]"
+                    />
+                    {query && (
+                      <button
+                        onClick={() => setQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9AAAC0] hover:text-[#3A4560]"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {(subject || domain || query) && (
                   <button
-                    onClick={() => { setSubject(''); setDomain(''); }}
+                    onClick={() => { setSubject(''); setDomain(''); setQuery(''); }}
                     className="self-end rounded-lg border border-[#D8E2F0] bg-white px-4 py-2 text-[15px] text-[#6B7A99] transition hover:bg-[#F2F5FA]"
                   >
                     초기화
@@ -248,7 +289,7 @@ export default function IdeasModal({
                                 </span>
                               </div>
                               {/* 내용 */}
-                              <p className="text-[15px] leading-relaxed text-[#2C3A52]">{item.content}</p>
+                              <p className="text-[15px] leading-relaxed text-[#2C3A52]">{highlight(item.content, terms)}</p>
                             </div>
                           </div>
                         </div>

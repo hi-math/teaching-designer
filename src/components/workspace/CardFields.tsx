@@ -155,21 +155,26 @@ function TableCell({
   if (col.type === 'select' || col.type === 'subject-select') {
     const opts = col.type === 'subject-select' ? (dynamicOptions ?? []) : (col.options ?? []);
     const hasValue = value !== '' && value !== undefined;
-    const badge = hasValue ? getBadgeStyle(value, col.type === 'subject-select') : null;
+    const isSubject = col.type === 'subject-select';
+    const badge = hasValue ? getBadgeStyle(value, isSubject) : null;
+    // 교과는 배지만 가운데 두고 펼치기 화살표는 뺀다 — 칸을 눌러도 목록이 열린다
+    const overlayCls = `pointer-events-none absolute inset-0 flex items-center ${
+      col.align === 'center' ? 'justify-center px-1' : 'px-3'
+    }`;
     return (
       <div className="relative w-full">
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
           disabled={locked}
-          className={`${base} cursor-pointer appearance-none pr-6`}
+          className={`${base} cursor-pointer appearance-none ${isSubject ? '' : 'pr-6'}`}
           style={{ color: hasValue ? 'transparent' : undefined }}
         >
           <option value="">—</option>
           {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
         {badge && (
-          <div className="pointer-events-none absolute inset-0 flex items-center px-3">
+          <div className={overlayCls}>
             <span
               className="rounded-full px-2.5 py-0.5 text-[12px] font-medium whitespace-nowrap"
               style={{ backgroundColor: badge.bg, color: badge.text }}
@@ -179,15 +184,17 @@ function TableCell({
           </div>
         )}
         {!hasValue && (
-          <div className="pointer-events-none absolute inset-0 flex items-center px-3">
+          <div className={overlayCls}>
             <span className="text-[13px] text-[#adb2ba]">—</span>
           </div>
         )}
-        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#adb2ba]">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+        {!isSubject && (
+          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#adb2ba]">
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        )}
       </div>
     );
   }
@@ -271,7 +278,7 @@ function TableInput({
 
   // CSS grid: columns share same template → borders align perfectly
   const gridTemplate =
-    field.columns.map(c => `${c.flex ?? 1}fr`).join(' ') + ' 28px';
+    field.columns.map(c => (c.width ? `${c.width}px` : `${c.flex ?? 1}fr`)).join(' ') + ' 28px';
 
   return (
     <div onClick={e => e.stopPropagation()}>

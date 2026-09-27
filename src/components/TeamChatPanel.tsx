@@ -54,50 +54,6 @@ function avatarColor(userId: string) {
   return AVATAR_COLORS[n % AVATAR_COLORS.length];
 }
 
-// ─── Google Docs 헬퍼 ──────────────────────────────────────────────
-
-function loadGIS(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((window as any).google?.accounts) { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('GIS 스크립트 로드 실패'));
-    document.head.appendChild(s);
-  });
-}
-
-function getGoogleToken(clientId: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.file',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      callback: (res: any) => resolve(res.error ? null : res.access_token as string),
-    });
-    tokenClient.requestAccessToken();
-  });
-}
-
-function buildChatText(messages: ChatMessage[]): string {
-  const lines = [
-    '팀 채팅 기록',
-    `날짜: ${new Date().toLocaleDateString('ko-KR')}`,
-    '─'.repeat(40),
-    '',
-  ];
-  for (const msg of messages) {
-    if (msg.replyTo) lines.push(`  ↳ ${msg.replyTo.senderName}: ${msg.replyTo.content}`);
-    lines.push(`[${msg.timestamp}] ${msg.senderName}`);
-    lines.push(msg.content);
-    lines.push('');
-  }
-  return lines.join('\n');
-}
-
 // ─── 컴포넌트 ──────────────────────────────────────────────────────
 
 interface Props {
@@ -122,15 +78,12 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const [mgmtOpen, setMgmtOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [gdocLoading, setGdocLoading] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const mgmtRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef('');
@@ -351,73 +304,6 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
     return () => document.removeEventListener('mousedown', handler);
   }, [reactionPickerFor]);
 
-  // ── 채팅 관리 드롭다운 외부 클릭 닫기 ───────────────────────
-  useEffect(() => {
-    if (!mgmtOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (mgmtRef.current && !mgmtRef.current.contains(e.target as Node)) {
-        setMgmtOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [mgmtOpen]);
-
-  // ── 텍스트 파일 다운로드 ─────────────────────────────────────
-  const downloadAsText = () => {
-    setMgmtOpen(false);
-    if (messages.length === 0) { showAlert('채팅 내용이 없습니다.'); return; }
-    const content = buildChatText(messages);
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `팀채팅_${new Date().toLocaleDateString('ko-KR').replace(/\.\s*/g, '-').replace(/-$/, '')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // ── 구글 문서 생성 ───────────────────────────────────────────
-  const createGoogleDoc = useCallback(async () => {
-    setMgmtOpen(false);
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      showAlert('Google Docs 연동을 사용하려면 관리자가 NEXT_PUBLIC_GOOGLE_CLIENT_ID 환경 변수를 설정해야 합니다.');
-      return;
-    }
-    if (messages.length === 0) { showAlert('채팅 내용이 없습니다.'); return; }
-    setGdocLoading(true);
-    try {
-      await loadGIS();
-      const token = await getGoogleToken(clientId);
-      if (!token) { setGdocLoading(false); return; }
-
-      const createRes = await fetch('https://docs.googleapis.com/v1/documents', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: `팀 채팅 기록 - ${new Date().toLocaleDateString('ko-KR')}` }),
-      });
-      const doc = await createRes.json() as { documentId?: string };
-      if (!doc.documentId) throw new Error('문서 ID를 받지 못했습니다');
-
-      const chatText = buildChatText(messages);
-      await fetch(`https://docs.googleapis.com/v1/documents/${doc.documentId}:batchUpdate`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ insertText: { location: { index: 1 }, text: chatText } }] }),
-      });
-
-      window.open(`https://docs.google.com/document/d/${doc.documentId}/edit`, '_blank');
-    } catch (e) {
-      console.error('Google Docs 생성 오류:', e);
-      showAlert('구글 문서 생성에 실패했습니다. 다시 시도해 주세요.');
-    } finally {
-      setGdocLoading(false);
-    }
-  }, [messages]);
-
   // ── 음성 입력 토글 ───────────────────────────────────────────
   const toggleRecording = useCallback(() => {
     if (isRecording) {
@@ -608,55 +494,6 @@ export default function TeamChatPanel({ lessonId, currentUserId }: Props) {
 
   return (
     <div className="flex flex-col h-full bg-white">
-
-      {/* ── 채팅 관리 헤더 ── */}
-      <div className="shrink-0 flex items-center justify-end px-3 py-2 border-b border-[#adb2ba]/20">
-        <div className="relative" ref={mgmtRef}>
-          <button
-            onClick={() => setMgmtOpen((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#5a6066] bg-[#f1f4f9] hover:bg-[#e5e9f0] transition-colors"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-            </svg>
-            채팅 관리
-            <svg className={`h-3 w-3 transition-transform ${mgmtOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {mgmtOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg">
-              <button
-                onClick={downloadAsText}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <svg className="h-4 w-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                텍스트 파일 다운로드
-              </button>
-              <button
-                onClick={createGoogleDoc}
-                disabled={gdocLoading}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {gdocLoading ? (
-                  <svg className="h-4 w-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                ) : (
-                  <svg className="h-4 w-4 text-blue-500 shrink-0" viewBox="0 0 48 48" fill="currentColor">
-                    <path d="M28 4H12C9.8 4 8 5.8 8 8v32c0 2.2 1.8 4 4 4h24c2.2 0 4-1.8 4-4V20L28 4zm-2 18V7l11 11H26z" />
-                  </svg>
-                )}
-                구글 문서 만들기
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* 메시지 목록 */}
       <div

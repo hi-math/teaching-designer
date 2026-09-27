@@ -27,6 +27,8 @@ interface Props {
   lessonId?: string;
   userId?: string;
   triggerMessage?: string; // auto-sends when changed
+  /** 채팅관리에서 고른 LLM 모델 id */
+  model?: string;
   /**
    * 참고자료 본문(PDF base64 / 텍스트)을 전송 직전에 가져오는 콜백.
    * 페이지 진입 시점에 수십 MB 를 미리 받지 않기 위해 지연 호출한다.
@@ -43,7 +45,7 @@ function nowTimestamp() {
   return `${h >= 12 ? '오후' : '오전'} ${h > 12 ? h - 12 : h === 0 ? 12 : h}:${m}`;
 }
 
-export default function ChatInterface({ stage, onReady, pageContext, lessonId, userId, triggerMessage, loadReferenceContents }: Props) {
+export default function ChatInterface({ stage, onReady, pageContext, lessonId, userId, triggerMessage, model, loadReferenceContents }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [timestamps, setTimestamps] = useState<string[]>([]);
   const [input, setInput] = useState('');
@@ -232,15 +234,16 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          buildChatPayload({
+        body: JSON.stringify({
+          ...buildChatPayload({
             messages: apiMessages,
             stage,
             pageContext: pageContext
               ? { ...pageContext, referenceFiles: refContents }
               : pageContext,
-          })
-        ),
+          }),
+          model,
+        }),
         signal: abortRef.current.signal,
       });
 

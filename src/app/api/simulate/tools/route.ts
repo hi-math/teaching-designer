@@ -1,12 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { resolveLlmModel } from '@/lib/llmModels';
 
 // 수업 시뮬레이션 → 설계 반영: 차시마다 쓸 학습 지원 도구(Ds-4)를 제안한다.
 // 학습 활동(Ds-3)은 시뮬레이션 내용을 그대로 옮기면 되지만, 지원 도구는
 // 시뮬레이션에 없는 정보라 여기서 새로 만든다.
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const MODEL = 'claude-haiku-4-5-20251001';
 
 type Session = { subject: string; title: string; objective: string; standard: string; content: string };
 
@@ -49,7 +48,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'AI 설정이 없습니다.' }, { status: 503 });
   }
 
-  const { sessions } = (await req.json()) as { sessions?: Session[] };
+  const { sessions, model } = (await req.json()) as { sessions?: Session[]; model?: string };
   if (!Array.isArray(sessions) || sessions.length === 0) {
     return Response.json({ error: '반영할 차시가 없습니다.' }, { status: 400 });
   }
@@ -64,7 +63,7 @@ export async function POST(req: Request) {
 
   try {
     const res = await client.messages.create({
-      model: MODEL,
+      model: resolveLlmModel(model),
       max_tokens: 4000,
       system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 수업의 차시별 활동에 맞는 학습 지원 도구를 제안합니다. 학교에서 실제로 쓰기 쉬운 도구를 고르고, 한국어로 간결하게 씁니다.',
       tools: [TOOLS_TOOL],

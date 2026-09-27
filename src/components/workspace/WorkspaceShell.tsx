@@ -15,6 +15,8 @@ import ShareModal from "@/components/workspace/ShareModal";
 import ActivityCard, { type OpinionEntry } from "@/components/workspace/ActivityCard";
 import { CARD_SCHEMAS, serializeStructuredForAI } from "@/components/workspace/cardSchemas";
 import { showAlert, showConfirm } from "@/components/ui/dialog";
+import ChatManageModal from "@/components/workspace/ChatManageModal";
+import { DEFAULT_LLM_MODEL, LLM_MODEL_ROW, resolveLlmModel, type LlmModelId } from "@/lib/llmModels";
 import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
 
 // ─── 워크스페이스 UI 토큰 (세이지 테마 고정) ─────────────────────
@@ -800,6 +802,9 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
   // ── 핵심아이디어 ──────────────────────────────────────────────
   const [selectedIdeas, setSelectedIdeas] = useState<IdeaItem[]>([]);
 
+  // ── LLM 모델 (채팅관리에서 소유자가 수업별로 고른다) ──────────
+  const [llmModel, setLlmModel] = useState<LlmModelId>(DEFAULT_LLM_MODEL);
+
   const [isHost, setIsHost] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<Permissions>({
@@ -913,6 +918,10 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
           if (code === "__selected_ideas" && Array.isArray(c.items)) {
             setSelectedIdeas(c.items);
             selectedIdeasRef.current = c.items;
+            continue;
+          }
+          if (code === LLM_MODEL_ROW) {
+            setLlmModel(resolveLlmModel(c.model));
             continue;
           }
           if (c.type === "structured" && c.fields) {
@@ -1030,6 +1039,11 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
         const { activity_code, content } = row;
         // 의견 관련 코드는 Broadcast로 처리 → 무시
         if (activity_code.includes("__opinion")) return;
+        // 소유자가 채팅관리에서 모델을 바꾸면 참여자에게도 반영
+        if (activity_code === LLM_MODEL_ROW) {
+          setLlmModel(resolveLlmModel((content as { model?: string })?.model));
+          return;
+        }
 
         const text = (content as { text?: string })?.text;
         if (text === undefined) return;
@@ -1440,6 +1454,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
         cards,
         selectedIdeas: selectedIdeasRef.current,
         selectedStandards: selectedStandardsRef.current,
+        model: llmModel,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1450,7 +1465,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
     const sessions = (data.sessions as { subject: string; title: string; standard: string; objective: string; content: string }[])
       .map((s) => ({ id: newSessionId(), ...s }));
     handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions });
-  }, [totalSessions, relatedSubjects, targetGrade, handleStructuredChange]);
+  }, [totalSessions, relatedSubjects, targetGrade, llmModel, handleStructuredChange]);
 
   // ── 수업 시뮬레이션 → 설계(Ds-3 학습 활동 · Ds-4 지원 도구) 반영 ──
   // 표는 차시 수만큼 행을 새로 만들어 채운다 — 기존 행 수보다 차시가 많으면 그만큼 늘어난다.
@@ -1490,6 +1505,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessions: sessions.map(({ subject, title, objective, standard, content }) => ({ subject, title, objective, standard, content })),
+          model: llmModel,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1509,7 +1525,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
     return toolsFailed
       ? `Ds-3에 ${sessions.length}개 차시를 반영했습니다. 지원 도구 제안에 실패해 Ds-4는 차시 틀만 채웠습니다.`
       : `Ds-3 학습 활동과 Ds-4 지원 도구에 ${sessions.length}개 차시를 반영했습니다.`;
-  }, [handleStructuredChange]);
+  }, [llmModel, handleStructuredChange]);
 
   // ── 완료 / 건너뛰기 ──────────────────────────────────────────
   const handleActivityStatusChange = useCallback(async (code: string, newStatus: "active" | "completed" | "skipped") => {
@@ -1968,6 +1984,21 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
             ).then(({ error }) => { if (error) console.error("[standards save]", error); });
           }}
           readOnly={!isHost}
+        />
+      ) : activeModal === "채팅관리" ? (
+        <ChatManageModal
+          lessonId={lessonId}
+          userId={userProfile?.id ?? ""}
+          projectTitle={projectTitle}
+          model={llmModel}
+          onModelChange={(model) => {
+            setLlmModel(model);
+            createClient().from("activity_contents").upsert(
+              { lesson_id: lessonId, activity_code: LLM_MODEL_ROW, content: { type: "settings", model }, updated_by: userProfile?.id ?? null },
+              { onConflict: "lesson_id,activity_code" }
+            ).then(({ error }) => { if (error) console.error("[llm model save]", error); });
+          }}
+          onClose={() => setActiveModal(null)}
         />
       ) : activeModal ? (
         <WorkModal title={activeModal} onClose={() => setActiveModal(null)} />
@@ -2599,6 +2630,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                 stage={activePhase}
                 onReady={() => setAiReady(true)}
                 triggerMessage={chatTrigger}
+                model={llmModel}
                 pageContext={(() => {
                   // 의견묻기 데이터를 멤버 이름으로 매핑
                   const allMembers = [

@@ -1,11 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { resolveLlmModel } from '@/lib/llmModels';
 
 // A-5 수업 시뮬레이션 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
 // 채팅과 달리 결과를 카드에 바로 넣어야 하므로, 도구 호출로 JSON 을 강제한다.
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const MODEL = 'claude-haiku-4-5-20251001';
 
 type Item = { code?: string; subject: string; domain?: string; content: string };
 
@@ -18,6 +17,8 @@ interface SimulateRequest {
   cards?: Record<string, string>;
   selectedIdeas?: Item[];
   selectedStandards?: Item[];
+  /** 채팅관리에서 고른 모델 */
+  model?: string;
 }
 
 export type SimulatedSession = {
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
 
   try {
     const res = await client.messages.create({
-      model: MODEL,
+      model: resolveLlmModel(body.model),
       max_tokens: 8000,
       system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.',
       tools: [SESSION_TOOL],

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { loadSystemPrompt, buildPageContextBlock, buildStableContextBlock } from '@/lib/prompts';
 import { selectStandardCandidates } from '@/lib/standards';
+import { resolveLlmModel } from '@/lib/llmModels';
 
 export async function GET() {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -10,8 +11,6 @@ export async function GET() {
 }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const MODEL = 'claude-haiku-4-5-20251001';
 
 /** A-3 후보 선별이 교과 정보 없이도 동작하도록, 분석 단계 카드 입력을 검색어로 쓴다. */
 function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined): string {
@@ -25,7 +24,7 @@ function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined
 }
 
 export async function POST(req: Request) {
-  const { messages, stage = 'T', pageContext } = await req.json();
+  const { messages, stage = 'T', pageContext, model } = await req.json();
 
   const selectedCode = pageContext?.selectedActivityCode as string | undefined;
   const enrichedContext = { ...pageContext };
@@ -53,7 +52,7 @@ export async function POST(req: Request) {
   if (volatileBlock) system.push({ type: 'text', text: volatileBlock });
 
   const stream = client.messages.stream({
-    model: MODEL,
+    model: resolveLlmModel(model),
     max_tokens: 4000,
     system,
     messages,

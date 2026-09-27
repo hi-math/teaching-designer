@@ -21,9 +21,10 @@ export function AppShellHeader({ children, className = "", style }: AppShellHead
       >
         {children}
       </header>
+      {/* 헤더(빨강)와 구분되도록 코랄 → 호박색으로 */}
       <div
         className="h-[4px] w-full shrink-0"
-        style={{ background: "linear-gradient(to right, #D1260F, #F0603C)" }}
+        style={{ background: "linear-gradient(to right, #F0603C, #FFB547)" }}
       />
     </>
   );

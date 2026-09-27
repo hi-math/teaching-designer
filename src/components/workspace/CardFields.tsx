@@ -170,8 +170,10 @@ function TableCell({
           className={`${base} cursor-pointer appearance-none ${isSubject ? '' : 'pr-6'}`}
           style={{ color: hasValue ? 'transparent' : undefined }}
         >
-          <option value="">—</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+          {/* select 글자를 투명하게(배지만 보이게) 하면 펼친 목록의 option 도 투명해진다
+              (Windows Chrome 등) — option 색은 따로 지정한다 */}
+          <option value="" style={{ color: '#adb2ba' }}>—</option>
+          {opts.map(o => <option key={o} value={o} style={{ color: '#2d3339' }}>{o}</option>)}
         </select>
         {badge && (
           <div className={overlayCls}>

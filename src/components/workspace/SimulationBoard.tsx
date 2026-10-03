@@ -144,12 +144,6 @@ function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () =>
 // ─── 초안 만들기 전 추가 요청 받기 ─────────────────────────────────
 
 const REQUEST_MAX = 500;
-const REQUEST_EXAMPLES = [
-  '모든 차시에 모둠 활동을 넣어 주세요',
-  '마지막 차시는 발표와 평가로 구성해 주세요',
-  '교과별 차시 수를 고르게 배분해 주세요',
-  '디지털 도구를 활용하는 활동을 포함해 주세요',
-];
 
 function DraftRequestDialog({
   initial,
@@ -158,7 +152,7 @@ function DraftRequestDialog({
   onSubmit,
 }: {
   initial: string;
-  /** 지금 있는 차시 카드 수 — 0 보다 크면 새 초안으로 바뀐다는 안내를 보여 준다 */
+  /** 지금 있는 차시 카드 수 — 0 보다 크면 버튼이 "바꾸고 초안 만들기"가 된다 */
   replaceCount: number;
   onCancel: () => void;
   onSubmit: (request: string) => void;
@@ -182,9 +176,6 @@ function DraftRequestDialog({
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const addExample = (example: string) =>
-    setText((t) => (t.trim() ? `${t.trimEnd()}\n${example}` : example).slice(0, REQUEST_MAX));
-
   return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30"
@@ -197,64 +188,27 @@ function DraftRequestDialog({
         aria-labelledby={titleId}
         className="w-[520px] max-w-[calc(100vw-32px)] rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
       >
-        <h3 id={titleId} className="text-[16px] font-bold text-[#2d3339]">초안 만들기</h3>
-        <p className="mt-1 break-keep text-[13px] leading-relaxed text-[#5a6066]">
-          지금까지의 팀 준비·분석 내용으로 차시별 초안을 만듭니다. 바라는 점이 있으면 적어 주세요.
-          적은 내용을 가장 우선해 반영합니다.
-          <span className="mt-1 block text-[12px] text-[#757b82]">
-            요청에서 차시 수를 바꾸면 수업 기본정보의 총 차시도 그 수로 바뀝니다.
-          </span>
-        </p>
+        <h3 id={titleId} className="text-[16px] font-bold text-[#2d3339]">추가 요청 입력하기</h3>
+        <textarea
+          ref={ref}
+          value={text}
+          maxLength={REQUEST_MAX}
+          rows={4}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSubmit(text.trim()); }
+          }}
+          aria-labelledby={titleId}
+          placeholder="예: 3차시에는 지역 문제를 조사하는 현장 활동을 넣어 주세요."
+          className="mt-3 w-full resize-none rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20"
+        />
 
-        <label className="mt-4 block text-[12px] font-semibold text-[#757b82]">
-          추가 요청 사항 <span className="font-normal text-[#adb2ba]">(선택)</span>
-          <textarea
-            ref={ref}
-            value={text}
-            maxLength={REQUEST_MAX}
-            rows={4}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSubmit(text.trim()); }
-            }}
-            placeholder="예: 3차시에는 지역 문제를 조사하는 현장 활동을 넣어 주세요."
-            className="mt-1.5 w-full resize-none rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] font-normal leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20"
-          />
-        </label>
-        <div className="mt-1 flex items-start justify-between gap-3">
-          <div className="flex flex-wrap gap-1.5">
-            {REQUEST_EXAMPLES.map((ex) => {
-              // 이미 적힌 예시는 다시 넣지 않는다
-              const added = text.includes(ex);
-              return (
-                <button
-                  key={ex}
-                  type="button"
-                  disabled={added}
-                  onClick={() => addExample(ex)}
-                  className="rounded-full border border-[#e2e4ea] bg-white px-2.5 py-1 text-left text-[12px] text-[#5a6066] transition hover:border-[#F5B8A8] hover:bg-[#FFF8F6] hover:text-[#D1260F] disabled:pointer-events-none disabled:border-transparent disabled:bg-[#f1f4f9] disabled:text-[#adb2ba]"
-                >
-                  {added ? '✓' : '+'} {ex}
-                </button>
-              );
-            })}
-          </div>
-          <span className="shrink-0 pt-1 text-[11px] tabular-nums text-[#adb2ba]">{text.length}/{REQUEST_MAX}</span>
-        </div>
-
-        {replaceCount > 0 && (
-          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800">
-            지금 있는 차시 카드 {replaceCount}개가 새 초안으로 바뀝니다.
-          </p>
-        )}
-
-        <div className="mt-5 flex items-center gap-2">
-          <span className="mr-auto hidden text-[11px] text-[#adb2ba] sm:inline">Ctrl + Enter 로 바로 만들기</span>
+        <div className="mt-4 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="ml-auto shrink-0 whitespace-nowrap rounded-lg border border-gray-200 px-4 py-2 text-[13px] font-medium text-[#757b82] transition hover:bg-gray-50 sm:ml-0"
+            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-200 px-4 py-2 text-[13px] font-medium text-[#757b82] transition hover:bg-gray-50"
           >
             취소
           </button>

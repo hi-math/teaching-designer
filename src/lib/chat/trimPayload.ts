@@ -1,4 +1,4 @@
-// Claude /api/chat 페이로드 슬리머
+// /api/chat 페이로드 슬리머
 // 우선순위: activityInputs(활동 카드) > messages > references
 
 export const PAYLOAD_LIMITS = {
@@ -41,7 +41,7 @@ interface PageContext {
 }
 
 // ────────────────────────────────────────────────
-// messages: 최근 N개만, 첫 메시지는 user여야 Claude가 거부 안 함
+// messages: 최근 N개만 전달하고, 첫 메시지는 user로 맞춘다.
 // ────────────────────────────────────────────────
 export function trimMessages<T extends AnyMessage>(messages: T[]): T[] {
   if (messages.length <= PAYLOAD_LIMITS.MAX_MESSAGES) return messages;

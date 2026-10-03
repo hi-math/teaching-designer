@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import CardRowsEditor from './CardRowsEditor';
 
 // ─── 타입 ──────────────────────────────────────────────────────────
 
@@ -78,11 +79,13 @@ export default function IdeasModal({
   onClose,
   selectedIdeas,
   onSelectionChange,
+  manualRows,
   readOnly = false,
 }: {
   onClose: () => void;
   selectedIdeas: IdeaItem[];
-  onSelectionChange: (ideas: IdeaItem[]) => void;
+  onSelectionChange: (ideas: IdeaItem[], rows?: Record<string, string>[]) => void;
+  manualRows?: Record<string, string>[];
   readOnly?: boolean;
 }) {
   const [ideasData, setIdeasData] = useState<IdeasJson>({});
@@ -93,6 +96,7 @@ export default function IdeasModal({
   const [domain, setDomain] = useState('');
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<IdeaItem[]>(() => [...selectedIdeas]);
+  const [rowsDraft, setRowsDraft] = useState<Record<string, string>[]>(() => manualRows ?? []);
 
   // JSON 로드 → 전체 아이템 플랫 리스트 생성
   useEffect(() => {
@@ -151,7 +155,7 @@ export default function IdeasModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleConfirm = () => { onSelectionChange(draft); onClose(); };
+  const handleConfirm = () => { onSelectionChange(draft, manualRows ? rowsDraft : undefined); onClose(); };
   const handleCancel = () => { onClose(); };
 
   const toggle = (item: IdeaItem) => {
@@ -303,6 +307,11 @@ export default function IdeasModal({
 
           {/* ── 우측 40%: 선택된 핵심아이디어 ── */}
           <div className="flex w-[40%] flex-col bg-white">
+
+            {manualRows && <CardRowsEditor label="핵심 아이디어" contentKey="core_idea" rows={rowsDraft} onChange={(rows) => {
+              setRowsDraft(rows);
+              setDraft(prev => prev.filter(item => !selectedIdeas.some(old => old.id === item.id) || rows.some(row => row.subject === item.subject && row.core_idea === item.content)));
+            }} readOnly={readOnly} />}
 
             {/* 헤더 */}
             <div className="shrink-0 flex items-center justify-between border-b border-[#E4EBF5] px-6 py-4">

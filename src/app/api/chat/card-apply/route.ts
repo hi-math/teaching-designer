@@ -1,16 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { CARD_SCHEMAS, type FieldDef } from '@/components/workspace/cardSchemas';
+import { requestJson } from '@/lib/llmJson';
+import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
 
 // Minerva AI 답변 → 활동 카드 반영 판정·추출
 // 답변이 끝난 뒤 한 번 호출된다. 답변에 해당 카드에 그대로 옮겨 적을 산출물이 있으면
 // 카드 입력 형식(CARD_SCHEMAS)에 맞춰 뽑아 돌려주고, 아니면 applicable=false.
-// 판정은 가볍고 자주 불리므로 모델 설정과 무관하게 Haiku 를 쓴다.
+// 판정도 다른 AI 기능과 동일한 모델을 사용한다.
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const MODEL = 'claude-haiku-4-5-20251001';
-
-/** 카드 필드 정의 → 도구 입력 JSON 스키마 */
+/** 카드 필드 정의 → 구조화 출력 JSON 스키마 */
 function fieldSchema(f: FieldDef): Record<string, unknown> {
   const description = f.label ?? f.placeholder ?? f.key;
   if (f.type === 'bullets') {
@@ -37,6 +35,7 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
           ]),
         ),
         required: f.columns.map((c) => c.key),
+        additionalProperties: false,
       },
     };
   }
@@ -44,7 +43,7 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.CHATGPT_API_KEY) {
     return Response.json({ applicable: false }, { status: 503 });
   }
 
@@ -60,21 +59,20 @@ export async function POST(req: Request) {
     return Response.json({ applicable: false });
   }
 
-  const tool: Anthropic.Tool = {
-    name: 'submit_card',
-    description: '답변을 카드에 반영할 수 있는지 판정하고, 가능하면 카드 필드 값을 제출한다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        applicable: { type: 'boolean', description: '카드에 그대로 옮겨 적을 구체적 산출물이 답변에 있으면 true' },
-        fields: {
-          type: 'object',
-          description: '답변에서 뽑은 카드 필드 값. 답변이 다루는 필드만 넣는다.',
-          properties: Object.fromEntries(schema.fields.map((f) => [f.key, fieldSchema(f)])),
-        },
+  const responseSchema = {
+    type: 'object',
+    properties: {
+      applicable: { type: 'boolean', description: '카드에 그대로 옮겨 적을 구체적 산출물이 답변에 있으면 true' },
+      fields: {
+        type: 'object',
+        description: '답변에서 뽑은 카드 필드 값. 언급되지 않은 필드는 null.',
+        properties: Object.fromEntries(schema.fields.map((f) => [f.key, { anyOf: [fieldSchema(f), { type: 'null' }] }])),
+        required: schema.fields.map((f) => f.key),
+        additionalProperties: false,
       },
-      required: ['applicable'],
     },
+    required: ['applicable', 'fields'],
+    additionalProperties: false,
   };
 
   const prompt = [
@@ -92,20 +90,19 @@ export async function POST(req: Request) {
     '답변:',
     answer.slice(0, 12000),
     '',
-    'submit_card 도구로만 답한다.',
+    'JSON 형식으로만 답한다.',
   ].join('\n');
 
   try {
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      tools: [tool],
-      tool_choice: { type: 'tool', name: tool.name },
-      messages: [{ role: 'user', content: prompt }],
+    const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
+      model: DEFAULT_LLM_MODEL,
+      maxTokens: 4000,
+      system: '답변을 카드 입력에 옮길 수 있는지 판정합니다. 입력된 답변만 근거로 값을 추출하고 모든 수학 용어는 영어로 표현합니다.',
+      prompt,
+      schema: responseSchema,
     });
-
-    const block = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-    const input = block?.input as { applicable?: boolean; fields?: Record<string, unknown> } | undefined;
+    if (!result.ok) return Response.json({ applicable: false }, { status: 502 });
+    const input = result.value as { applicable?: boolean; fields?: Record<string, unknown> } | undefined;
 
     // 스키마에 있는 필드만, 빈 값은 빼고 남긴다
     const fields: Record<string, unknown> = {};
@@ -122,7 +119,7 @@ export async function POST(req: Request) {
     const applicable = input?.applicable === true && Object.keys(fields).length > 0;
     return Response.json(applicable ? { applicable, fields } : { applicable: false });
   } catch (err) {
-    console.error('[chat/card-apply] error:', err);
+    console.error('[chat/card-apply] error:', err instanceof Error ? err.message : 'unknown');
     return Response.json({ applicable: false }, { status: 500 });
   }
 }

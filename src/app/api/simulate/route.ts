@@ -1,15 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } from '@/lib/llmJson';
-import { resolveAnthropicModel } from '@/lib/llmModels';
+import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
 import { bracketCode, extractCodes } from '@/lib/standardCode';
 
 // A-5 초안 미리보기 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
 // 채팅과 달리 결과를 카드에 바로 넣어야 하므로, 구조화 출력으로 JSON 을 받는다.
 
-// 생각이 항상 켜진 모델(Fable 5.1)로 차시가 많으면 1분을 넘길 수 있다
 export const maxDuration = 300;
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 type Item = { code?: string; subject: string; domain?: string; content: string };
 
@@ -135,7 +132,7 @@ function codesOnly(text: string): string {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.CHATGPT_API_KEY) {
     return Response.json({ error: 'AI 설정이 없습니다.' }, { status: 503 });
   }
 
@@ -145,8 +142,8 @@ export async function POST(req: Request) {
   const request = typeof body.request === 'string' ? body.request.trim().slice(0, REQUEST_MAX) : '';
 
   try {
-    const result = await requestJson(client, {
-      model: resolveAnthropicModel(body.model),
+    const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
+      model: DEFAULT_LLM_MODEL,
       maxTokens: 16000,
       system:
         '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.' +

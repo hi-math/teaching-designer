@@ -9,7 +9,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ### 배포 준비
 
 1. Supabase에 `supabase/migrations/019_ideation_commit.sql`을 적용합니다. 소유자 권한·RLS를 유지하는 `commit_ideation` 함수가 여러 카드의 반영을 하나의 transaction으로 처리하고, 미리보기 이후 내용 변경 시 전체 반영을 취소합니다. 먼저 preview/staging DB에 적용해 확인하세요.
-2. 배포 환경에 기존 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`와 채팅용 `CHATGPT_API_KEY`가 설정되어 있는지 확인합니다. 키는 서버에서만 사용합니다. 아이디어 도출 기능은 service role key를 사용하지 않습니다.
+2. 배포 환경에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `CHATGPT_API_KEY`가 설정되어 있는지 확인합니다. AI 기능은 GPT-5.6 Luna를 사용하며 키는 서버에서만 사용합니다. 아이디어 도출 기능은 service role key를 사용하지 않습니다.
 3. `npm test`와 `npm run build`를 실행한 뒤 GitHub 배포 대상 branch에 반영합니다. Vercel Git 연동이 있다면 해당 branch의 배포 설정을 사용합니다.
 4. 실제 수업 소유자 계정으로 후보 생성 → 저장 → 새로고침 → 미리보기 → 반영을 확인합니다. 다른 창에서 내용을 수정한 뒤 오래된 미리보기를 반영하면 충돌 안내가 나와야 합니다.
 

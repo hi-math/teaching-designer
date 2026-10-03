@@ -1,8 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { loadSystemPrompt, buildPageContextBlock, buildStableContextBlock } from '@/lib/prompts';
 import { selectStandardCandidates } from '@/lib/standards';
-import { isOpenAiModel, resolveLlmModel } from '@/lib/llmModels';
+import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
 import { CHAT_STREAM_ERROR_MARKER, type ChatStreamError } from '@/lib/chat/streamProtocol';
 
 function errorCode(error: unknown): string | undefined {
@@ -14,25 +13,24 @@ function errorCode(error: unknown): string | undefined {
     ? nested.code : undefined;
 }
 
-function chatError(error: unknown, openai: boolean): ChatStreamError {
+function chatError(error: unknown): ChatStreamError {
   const code = errorCode(error);
-  if (openai && code === 'credit_balance_exhausted') return {
-    code, message: 'OpenAI API 크레딧이 소진되었습니다. API Billing에서 잔액을 충전하거나 채팅 관리에서 Claude 모델을 선택해 주세요.',
+  if (code === 'credit_balance_exhausted') return {
+    code, message: 'OpenAI API 크레딧이 소진되었습니다. API Billing에서 잔액을 확인해 주세요.',
   };
-  if (openai && (code === 'insufficient_quota' || code?.endsWith('_spend_limit_exceeded'))) return {
-    code, message: 'OpenAI API 사용 한도에 도달했습니다. API Billing의 잔액과 사용 한도를 확인하거나 Claude 모델을 선택해 주세요.',
+  if (code === 'insufficient_quota' || code?.endsWith('_spend_limit_exceeded')) return {
+    code, message: 'OpenAI API 사용 한도에 도달했습니다. API Billing의 잔액과 사용 한도를 확인해 주세요.',
   };
   return { code, message: '응답 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' };
 }
 
-function logChatError(error: unknown, openai: boolean) {
+function logChatError(error: unknown) {
   // SDK 오류 객체에는 응답 헤더와 계정 정보가 들어갈 수 있어 전체 객체를 기록하지 않는다.
-  console.error('[chat] stream error', { provider: openai ? 'openai' : 'anthropic', code: errorCode(error) ?? 'unknown' });
+  console.error('[chat] stream error', { provider: 'openai', code: errorCode(error) ?? 'unknown' });
 }
 
-export async function GET(req: Request) {
-  const model = resolveLlmModel(new URL(req.url).searchParams.get('model'));
-  if (!(isOpenAiModel(model) ? process.env.CHATGPT_API_KEY : process.env.ANTHROPIC_API_KEY)) {
+export async function GET() {
+  if (!process.env.CHATGPT_API_KEY) {
     return Response.json({ ok: false }, { status: 503 });
   }
   return Response.json({ ok: true });
@@ -45,7 +43,7 @@ type ChatMessage = {
   })[];
 };
 
-/** UI의 Claude PDF 블록을 OpenAI Responses의 input_file로 옮긴다. */
+/** UI의 PDF 블록을 OpenAI Responses의 input_file로 옮긴다. */
 function toOpenAiInput(messages: ChatMessage[]): OpenAI.Responses.ResponseInput {
   return messages.map((message) => {
     if (typeof message.content === 'string') return { role: message.role, content: message.content };
@@ -70,10 +68,9 @@ function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined
 }
 
 export async function POST(req: Request) {
-  const { messages, stage = 'T', pageContext, model, intent, cardLabels } = await req.json();
-  const selectedModel = resolveLlmModel(model);
-  if (isOpenAiModel(selectedModel) ? !process.env.CHATGPT_API_KEY : !process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ error: '선택한 모델의 API 키가 설정되지 않았습니다.' }, { status: 503 });
+  const { messages, stage = 'T', pageContext, intent, cardLabels } = await req.json();
+  if (!process.env.CHATGPT_API_KEY) {
+    return Response.json({ error: 'AI 서비스 키가 설정되지 않았습니다.' }, { status: 503 });
   }
 
   const selectedCode = pageContext?.selectedActivityCode as string | undefined;
@@ -93,10 +90,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // system 을 두 블록으로 나눠 앞쪽에만 캐시 breakpoint 를 둔다.
-  //   [0] 공통 지침 + 단계 지침 + 카드 지침 + 성취기준 후보  → 턴이 바뀌어도 동일 → 캐시 적중
-  //   [1] 워크스페이스 현재 상태(카드 입력·의견 등)          → 매 턴 변동
-  // 캐싱은 접두사 완전 일치이므로 순서가 뒤바뀌면 효과가 사라진다.
+  // 공통 지침과 현재 카드 맥락을 함께 전달한다.
   const stable = [loadSystemPrompt(stage), buildStableContextBlock(enrichedContext)]
     .filter(Boolean)
     .join('\n\n');
@@ -104,34 +98,20 @@ export async function POST(req: Request) {
 
   const abortController = new AbortController();
   req.signal.addEventListener('abort', () => abortController.abort(), { once: true });
-  let stream: AsyncIterable<unknown>;
-  if (isOpenAiModel(selectedModel)) {
-    const client = new OpenAI({ apiKey: process.env.CHATGPT_API_KEY });
-    try {
-      stream = await client.responses.create({
-        model: selectedModel,
-        instructions: [stable, volatileBlock].filter(Boolean).join('\n\n'),
-        input: toOpenAiInput(messages as ChatMessage[]),
-        stream: true,
-        reasoning: { effort: 'low' },
-        max_output_tokens: 6000,
-      }, { signal: abortController.signal });
-    } catch (error) {
-      logChatError(error, true);
-      return Response.json({ error: chatError(error, true) }, { status: 502 });
-    }
-  } else {
-    const system: Anthropic.TextBlockParam[] = [
-      { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
-    ];
-    if (volatileBlock) system.push({ type: 'text', text: volatileBlock });
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    stream = client.messages.stream({
-      model: selectedModel,
-      max_tokens: 4000,
-      system,
-      messages,
+  const client = new OpenAI({ apiKey: process.env.CHATGPT_API_KEY });
+  let stream;
+  try {
+    stream = await client.responses.create({
+      model: DEFAULT_LLM_MODEL,
+      instructions: [stable, volatileBlock].filter(Boolean).join('\n\n'),
+      input: toOpenAiInput(messages as ChatMessage[]),
+      stream: true,
+      reasoning: { effort: 'low' },
+      max_output_tokens: 6000,
     }, { signal: abortController.signal });
+  } catch (error) {
+    logChatError(error);
+    return Response.json({ error: chatError(error) }, { status: 502 });
   }
 
   const encoder = new TextEncoder();
@@ -142,18 +122,14 @@ export async function POST(req: Request) {
           if (typeof chunk !== 'object' || chunk === null || !('type' in chunk)) continue;
           if (chunk.type === 'response.output_text.delta' && 'delta' in chunk && typeof chunk.delta === 'string') {
             controller.enqueue(encoder.encode(chunk.delta));
-          } else if (chunk.type === 'content_block_delta' && 'delta' in chunk &&
-            typeof chunk.delta === 'object' && chunk.delta !== null && 'type' in chunk.delta &&
-            chunk.delta.type === 'text_delta' && 'text' in chunk.delta && typeof chunk.delta.text === 'string') {
-            controller.enqueue(encoder.encode(chunk.delta.text));
-          } else if (chunk.type === 'error' || chunk.type === 'response.failed') {
+          } else if (chunk.type === 'error' || chunk.type === 'response.failed' || chunk.type === 'response.incomplete') {
             throw chunk;
           }
         }
       } catch (err) {
         if (!abortController.signal.aborted) {
-          logChatError(err, isOpenAiModel(selectedModel));
-          controller.enqueue(encoder.encode(CHAT_STREAM_ERROR_MARKER + JSON.stringify(chatError(err, isOpenAiModel(selectedModel)))));
+          logChatError(err);
+          controller.enqueue(encoder.encode(CHAT_STREAM_ERROR_MARKER + JSON.stringify(chatError(err))));
         }
       } finally {
         controller.close();

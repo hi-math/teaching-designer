@@ -26,6 +26,7 @@ import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/wor
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
 import { DEFAULT_CRITERIA, IDEATION_ROW } from "@/lib/ideation/model";
 import type { ContentMap } from "@/lib/ideation/application";
+import { cardRows, mergeSearchSelection } from "@/components/workspace/selectionRows";
 
 // 아이디어 도출(성취기준 연결 탐색기)은 처음 열 때 코드를 받는다
 const IdeationWorkspace = dynamic(() => import("@/components/ideation/IdeationWorkspace"), {
@@ -1552,12 +1553,35 @@ export default function WorkspaceShell({
   // ── 구조화 카드 변경 ─────────────────────────────────────────
   const writeStructured = useCallback((code: string, fields: Record<string, unknown>) => {
     setStructuredInputs(prev => ({ ...prev, [code]: fields }));
+    structuredInputsRef.current = { ...structuredInputsRef.current, [code]: fields };
+    if (code === "A-3") {
+      const ideas = cardRows(fields.core_ideas, 'core_idea');
+      const keptIdeas = selectedIdeasRef.current.filter(item => ideas.some(row => row.subject === item.subject && row.core_idea === item.content));
+      if (keptIdeas.length !== selectedIdeasRef.current.length) {
+        selectedIdeasRef.current = keptIdeas;
+        setSelectedIdeas(keptIdeas);
+        createClient().from('activity_contents').upsert(
+          { lesson_id: lessonId, activity_code: '__selected_ideas', content: { type: 'ideas', items: keptIdeas }, updated_by: userProfile?.id ?? null },
+          { onConflict: 'lesson_id,activity_code' },
+        ).then(({ error }) => { if (error) console.error('[ideas save]', error); });
+      }
+      const standards = cardRows(fields.achievement_standards, 'standard');
+      const keptStandards = selectedStandardsRef.current.filter(item => standards.some(row => row.subject === item.subject && row.standard === `${bracketCode(item.code)} ${item.content}`));
+      if (keptStandards.length !== selectedStandardsRef.current.length) {
+        selectedStandardsRef.current = keptStandards;
+        setSelectedStandards(keptStandards);
+        createClient().from('activity_contents').upsert(
+          { lesson_id: lessonId, activity_code: '__selected_standards', content: { type: 'standards', items: keptStandards }, updated_by: userProfile?.id ?? null },
+          { onConflict: 'lesson_id,activity_code' },
+        ).then(({ error }) => { if (error) console.error('[standards save]', error); });
+      }
+    }
     setTitleSaveStatus("idle");
     const status = activityStatusRef.current[code] ?? "active";
     const content = { type: "structured", fields, status };
     pendingContent.current[code] = content;
     scheduleSave(code, content);
-  }, [scheduleSave]);
+  }, [scheduleSave, lessonId, userProfile?.id]);
 
   /** mode: 카드에서 직접 입력하면 group(이어 쓰기는 한 단계), AI 반영·검색 결과처럼 한 번에 바뀌면 step */
   const handleStructuredChange = useCallback((code: string, fields: Record<string, unknown>, mode: UndoMode = "group") => {
@@ -2218,13 +2242,17 @@ export default function WorkspaceShell({
         <IdeasModal
           onClose={() => setActiveModal(null)}
           selectedIdeas={selectedIdeas}
-          onSelectionChange={(items) => {
+          manualRows={cardRows(structuredInputs['A-3']?.core_ideas, 'core_idea')}
+          onSelectionChange={(items, editedRows) => {
+            const rows = mergeSearchSelection(
+              editedRows ?? cardRows(structuredInputsRef.current['A-3']?.core_ideas, 'core_idea'),
+              selectedIdeasRef.current, items,
+              item => ({ subject: item.subject, core_idea: item.content }),
+              { subject: '', core_idea: '' },
+            );
             setSelectedIdeas(items);
             selectedIdeasRef.current = items;
-            const rows = items.length > 0
-              ? items.map(item => ({ subject: item.subject, core_idea: item.content }))
-              : [{ subject: '', core_idea: '' }, { subject: '', core_idea: '' }];
-            handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), core_ideas: rows }, "step");
+            handleStructuredChange('A-3', { ...(structuredInputsRef.current['A-3'] ?? {}), core_ideas: rows }, "step");
             createClient().from("activity_contents").upsert(
               { lesson_id: lessonId, activity_code: "__selected_ideas", content: { type: "ideas", items }, updated_by: userProfile?.id ?? null },
               { onConflict: "lesson_id,activity_code" }
@@ -2236,13 +2264,17 @@ export default function WorkspaceShell({
         <StandardsModal
           onClose={() => setActiveModal(null)}
           selectedStandards={selectedStandards}
-          onSelectionChange={(items) => {
+          manualRows={cardRows(structuredInputs['A-3']?.achievement_standards, 'standard')}
+          onSelectionChange={(items, editedRows) => {
+            const rows = mergeSearchSelection(
+              editedRows ?? cardRows(structuredInputsRef.current['A-3']?.achievement_standards, 'standard'),
+              selectedStandardsRef.current, items,
+              item => ({ subject: item.subject, standard: `${bracketCode(item.code)} ${item.content}` }),
+              { subject: '', standard: '' },
+            );
             setSelectedStandards(items);
             selectedStandardsRef.current = items;
-            const rows = items.length > 0
-              ? items.map(item => ({ subject: item.subject, standard: `${bracketCode(item.code)} ${item.content}` }))
-              : [{ subject: '', standard: '' }, { subject: '', standard: '' }];
-            handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), achievement_standards: rows }, "step");
+            handleStructuredChange('A-3', { ...(structuredInputsRef.current['A-3'] ?? {}), achievement_standards: rows }, "step");
             createClient().from("activity_contents").upsert(
               { lesson_id: lessonId, activity_code: "__selected_standards", content: { type: "standards", items }, updated_by: userProfile?.id ?? null },
               { onConflict: "lesson_id,activity_code" }
@@ -2255,14 +2287,6 @@ export default function WorkspaceShell({
           lessonId={lessonId}
           userId={userProfile?.id ?? ""}
           projectTitle={projectTitle}
-          model={llmModel}
-          onModelChange={(model) => {
-            setLlmModel(model);
-            createClient().from("activity_contents").upsert(
-              { lesson_id: lessonId, activity_code: LLM_MODEL_ROW, content: { type: "settings", model }, updated_by: userProfile?.id ?? null },
-              { onConflict: "lesson_id,activity_code" }
-            ).then(({ error }) => { if (error) console.error("[llm model save]", error); });
-          }}
           onClose={() => setActiveModal(null)}
         />
       ) : activeModal ? (

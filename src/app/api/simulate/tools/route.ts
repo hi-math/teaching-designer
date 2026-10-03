@@ -1,15 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } from '@/lib/llmJson';
-import { resolveAnthropicModel } from '@/lib/llmModels';
+import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
 
 // 수업 시뮬레이션 → 설계 반영: 차시마다 쓸 학습 지원 도구(Ds-4)를 제안한다.
 // 학습 활동(Ds-3)은 시뮬레이션 내용을 그대로 옮기면 되지만, 지원 도구는
 // 시뮬레이션에 없는 정보라 여기서 새로 만든다.
 
-// 생각이 항상 켜진 모델(Fable 5.1)로 차시가 많으면 1분을 넘길 수 있다
 export const maxDuration = 300;
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 type Session = { subject: string; title: string; objective: string; standard: string; content: string };
 
@@ -48,11 +45,11 @@ const TOOLS_SCHEMA: JsonSchema = {
 };
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.CHATGPT_API_KEY) {
     return Response.json({ error: 'AI 설정이 없습니다.' }, { status: 503 });
   }
 
-  const { sessions, model } = (await req.json()) as { sessions?: Session[]; model?: string };
+  const { sessions } = (await req.json()) as { sessions?: Session[] };
   if (!Array.isArray(sessions) || sessions.length === 0) {
     return Response.json({ error: '반영할 차시가 없습니다.' }, { status: 400 });
   }
@@ -66,8 +63,8 @@ export async function POST(req: Request) {
   );
 
   try {
-    const result = await requestJson(client, {
-      model: resolveAnthropicModel(model),
+    const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
+      model: DEFAULT_LLM_MODEL,
       maxTokens: 8000,
       system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 수업의 차시별 활동에 맞는 학습 지원 도구를 제안합니다. 학교에서 실제로 쓰기 쉬운 도구를 고르고, 한국어로 간결하게 씁니다.',
       prompt: `아래 ${sessions.length}개 차시 각각에 맞는 학습 지원 도구를 1~2개씩 제안하세요. 결과의 차시 순서와 개수는 아래와 같아야 합니다.\n\n${lines.join('\n\n')}`,

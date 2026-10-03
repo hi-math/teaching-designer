@@ -173,6 +173,7 @@ function TableCell({
           {/* select 글자를 투명하게(배지만 보이게) 하면 펼친 목록의 option 도 투명해진다
               (Windows Chrome 등) — option 색은 따로 지정한다 */}
           <option value="" style={{ color: '#adb2ba' }}>—</option>
+          {hasValue && !opts.includes(value) && <option value={value} style={{ color: '#2d3339' }}>{value}</option>}
           {opts.map(o => <option key={o} value={o} style={{ color: '#2d3339' }}>{o}</option>)}
         </select>
         {badge && (

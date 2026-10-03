@@ -124,10 +124,10 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
   },
   'A-3': {
     fields: [
-      { ...tb('core_ideas', '핵심 아이디어', [
+      tb('core_ideas', '핵심 아이디어', [
         { key: 'subject',   label: '교과',        type: 'subject-select', subjectSource: 'ideas', width: 76, align: 'center' },
         { key: 'core_idea', label: '핵심 아이디어', type: 'textarea',       flex: 4 },
-      ], 2), noAddRow: true },
+      ], 2),
       tb('achievement_standards', '성취기준', [
         { key: 'subject',  label: '교과',   type: 'subject-select', subjectSource: 'standards', width: 76, align: 'center' },
         { key: 'standard', label: '성취기준', type: 'textarea',       flex: 5 },

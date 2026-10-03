@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST } from '@/app/api/chat/route';
 import { resolveAnthropicModel, resolveLlmModel } from '@/lib/llmModels';
+import { CHAT_STREAM_ERROR_MARKER, readChatStream } from '@/lib/chat/streamProtocol';
 
 const mocks = vi.hoisted(() => ({ openai: vi.fn(), anthropic: vi.fn() }));
 vi.mock('openai', () => ({ default: class { responses = { create: mocks.openai }; } }));
@@ -60,5 +61,36 @@ describe('chat providers', () => {
     expect((await GET(new Request('http://localhost/api/chat?model=gpt-5.6-sol'))).status).toBe(503);
     expect((await GET(new Request('http://localhost/api/chat?model=claude-sonnet-5'))).status).toBe(200);
     expect((await POST(request('gpt-5.6-sol', [{ role: 'user', content: '안녕하세요' }]))).status).toBe(503);
+  });
+
+  it('sends an actionable error frame when credits run out during streaming', async () => {
+    const error = Object.assign(new Error('You have no credits remaining'), {
+      code: 'credit_balance_exhausted', headers: { secret: 'do-not-log' },
+    });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.openai.mockResolvedValue((async function* () { throw error; })());
+    const response = await POST(request('gpt-5.6-sol', [{ role: 'user', content: '안녕하세요' }]));
+    const raw = await response.text();
+    expect(raw.startsWith(CHAT_STREAM_ERROR_MARKER)).toBe(true);
+    expect(readChatStream(raw).error).toEqual(expect.objectContaining({ code: 'credit_balance_exhausted' }));
+    expect(raw).not.toContain('do-not-log');
+    expect(log).toHaveBeenCalledWith('[chat] stream error', { provider: 'openai', code: 'credit_balance_exhausted' });
+    log.mockRestore();
+  });
+
+  it('returns the same billing guidance when OpenAI rejects before streaming', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.openai.mockRejectedValue(Object.assign(new Error('No credits'), { code: 'credit_balance_exhausted' }));
+    const response = await POST(request('gpt-5.6-luna', [{ role: 'user', content: '안녕하세요' }]));
+    expect(response.status).toBe(502);
+    expect((await response.json()).error).toEqual(expect.objectContaining({ code: 'credit_balance_exhausted' }));
+    log.mockRestore();
+  });
+
+  it('keeps a partial terminal error frame out of the visible chat text', () => {
+    expect(readChatStream(`안녕하세요${CHAT_STREAM_ERROR_MARKER}{"message":`)).toEqual({ text: '안녕하세요', error: null });
+    expect(readChatStream(`안녕하세요${CHAT_STREAM_ERROR_MARKER}{"message":"잔액 부족"}`)).toEqual({
+      text: '안녕하세요', error: { message: '잔액 부족' },
+    });
   });
 });

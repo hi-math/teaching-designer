@@ -3,6 +3,32 @@ import OpenAI from 'openai';
 import { loadSystemPrompt, buildPageContextBlock, buildStableContextBlock } from '@/lib/prompts';
 import { selectStandardCandidates } from '@/lib/standards';
 import { isOpenAiModel, resolveLlmModel } from '@/lib/llmModels';
+import { CHAT_STREAM_ERROR_MARKER, type ChatStreamError } from '@/lib/chat/streamProtocol';
+
+function errorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const direct = 'code' in error ? error.code : undefined;
+  if (typeof direct === 'string') return direct;
+  const nested = 'error' in error ? error.error : undefined;
+  return nested && typeof nested === 'object' && 'code' in nested && typeof nested.code === 'string'
+    ? nested.code : undefined;
+}
+
+function chatError(error: unknown, openai: boolean): ChatStreamError {
+  const code = errorCode(error);
+  if (openai && code === 'credit_balance_exhausted') return {
+    code, message: 'OpenAI API 크레딧이 소진되었습니다. API Billing에서 잔액을 충전하거나 채팅 관리에서 Claude 모델을 선택해 주세요.',
+  };
+  if (openai && (code === 'insufficient_quota' || code?.endsWith('_spend_limit_exceeded'))) return {
+    code, message: 'OpenAI API 사용 한도에 도달했습니다. API Billing의 잔액과 사용 한도를 확인하거나 Claude 모델을 선택해 주세요.',
+  };
+  return { code, message: '응답 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' };
+}
+
+function logChatError(error: unknown, openai: boolean) {
+  // SDK 오류 객체에는 응답 헤더와 계정 정보가 들어갈 수 있어 전체 객체를 기록하지 않는다.
+  console.error('[chat] stream error', { provider: openai ? 'openai' : 'anthropic', code: errorCode(error) ?? 'unknown' });
+}
 
 export async function GET(req: Request) {
   const model = resolveLlmModel(new URL(req.url).searchParams.get('model'));
@@ -81,14 +107,19 @@ export async function POST(req: Request) {
   let stream: AsyncIterable<unknown>;
   if (isOpenAiModel(selectedModel)) {
     const client = new OpenAI({ apiKey: process.env.CHATGPT_API_KEY });
-    stream = await client.responses.create({
-      model: selectedModel,
-      instructions: [stable, volatileBlock].filter(Boolean).join('\n\n'),
-      input: toOpenAiInput(messages as ChatMessage[]),
-      stream: true,
-      reasoning: { effort: 'low' },
-      max_output_tokens: 6000,
-    }, { signal: abortController.signal });
+    try {
+      stream = await client.responses.create({
+        model: selectedModel,
+        instructions: [stable, volatileBlock].filter(Boolean).join('\n\n'),
+        input: toOpenAiInput(messages as ChatMessage[]),
+        stream: true,
+        reasoning: { effort: 'low' },
+        max_output_tokens: 6000,
+      }, { signal: abortController.signal });
+    } catch (error) {
+      logChatError(error, true);
+      return Response.json({ error: chatError(error, true) }, { status: 502 });
+    }
   } else {
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
@@ -116,12 +147,14 @@ export async function POST(req: Request) {
             chunk.delta.type === 'text_delta' && 'text' in chunk.delta && typeof chunk.delta.text === 'string') {
             controller.enqueue(encoder.encode(chunk.delta.text));
           } else if (chunk.type === 'error' || chunk.type === 'response.failed') {
-            throw new Error(`AI stream failed: ${chunk.type}`);
+            throw chunk;
           }
         }
       } catch (err) {
-        console.error('[chat] stream error:', err);
-        controller.enqueue(encoder.encode('\n\n(응답 중 오류가 발생했습니다.)'));
+        if (!abortController.signal.aborted) {
+          logChatError(err, isOpenAiModel(selectedModel));
+          controller.enqueue(encoder.encode(CHAT_STREAM_ERROR_MARKER + JSON.stringify(chatError(err, isOpenAiModel(selectedModel)))));
+        }
       } finally {
         controller.close();
       }

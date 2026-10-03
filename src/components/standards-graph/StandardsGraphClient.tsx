@@ -184,7 +184,7 @@ interface Loaded {
   layout: LayoutClient;
 }
 
-export default function StandardsGraphClient() {
+export default function StandardsGraphClient({ renderWorkspace }: { renderWorkspace?: (graph: ReactNode) => ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const width = useWidth(rootRef);
   const size: PanelSize = width === 0 || width >= 1100 ? "wide" : width >= 700 ? "medium" : "narrow";
@@ -225,7 +225,7 @@ export default function StandardsGraphClient() {
 
   return (
     <div ref={rootRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-50">
-      {loaded ? <Explorer key={attempt} {...loaded} size={size} /> : <LoadingShell phase={phase} onRetry={retry} />}
+      {loaded ? <Explorer key={attempt} {...loaded} size={size} renderWorkspace={renderWorkspace} /> : <LoadingShell phase={phase} onRetry={retry} />}
     </div>
   );
 }
@@ -270,7 +270,7 @@ type ViewModel = {
   edgeIds: string[];
 };
 
-function Explorer({ summary, data: client, layout: layoutClient, size }: Loaded & { size: PanelSize }) {
+function Explorer({ summary, data: client, layout: layoutClient, size, renderWorkspace }: Loaded & { size: PanelSize; renderWorkspace?: (graph: ReactNode) => ReactNode }) {
   const index = useMemo(() => buildGraphIndex(summary), [summary]);
   const compact = size === "narrow";
   const neighborStep = compact ? NEIGHBOR_STEP.compact : NEIGHBOR_STEP.desktop;
@@ -816,8 +816,7 @@ function Explorer({ summary, data: client, layout: layoutClient, size }: Loaded 
       );
   }
 
-  return (
-    <ExplorerContext.Provider value={ctx}>
+  const graph = (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className={`flex shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-4 py-2.5 ${compact ? "flex-wrap" : "min-h-16"}`}>
           <h1 className="shrink-0 text-[17px] font-bold text-gray-900">{TITLE}</h1>
@@ -884,8 +883,8 @@ function Explorer({ summary, data: client, layout: layoutClient, size }: Loaded 
 
         <GraphStatus summary={status.text} notes={status.notes} hierarchy={state.mode === "hierarchy"} />
       </div>
-    </ExplorerContext.Provider>
   );
+  return <ExplorerContext.Provider value={ctx}>{renderWorkspace ? renderWorkspace(graph) : graph}</ExplorerContext.Provider>;
 }
 
 // ── 오른쪽 panel 내용 ────────────────────────────────────────

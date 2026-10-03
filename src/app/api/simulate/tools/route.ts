@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } from '@/lib/llmJson';
-import { resolveLlmModel } from '@/lib/llmModels';
+import { resolveAnthropicModel } from '@/lib/llmModels';
 
 // 수업 시뮬레이션 → 설계 반영: 차시마다 쓸 학습 지원 도구(Ds-4)를 제안한다.
 // 학습 활동(Ds-3)은 시뮬레이션 내용을 그대로 옮기면 되지만, 지원 도구는
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await requestJson(client, {
-      model: resolveLlmModel(model),
+      model: resolveAnthropicModel(model),
       maxTokens: 8000,
       system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 수업의 차시별 활동에 맞는 학습 지원 도구를 제안합니다. 학교에서 실제로 쓰기 쉬운 도구를 고르고, 한국어로 간결하게 씁니다.',
       prompt: `아래 ${sessions.length}개 차시 각각에 맞는 학습 지원 도구를 1~2개씩 제안하세요. 결과의 차시 순서와 개수는 아래와 같아야 합니다.\n\n${lines.join('\n\n')}`,

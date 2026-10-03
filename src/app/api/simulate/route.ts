@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } from '@/lib/llmJson';
-import { resolveLlmModel } from '@/lib/llmModels';
+import { resolveAnthropicModel } from '@/lib/llmModels';
 import { bracketCode, extractCodes } from '@/lib/standardCode';
 
 // A-5 초안 미리보기 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await requestJson(client, {
-      model: resolveLlmModel(body.model),
+      model: resolveAnthropicModel(body.model),
       maxTokens: 16000,
       system:
         '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.' +

@@ -170,7 +170,7 @@ export default function ChatManageModal({
           <div className="py-4">
             <p className="text-[15px] font-semibold text-[#2d3339]">LLM 모델 설정하기</p>
             <p className="mt-0.5 mb-3 text-[13px] leading-relaxed text-[#757b82]">
-              이 수업의 Minerva AI 채팅과 초안 미리보기에 쓰는 모델입니다.
+              이 수업의 Minerva AI 채팅에 쓰는 모델입니다. 초안 미리보기와 주제 생성은 Claude를 사용합니다.
             </p>
             <select
               value={model}

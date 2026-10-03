@@ -7,6 +7,7 @@ import { buildChatPayload } from '@/lib/chat/trimPayload';
 import { CARD_SCHEMAS } from '@/components/workspace/cardSchemas';
 
 interface PageContext {
+  ideationContext?: string;
   projectTitle: string;
   activePhase: string;
   activeSection: string;
@@ -90,7 +91,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
     createClient().auth.getUser().then(({ data }: { data: { user: { id: string } | null } }) => {
       if (data.user) authUidRef.current = data.user.id;
     });
-    fetch('/api/chat')
+    fetch(`/api/chat?model=${encodeURIComponent(model ?? '')}`)
       .then((r) => r.ok && onReady?.())
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps

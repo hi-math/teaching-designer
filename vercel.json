@@ -3,8 +3,7 @@
   "regions": ["icn1"],
   "functions": {
     "src/app/api/pdf/route.ts": {
-      "maxDuration": 60,
-      "memory": 3008
+      "maxDuration": 60
     }
   }
 }

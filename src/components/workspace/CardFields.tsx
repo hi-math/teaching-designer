@@ -85,17 +85,17 @@ function BulletsInput({
           )}
         </div>
       ))}
-      {!locked && (
-        <button
-          onClick={addRow}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#D1260F] hover:bg-[#FDE4DD] transition-colors"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          항목 추가
-        </button>
-      )}
+      {/* 반영(잠금) 뒤에도 자리를 지켜 카드 높이가 바뀌지 않게 — 숨기지 않고 비활성 */}
+      <button
+        onClick={addRow}
+        disabled={locked}
+        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#D1260F] hover:bg-[#FDE4DD] transition-colors disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+      >
+        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        항목 추가
+      </button>
     </div>
   );
 }
@@ -345,10 +345,12 @@ function TableInput({
         ))}
       </div>
 
-      {!locked && !field.noAddRow && (
+      {/* 반영(잠금) 뒤에도 자리를 지켜 카드 높이가 바뀌지 않게 — 숨기지 않고 비활성 */}
+      {!field.noAddRow && (
         <button
           onClick={addRow}
-          className="mt-1.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#D1260F] hover:bg-[#FDE4DD] transition-colors"
+          disabled={locked}
+          className="mt-1.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[#D1260F] hover:bg-[#FDE4DD] transition-colors disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -249,7 +249,7 @@ function ActivityCard({
     <div
       onClick={() => onSelect(act.code)}
       className={`relative mb-6 rounded-2xl p-6 border transition-all cursor-pointer overflow-hidden ${
-        locked && st === "completed" ? "bg-[#eff8ff] border-[#bae0ff]"
+        locked && st === "completed" ? "bg-[#FFF8F3] border-[#F8D2BF]"
         : locked && st === "skipped"  ? "bg-[#f5f6f8] border-[#e2e4ea]"
         : "bg-white border-transparent"
       }`}
@@ -332,12 +332,13 @@ function ActivityCard({
         <p className="text-[15px] leading-relaxed text-[#5a6066]">{act.description}</p>
       </div>
 
-      {/* A-3 검색 버튼 */}
-      {act.code === "A-3" && !locked && (
+      {/* A-3 검색 버튼 — 반영 뒤에도 자리를 지켜 카드 높이가 바뀌지 않게 비활성으로 둔다 */}
+      {act.code === "A-3" && (
         <div className="mb-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={(e) => { e.stopPropagation(); onOpenModal("핵심아이디어검색"); }}
-            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-[13px] font-medium text-orange-700 hover:bg-orange-100 transition-colors"
+            disabled={locked}
+            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-[13px] font-medium text-orange-700 hover:bg-orange-100 transition-colors disabled:cursor-default disabled:opacity-40 disabled:hover:bg-orange-50"
           >
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -346,7 +347,8 @@ function ActivityCard({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onOpenModal("성취기준검색"); }}
-            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-[13px] font-medium text-orange-700 hover:bg-orange-100 transition-colors"
+            disabled={locked}
+            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-[13px] font-medium text-orange-700 hover:bg-orange-100 transition-colors disabled:cursor-default disabled:opacity-40 disabled:hover:bg-orange-50"
           >
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

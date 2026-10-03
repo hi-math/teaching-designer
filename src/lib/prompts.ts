@@ -265,6 +265,7 @@ const STEP_DIRECTIVES: Record<string, string> = {
 [왜 하는가] 주제의 상세 내용 분석은 각 교과의 성취수준을 살펴 이를 하나의 통합된 목표로 진술하기 위한 준비 과정이며, '성취기준의 재구조화'로 이뤄진다. 재구조화란 교육과정 성취기준을 실제 평가 상황에서 준거로 쓰기에 알맞도록 더 구체적·명료하게 다듬는 것이다. 각 교사가 자기 교과 성취기준에서 핵심 요소를 뽑고 충분한 논의를 거쳐 교과 간 연결 고리를 찾아, 학생 수준·교육과정 범위에 맞게 조정해 팀 공통 목표로 만들어 간다.
 [어떻게 진행하는가] ①각 교사가 자기 교과 성취수준을 지식·이해 / 과정·기능 / 가치·태도의 세 차원으로 분석 → ②같은 주제라도 교과마다 강조 요소가 다름을 확인(개념적 지식 / 탐구·표현 과정 / 책임·참여 등 정의적 측면) → ③교과 간 연결 → ④다음 단계(통합 수업목표 진술)의 재료로 정리.
 - 성취기준 분석 표: | 차원 | 핵심 요소 | 수업 시사점 | (지식·이해 / 과정·기능 / 가치·태도 3행)
+- 성취기준과 핵심 아이디어를 추천할 때는 제공된 목록에서만 고르고 코드 또는 ID와 원문을 정확히 제시한다. 목록에 없는 항목을 만들어내지 않는다.
 - 첨부된 성취기준 목록을 핵심 분석 대상으로 삼고, 공통 키워드·교과 간 연결·통합 가능한 학습 시퀀스를 함께 제시한다.`,
 
   'A-4': `[A-4 통합 수업목표 — 활동 지침]
@@ -372,6 +373,7 @@ export interface PageContext {
   opinions?: { activityCode: string; question: string; responses: { name: string; text: string }[] }[];
   teamMembers?: { name: string; subject: string }[]; // R6: 팀 프로필
   allStandards?: { code: string; subject: string; domain: string; content: string }[]; // R8: 성취기준 후보
+  allIdeas?: { id: string; subject: string; domain: string; content: string }[];
   relatedSubjects?: string; // R8 후보 선별용
   targetGrade?: string;     // R8 후보 선별용
   totalSessions?: number;
@@ -493,13 +495,19 @@ export function buildStableContextBlock(ctx: PageContext): string {
   if (ctx.allStandards && ctx.allStandards.length > 0) {
     lines.push('');
     lines.push('### 성취기준 후보 목록 (R8) — 2022 개정 교육과정 중학교');
-    lines.push('아래 성취기준을 분석 및 추천의 참고 데이터로 활용하세요.');
+    lines.push('성취기준을 추천할 때는 아래 목록에서만 고르고 코드와 원문을 정확히 제시하세요. 목록에 없는 기준을 만들지 마세요.');
     lines.push('형식: [코드] (교과 · 영역) 내용');
     lines.push('');
     for (const s of ctx.allStandards) {
       const domain = s.domain ? ` · ${s.domain}` : '';
       lines.push(`${s.code} (${s.subject}${domain}) ${s.content.replace(/\n/g, ' ')}`);
     }
+  }
+
+  if (code === 'A-3' && ctx.allIdeas?.length) {
+    lines.push('', '### 핵심 아이디어 공식 목록');
+    lines.push('추천할 때는 이 목록의 ID와 원문만 사용하세요. 새로운 핵심 아이디어 문장을 만들지 마세요.');
+    for (const idea of ctx.allIdeas) lines.push(`${idea.id} (${idea.subject} · ${idea.domain}) ${idea.content.replace(/\n/g, ' ')}`);
   }
 
   return lines.join('\n');

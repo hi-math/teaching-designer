@@ -6,7 +6,7 @@
 // 브라우저 메모리에만 두므로 새로고침하면 사라진다 — 오래된 상태는 버전 관리로 되돌린다.
 
 /** 되돌리기 한 단계에 담는 값 — 구조화 카드는 필드 전체, 텍스트 카드는 글 */
-export type CardValue = { fields: Record<string, unknown> } | { text: string };
+export type CardValue = { fields: Record<string, unknown>; selectedIdeas?: unknown[]; selectedStandards?: unknown[] } | { text: string };
 export type UndoMode = "group" | "step";
 
 export const UNDO_LIMIT = 30;

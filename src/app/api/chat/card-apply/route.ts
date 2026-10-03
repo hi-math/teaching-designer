@@ -2,6 +2,8 @@ import OpenAI from 'openai';
 import { CARD_SCHEMAS, type FieldDef } from '@/components/workspace/cardSchemas';
 import { requestJson } from '@/lib/llmJson';
 import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
+import { getCoreIdeas, standardCandidates } from '@/lib/curriculumCatalog';
+import type { StandardItem } from '@/components/workspace/StandardsModal';
 
 // Minerva AI 답변 → 활동 카드 반영 판정·추출
 // 답변이 끝난 뒤 한 번 호출된다. 답변에 해당 카드에 그대로 옮겨 적을 산출물이 있으면
@@ -42,21 +44,80 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
   return { type: 'string', description };
 }
 
+async function applyCatalogRecommendations(answer: string, relatedSubjects: string, current: Record<string, unknown>) {
+  const ideas = getCoreIdeas();
+  const standards = standardCandidates(answer, relatedSubjects);
+  if (standards.length === 0 && ideas.length === 0) return Response.json({ applicable: false });
+
+  const ideaById = new Map(ideas.map(item => [item.id, item]));
+  const standardByCode = new Map(standards.map(item => [item.code, item]));
+  const selectionSchema = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      applicable: { type: 'boolean' },
+      ideaIds: { type: 'array', items: { type: 'string', enum: ideas.map(item => item.id) } },
+      standardCodes: { type: 'array', items: { type: 'string', enum: standards.length ? standards.map(item => item.code) : ['__none__'] } },
+    },
+    required: ['applicable', 'ideaIds', 'standardCodes'],
+  };
+  const prompt = [
+    '다음 AI 답변에서 실제로 추천한 핵심 아이디어와 성취기준만 기존 목록의 ID로 고르세요.',
+    '목록에 없는 내용을 새로 만들거나 유사하다는 이유만으로 다른 기준으로 바꾸지 마세요.',
+    '답변에 명시되지 않은 항목은 고르지 마세요. 추천이 없으면 빈 배열로 답하세요.',
+    '현재 카드 내용은 중복 확인용일 뿐 추천으로 간주하지 마세요.',
+    `현재 카드: ${JSON.stringify(current).slice(0, 2500)}`,
+    `핵심 아이디어 목록: ${JSON.stringify(ideas.map(({ id, subject, domain, content }) => ({ id, subject, domain, content })))}`,
+    `성취기준 후보 목록: ${JSON.stringify(standards.map(({ code, subject, domain, content }) => ({ code, subject, domain, content })))}`,
+    `AI 답변: ${answer.slice(0, 12000)}`,
+  ].join('\n\n');
+  const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
+    model: DEFAULT_LLM_MODEL, maxTokens: 3000,
+    system: '기존 교육과정 목록에서만 항목을 선택합니다. 답변의 추천과 일치하지 않는 항목은 선택하지 않습니다. 모든 수학 용어는 영어로 표현합니다.',
+    prompt, schema: selectionSchema,
+  });
+  if (!result.ok) return Response.json({ applicable: false }, { status: 502 });
+  const parsed = result.value as { applicable?: boolean; ideaIds?: string[]; standardCodes?: string[] };
+  if (parsed?.applicable !== true) return Response.json({ applicable: false });
+  const evidence = answer.replace(/\s+/g, ' ');
+  const selectedIdeas = [...new Set(Array.isArray(parsed.ideaIds) ? parsed.ideaIds : [])]
+    .map(id => ideaById.get(id)).filter(item => item !== undefined)
+    .filter(item => evidence.includes(item.id) || evidence.includes(item.content.replace(/\s+/g, ' ').slice(0, 24)));
+  const selectedStandards: StandardItem[] = [...new Set(Array.isArray(parsed.standardCodes) ? parsed.standardCodes : [])]
+    .map(code => standardByCode.get(code))
+    .filter((item): item is NonNullable<typeof item> => item !== undefined && evidence.includes(item.code))
+    .map(({ code, subject, domain, content, keywords, explanation, grade_group }) =>
+      ({ code, subject, domain, content, keywords, explanation, grade_group }));
+  if (!selectedIdeas.length && !selectedStandards.length) return Response.json({ applicable: false });
+  const fields: Record<string, unknown> = {};
+  if (selectedIdeas.length) fields.core_ideas = selectedIdeas.map(item => ({ subject: item.subject, core_idea: item.content }));
+  if (selectedStandards.length) fields.achievement_standards = selectedStandards.map(item => ({ subject: item.subject, standard: `${item.code} ${item.content}` }));
+  return Response.json({ applicable: true, fields, selections: { ideas: selectedIdeas, standards: selectedStandards } });
+}
+
 export async function POST(req: Request) {
   if (!process.env.CHATGPT_API_KEY) {
     return Response.json({ applicable: false }, { status: 503 });
   }
 
-  const { code, label, answer, current } = (await req.json()) as {
+  const { code, label, answer, current, relatedSubjects } = (await req.json()) as {
     code?: string;
     label?: string;
     answer?: string;
     current?: Record<string, unknown>;
+    relatedSubjects?: string;
   };
 
   const schema = code ? CARD_SCHEMAS[code] : undefined;
   if (!schema || schema.fields.length === 0 || !answer?.trim()) {
     return Response.json({ applicable: false });
+  }
+
+  if (code === 'A-3') {
+    try { return await applyCatalogRecommendations(answer, relatedSubjects ?? '', current ?? {}); }
+    catch (err) {
+      console.error('[chat/card-apply] catalog error:', err instanceof Error ? err.message : 'unknown');
+      return Response.json({ applicable: false }, { status: 500 });
+    }
   }
 
   const responseSchema = {

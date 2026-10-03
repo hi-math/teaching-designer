@@ -6,6 +6,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 수업 소유자가 저장·생성·반영을 수행하며 다른 참여자는 저장된 진행과 후보를 확인합니다. 최종 반영은 A-2의 주제·선정 사유를 갱신하고 A-3 및 선택 기준에 성취기준을 추가하며 A-4에 연계 설명을 추가합니다. 기존 핵심 아이디어, 통합 목표, 완료 상태를 유지합니다. 탐색 후보는 `activity_contents`의 `__ideation` 구조화 항목으로 저장되어 Realtime 및 snapshot에 포함됩니다.
 
+A-3의 핵심 아이디어와 성취기준은 제공된 교육과정 목록에서만 선택합니다. 교사가 헤더 또는 카드의 검색 창에서 고른 항목과 Minerva AI가 추천해 반영한 항목은 같은 선택 목록과 카드에 표시됩니다. 이전 버전에서 직접 작성한 문장은 목록 항목과 일치하지 않으면 카드에 안내만 표시되며, 검색으로 다시 선택해야 합니다.
+
 ### 배포 준비
 
 1. Supabase에 `supabase/migrations/019_ideation_commit.sql`을 적용합니다. 소유자 권한·RLS를 유지하는 `commit_ideation` 함수가 여러 카드의 반영을 하나의 transaction으로 처리하고, 미리보기 이후 내용 변경 시 전체 반영을 취소합니다. 먼저 preview/staging DB에 적용해 확인하세요.

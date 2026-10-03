@@ -26,7 +26,7 @@ import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/wor
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
 import { DEFAULT_CRITERIA, IDEATION_ROW } from "@/lib/ideation/model";
 import type { ContentMap } from "@/lib/ideation/application";
-import { cardRows, mergeSearchSelection } from "@/components/workspace/selectionRows";
+import { a3SelectionFields, mergeCatalogItems } from '@/lib/a3Selection';
 
 // 아이디어 도출(성취기준 연결 탐색기)은 처음 열 때 코드를 받는다
 const IdeationWorkspace = dynamic(() => import("@/components/ideation/IdeationWorkspace"), {
@@ -1529,7 +1529,9 @@ export default function WorkspaceShell({
   /** 바뀌기 직전의 카드 값을 기록 — 로컬 변경 경로에서만 부른다 */
   const rememberForUndo = useCallback((code: string, mode: UndoMode) => {
     const current: CardValue = CARD_SCHEMAS[code]
-      ? { fields: structuredInputsRef.current[code] ?? {} }
+      ? code === 'A-3'
+        ? { fields: structuredInputsRef.current[code] ?? {}, selectedIdeas: selectedIdeasRef.current, selectedStandards: selectedStandardsRef.current }
+        : { fields: structuredInputsRef.current[code] ?? {} }
       : { text: activityInputsRef.current[code] ?? "" };
     const depth = undoHistory.remember(code, current, mode);
     if (depth !== null) setUndoDepth((prev) => ({ ...prev, [code]: depth }));
@@ -1555,8 +1557,8 @@ export default function WorkspaceShell({
     setStructuredInputs(prev => ({ ...prev, [code]: fields }));
     structuredInputsRef.current = { ...structuredInputsRef.current, [code]: fields };
     if (code === "A-3") {
-      const ideas = cardRows(fields.core_ideas, 'core_idea');
-      const keptIdeas = selectedIdeasRef.current.filter(item => ideas.some(row => row.subject === item.subject && row.core_idea === item.content));
+      const ideas = Array.isArray(fields.core_ideas) ? fields.core_ideas as { subject?: string; core_idea?: string }[] : [];
+      const keptIdeas = selectedIdeasRef.current.filter(item => ideas.some(row => row?.subject === item.subject && row.core_idea === item.content));
       if (keptIdeas.length !== selectedIdeasRef.current.length) {
         selectedIdeasRef.current = keptIdeas;
         setSelectedIdeas(keptIdeas);
@@ -1565,8 +1567,8 @@ export default function WorkspaceShell({
           { onConflict: 'lesson_id,activity_code' },
         ).then(({ error }) => { if (error) console.error('[ideas save]', error); });
       }
-      const standards = cardRows(fields.achievement_standards, 'standard');
-      const keptStandards = selectedStandardsRef.current.filter(item => standards.some(row => row.subject === item.subject && row.standard === `${bracketCode(item.code)} ${item.content}`));
+      const standards = Array.isArray(fields.achievement_standards) ? fields.achievement_standards as { subject?: string; standard?: string }[] : [];
+      const keptStandards = selectedStandardsRef.current.filter(item => standards.some(row => row?.subject === item.subject && row.standard === `${bracketCode(item.code)} ${item.content}`));
       if (keptStandards.length !== selectedStandardsRef.current.length) {
         selectedStandardsRef.current = keptStandards;
         setSelectedStandards(keptStandards);
@@ -1588,6 +1590,24 @@ export default function WorkspaceShell({
     rememberForUndo(code, mode);
     writeStructured(code, fields);
   }, [rememberForUndo, writeStructured]);
+
+  const updateA3Selections = useCallback((ideas: IdeaItem[], standards: StandardItem[]) => {
+    selectedIdeasRef.current = ideas;
+    selectedStandardsRef.current = standards;
+    setSelectedIdeas(ideas);
+    setSelectedStandards(standards);
+    const current = structuredInputsRef.current['A-3'] ?? {};
+    handleStructuredChange('A-3', { ...current, ...a3SelectionFields(ideas, standards) }, 'step');
+    const client = createClient();
+    client.from('activity_contents').upsert(
+      { lesson_id: lessonId, activity_code: '__selected_ideas', content: { type: 'ideas', items: ideas }, updated_by: userProfile?.id ?? null },
+      { onConflict: 'lesson_id,activity_code' },
+    ).then(({ error }) => { if (error) console.error('[ideas save]', error); });
+    client.from('activity_contents').upsert(
+      { lesson_id: lessonId, activity_code: '__selected_standards', content: { type: 'standards', items: standards }, updated_by: userProfile?.id ?? null },
+      { onConflict: 'lesson_id,activity_code' },
+    ).then(({ error }) => { if (error) console.error('[standards save]', error); });
+  }, [handleStructuredChange, lessonId, userProfile?.id]);
 
   const hasPendingIdeationCards = useCallback(() =>
     ["A-2", "A-3", "A-4"].some(code => pendingContent.current[code] !== undefined || inFlightSaves.current.has(code)), []);
@@ -1625,7 +1645,9 @@ export default function WorkspaceShell({
     const texts = activityInputsRef.current;
     const cards: Record<string, string> = {};
     for (const code of ["T-1", "T-2", "A-1", "A-2", "A-3", "A-4"]) {
-      const text = structured[code] ? serializeStructuredForAI(structured[code]) : texts[code];
+      const text = code === 'A-3'
+        ? serializeStructuredForAI(a3SelectionFields(selectedIdeasRef.current, selectedStandardsRef.current))
+        : structured[code] ? serializeStructuredForAI(structured[code]) : texts[code];
       if (text?.trim()) cards[code] = text;
     }
 
@@ -1742,12 +1764,24 @@ export default function WorkspaceShell({
     return labels;
   }, []);
 
-  const getCardFields = useCallback((code: string) => structuredInputsRef.current[code] ?? {}, []);
+  const getCardFields = useCallback((code: string) => code === 'A-3'
+    ? a3SelectionFields(selectedIdeasRef.current, selectedStandardsRef.current)
+    : structuredInputsRef.current[code] ?? {}, []);
 
-  const handleApplyToCard = useCallback(async (code: string, fields: Record<string, unknown>): Promise<string | null> => {
+  const handleApplyToCard = useCallback(async (code: string, fields: Record<string, unknown>, selections?: { ideas: IdeaItem[]; standards: StandardItem[] }): Promise<string | null> => {
     const st = activityStatusRef.current[code];
     if (st === "completed" || st === "skipped") {
       throw new Error("완료했거나 건너뛴 카드라 반영할 수 없습니다.");
+    }
+    if (code === 'A-3') {
+      if (!selections || (!selections.ideas.length && !selections.standards.length)) {
+        throw new Error('기존 목록에서 확인된 추천 항목이 없습니다. 검색 창에서 직접 선택해 주세요.');
+      }
+      const ideas = mergeCatalogItems(selectedIdeasRef.current, selections.ideas, item => item.id);
+      const standards = mergeCatalogItems(selectedStandardsRef.current, selections.standards, item => bracketCode(item.code));
+      updateA3Selections(ideas, standards);
+      setSelectedActivityCode(code);
+      return `기존 목록의 핵심 아이디어 ${selections.ideas.length}개와 성취기준 ${selections.standards.length}개를 선택했습니다.`;
     }
     const existing = structuredInputsRef.current[code] ?? {};
     const filled = (v: unknown) =>
@@ -1767,7 +1801,7 @@ export default function WorkspaceShell({
     handleStructuredChange(code, { ...existing, ...fields }, "step");
     setSelectedActivityCode(code);
     return `${code} 카드에 반영했습니다.`;
-  }, [handleStructuredChange]);
+  }, [handleStructuredChange, updateA3Selections]);
 
   // ── 카드 지우기 · 되돌리기 ───────────────────────────────────
   const handleClearCard = useCallback(async (code: string) => {
@@ -1789,9 +1823,29 @@ export default function WorkspaceShell({
     if (!popped) return;
     setUndoDepth((d) => ({ ...d, [code]: popped.depth }));
     setSelectedActivityCode(code);
-    if ("fields" in popped.value) writeStructured(code, popped.value.fields);
-    else writeText(code, popped.value.text);
-  }, [undoHistory, writeStructured, writeText]);
+    if ("fields" in popped.value) {
+      if (code === 'A-3') {
+        const ideas = (popped.value.selectedIdeas ?? []) as IdeaItem[];
+        const standards = (popped.value.selectedStandards ?? []) as StandardItem[];
+        selectedIdeasRef.current = ideas;
+        selectedStandardsRef.current = standards;
+        setSelectedIdeas(ideas);
+        setSelectedStandards(standards);
+        const client = createClient();
+        client.from('activity_contents').upsert(
+          { lesson_id: lessonId, activity_code: '__selected_ideas', content: { type: 'ideas', items: ideas }, updated_by: userProfile?.id ?? null },
+          { onConflict: 'lesson_id,activity_code' },
+        ).then(({ error }) => { if (error) console.error('[ideas save]', error); });
+        client.from('activity_contents').upsert(
+          { lesson_id: lessonId, activity_code: '__selected_standards', content: { type: 'standards', items: standards }, updated_by: userProfile?.id ?? null },
+          { onConflict: 'lesson_id,activity_code' },
+        ).then(({ error }) => { if (error) console.error('[standards save]', error); });
+      }
+      writeStructured(code, code === 'A-3'
+        ? { ...popped.value.fields, ...a3SelectionFields(selectedIdeasRef.current, selectedStandardsRef.current) }
+        : popped.value.fields);
+    } else writeText(code, popped.value.text);
+  }, [undoHistory, writeStructured, writeText, lessonId, userProfile?.id]);
 
   // 카드 안의 버튼·입력칸을 누르면 그 카드를 활성화 (오른쪽 탭은 그대로 둔다)
   const handleActivateCard = useCallback((code: string) => setSelectedActivityCode(code), []);
@@ -2202,28 +2256,14 @@ export default function WorkspaceShell({
         <StandardsModal
           onClose={() => setActiveModal(null)}
           selectedStandards={selectedStandards}
-          onSelectionChange={(items) => {
-            setSelectedStandards(items);
-            selectedStandardsRef.current = items;
-            createClient().from("activity_contents").upsert(
-              { lesson_id: lessonId, activity_code: "__selected_standards", content: { type: "standards", items }, updated_by: userProfile?.id ?? null },
-              { onConflict: "lesson_id,activity_code" }
-            ).then(({ error }) => { if (error) console.error("[standards save]", error); });
-          }}
+          onSelectionChange={(items) => updateA3Selections(selectedIdeasRef.current, items)}
           readOnly={!isHost}
         />
       ) : activeModal === "핵심아이디어" ? (
         <IdeasModal
           onClose={() => setActiveModal(null)}
           selectedIdeas={selectedIdeas}
-          onSelectionChange={(items) => {
-            setSelectedIdeas(items);
-            selectedIdeasRef.current = items;
-            createClient().from("activity_contents").upsert(
-              { lesson_id: lessonId, activity_code: "__selected_ideas", content: { type: "ideas", items }, updated_by: userProfile?.id ?? null },
-              { onConflict: "lesson_id,activity_code" }
-            ).then(({ error }) => { if (error) console.error("[ideas save]", error); });
-          }}
+          onSelectionChange={(items) => updateA3Selections(items, selectedStandardsRef.current)}
           readOnly={!isHost}
         />
       ) : activeModal === "참고자료" ? (
@@ -2242,44 +2282,14 @@ export default function WorkspaceShell({
         <IdeasModal
           onClose={() => setActiveModal(null)}
           selectedIdeas={selectedIdeas}
-          manualRows={cardRows(structuredInputs['A-3']?.core_ideas, 'core_idea')}
-          onSelectionChange={(items, editedRows) => {
-            const rows = mergeSearchSelection(
-              editedRows ?? cardRows(structuredInputsRef.current['A-3']?.core_ideas, 'core_idea'),
-              selectedIdeasRef.current, items,
-              item => ({ subject: item.subject, core_idea: item.content }),
-              { subject: '', core_idea: '' },
-            );
-            setSelectedIdeas(items);
-            selectedIdeasRef.current = items;
-            handleStructuredChange('A-3', { ...(structuredInputsRef.current['A-3'] ?? {}), core_ideas: rows }, "step");
-            createClient().from("activity_contents").upsert(
-              { lesson_id: lessonId, activity_code: "__selected_ideas", content: { type: "ideas", items }, updated_by: userProfile?.id ?? null },
-              { onConflict: "lesson_id,activity_code" }
-            ).then(({ error }) => { if (error) console.error("[ideas save]", error); });
-          }}
+          onSelectionChange={(items) => updateA3Selections(items, selectedStandardsRef.current)}
           readOnly={!isHost}
         />
       ) : activeModal === "성취기준검색" ? (
         <StandardsModal
           onClose={() => setActiveModal(null)}
           selectedStandards={selectedStandards}
-          manualRows={cardRows(structuredInputs['A-3']?.achievement_standards, 'standard')}
-          onSelectionChange={(items, editedRows) => {
-            const rows = mergeSearchSelection(
-              editedRows ?? cardRows(structuredInputsRef.current['A-3']?.achievement_standards, 'standard'),
-              selectedStandardsRef.current, items,
-              item => ({ subject: item.subject, standard: `${bracketCode(item.code)} ${item.content}` }),
-              { subject: '', standard: '' },
-            );
-            setSelectedStandards(items);
-            selectedStandardsRef.current = items;
-            handleStructuredChange('A-3', { ...(structuredInputsRef.current['A-3'] ?? {}), achievement_standards: rows }, "step");
-            createClient().from("activity_contents").upsert(
-              { lesson_id: lessonId, activity_code: "__selected_standards", content: { type: "standards", items }, updated_by: userProfile?.id ?? null },
-              { onConflict: "lesson_id,activity_code" }
-            ).then(({ error }) => { if (error) console.error("[standards save]", error); });
-          }}
+          onSelectionChange={(items) => updateA3Selections(selectedIdeasRef.current, items)}
           readOnly={!isHost}
         />
       ) : activeModal === "채팅관리" ? (
@@ -2864,6 +2874,8 @@ export default function WorkspaceShell({
                       canSkip={isHost || permissions.skip}
                       textValue={activityInputs[act.code] ?? ""}
                       structuredValue={structuredInputs[act.code] ?? EMPTY_FIELDS}
+                      selectedIdeas={act.code === 'A-3' ? selectedIdeas : undefined}
+                      selectedStandards={act.code === 'A-3' ? selectedStandards : undefined}
                       opinions={opinionsByActivity[act.code] ?? EMPTY_OPINIONS}
                       myUserId={userProfile?.id ?? ""}
                       memberNames={memberNames}
@@ -2982,6 +2994,7 @@ export default function WorkspaceShell({
                       ])
                     ),
                   };
+                  mergedInputs['A-3'] = serializeStructuredForAI(a3SelectionFields(selectedIdeas, selectedStandards));
                   return {
                     projectTitle,
                     activePhase,

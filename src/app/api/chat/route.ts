@@ -3,6 +3,7 @@ import { loadSystemPrompt, buildPageContextBlock, buildStableContextBlock } from
 import { selectStandardCandidates } from '@/lib/standards';
 import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
 import { CHAT_STREAM_ERROR_MARKER, type ChatStreamError } from '@/lib/chat/streamProtocol';
+import { getCoreIdeas } from '@/lib/curriculumCatalog';
 
 function errorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') return undefined;
@@ -88,6 +89,7 @@ export async function POST(req: Request) {
       pageContext?.relatedSubjects as string | undefined,
       fallbackStandardsQuery(pageContext),
     );
+    enrichedContext.allIdeas = getCoreIdeas();
   }
 
   // 공통 지침과 현재 카드 맥락을 함께 전달한다.

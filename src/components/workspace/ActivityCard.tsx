@@ -4,6 +4,8 @@ import { memo, useState } from "react";
 import CardFieldRenderer from "@/components/workspace/CardFields";
 import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
 import SimulationBoard from "@/components/workspace/SimulationBoard";
+import type { IdeaItem } from '@/components/workspace/IdeasModal';
+import type { StandardItem } from '@/components/workspace/StandardsModal';
 
 /**
  * 활동 카드 한 장.
@@ -41,6 +43,8 @@ interface Props {
 
   textValue: string;
   structuredValue: Record<string, unknown>;
+  selectedIdeas?: IdeaItem[];
+  selectedStandards?: StandardItem[];
 
   /** 이 카드에 달린 의견묻기만 */
   opinions: OpinionEntry[];
@@ -230,6 +234,8 @@ function ActivityCard({
   canSkip,
   textValue,
   structuredValue,
+  selectedIdeas = [],
+  selectedStandards = [],
   opinions,
   myUserId,
   memberNames,
@@ -256,7 +262,15 @@ function ActivityCard({
   const locked = !isSim && (st === "completed" || st === "skipped");
   const getName = (uid: string) => memberNames[uid] ?? uid;
   // 비어 있는 카드는 피드백할 내용이 없다
-  const filled = CARD_SCHEMAS[act.code] ? hasContent(structuredValue) : textValue.trim() !== "";
+  const filled = act.code === 'A-3'
+    ? selectedIdeas.length + selectedStandards.length > 0
+    : CARD_SCHEMAS[act.code] ? hasContent(structuredValue) : textValue.trim() !== "";
+  const oldIdeaRows = Array.isArray(structuredValue.core_ideas) ? structuredValue.core_ideas as { subject?: string; core_idea?: string }[] : [];
+  const oldStandardRows = Array.isArray(structuredValue.achievement_standards) ? structuredValue.achievement_standards as { subject?: string; standard?: string }[] : [];
+  const unlinkedA3Rows = act.code === 'A-3'
+    ? oldIdeaRows.filter(row => row?.core_idea?.trim() && !selectedIdeas.some(item => item.subject === row.subject && item.content === row.core_idea)).length
+      + oldStandardRows.filter(row => row?.standard?.trim() && !selectedStandards.some(item => row.standard === `${item.code} ${item.content}`)).length
+    : 0;
 
   return (
     <div
@@ -410,6 +424,29 @@ function ActivityCard({
           onSimulate={onSimulate}
           onApplyToDesign={onApplyToDesign}
         />
+      ) : act.code === 'A-3' ? (
+        <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
+          <p className="text-[13px] text-[#757b82]">교육과정 목록에서 선택한 항목만 카드에 반영됩니다. 항목을 바꾸려면 위 검색 버튼을 누르세요.</p>
+          {unlinkedA3Rows > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+            이전 직접 입력 {unlinkedA3Rows}건은 목록의 선택 항목과 일치하지 않아 반영되지 않습니다. 검색에서 해당 항목을 다시 선택해 주세요.
+          </p>}
+          <div>
+            <p className="mb-2 text-[12px] font-semibold text-[#757b82]">핵심 아이디어 · {selectedIdeas.length}개</p>
+            {selectedIdeas.length ? selectedIdeas.map(item => (
+              <div key={item.id} className="mb-2 rounded-lg border border-[#e2e4ea] bg-[#f8f9fc] px-3 py-2 text-[13px] leading-relaxed">
+                <span className="mr-2 font-semibold text-[#D1260F]">{item.subject} · {item.domain}</span>{item.content}
+              </div>
+            )) : <p className="rounded-lg bg-[#f1f4f9] px-3 py-2 text-[13px] text-[#9aa2ad]">선택한 항목이 없습니다.</p>}
+          </div>
+          <div>
+            <p className="mb-2 text-[12px] font-semibold text-[#757b82]">성취기준 · {selectedStandards.length}개</p>
+            {selectedStandards.length ? selectedStandards.map(item => (
+              <div key={item.code} className="mb-2 rounded-lg border border-[#e2e4ea] bg-[#f8f9fc] px-3 py-2 text-[13px] leading-relaxed">
+                <span className="mr-2 font-semibold text-[#D1260F]">{item.code} · {item.subject}</span>{item.content}
+              </div>
+            )) : <p className="rounded-lg bg-[#f1f4f9] px-3 py-2 text-[13px] text-[#9aa2ad]">선택한 항목이 없습니다.</p>}
+          </div>
+        </div>
       ) : CARD_SCHEMAS[act.code] ? (
         <CardFieldRenderer
           schema={CARD_SCHEMAS[act.code]}

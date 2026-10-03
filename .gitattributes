@@ -1,0 +1,2 @@
+# 성취기준 탐색기 배포 데이터는 manifest 의 SHA256 과 바이트가 같아야 하므로 줄바꿈을 변환하지 않는다
+public/standard/graph/** -text

@@ -1,16 +1,36 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { loadSystemPrompt, buildPageContextBlock, buildStableContextBlock } from '@/lib/prompts';
 import { selectStandardCandidates } from '@/lib/standards';
-import { resolveLlmModel } from '@/lib/llmModels';
+import { isOpenAiModel, resolveLlmModel } from '@/lib/llmModels';
 
-export async function GET() {
-  if (!process.env.ANTHROPIC_API_KEY) {
+export async function GET(req: Request) {
+  const model = resolveLlmModel(new URL(req.url).searchParams.get('model'));
+  if (!(isOpenAiModel(model) ? process.env.CHATGPT_API_KEY : process.env.ANTHROPIC_API_KEY)) {
     return Response.json({ ok: false }, { status: 503 });
   }
   return Response.json({ ok: true });
 }
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+type ChatMessage = {
+  role: 'user' | 'assistant';
+  content: string | ({ type: 'text'; text: string } | {
+    type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string };
+  })[];
+};
+
+/** UI의 Claude PDF 블록을 OpenAI Responses의 input_file로 옮긴다. */
+function toOpenAiInput(messages: ChatMessage[]): OpenAI.Responses.ResponseInput {
+  return messages.map((message) => {
+    if (typeof message.content === 'string') return { role: message.role, content: message.content };
+    return {
+      role: 'user' as const,
+      content: message.content.map((part, index) => part.type === 'text'
+        ? { type: 'input_text' as const, text: part.text }
+        : { type: 'input_file' as const, filename: `reference-${index + 1}.pdf`, file_data: `data:application/pdf;base64,${part.source.data}`, detail: 'low' as const }),
+    };
+  });
+}
 
 /** A-3 후보 선별이 교과 정보 없이도 동작하도록, 분석 단계 카드 입력을 검색어로 쓴다. */
 function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined): string {
@@ -25,6 +45,10 @@ function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined
 
 export async function POST(req: Request) {
   const { messages, stage = 'T', pageContext, model, intent, cardLabels } = await req.json();
+  const selectedModel = resolveLlmModel(model);
+  if (isOpenAiModel(selectedModel) ? !process.env.CHATGPT_API_KEY : !process.env.ANTHROPIC_API_KEY) {
+    return Response.json({ error: '선택한 모델의 API 키가 설정되지 않았습니다.' }, { status: 503 });
+  }
 
   const selectedCode = pageContext?.selectedActivityCode as string | undefined;
   const enrichedContext = { ...pageContext };
@@ -52,28 +76,47 @@ export async function POST(req: Request) {
     .join('\n\n');
   const volatileBlock = enrichedContext ? buildPageContextBlock(enrichedContext) : '';
 
-  const system: Anthropic.TextBlockParam[] = [
-    { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
-  ];
-  if (volatileBlock) system.push({ type: 'text', text: volatileBlock });
-
-  const stream = client.messages.stream({
-    model: resolveLlmModel(model),
-    max_tokens: 4000,
-    system,
-    messages,
-  });
+  const abortController = new AbortController();
+  req.signal.addEventListener('abort', () => abortController.abort(), { once: true });
+  let stream: AsyncIterable<unknown>;
+  if (isOpenAiModel(selectedModel)) {
+    const client = new OpenAI({ apiKey: process.env.CHATGPT_API_KEY });
+    stream = await client.responses.create({
+      model: selectedModel,
+      instructions: [stable, volatileBlock].filter(Boolean).join('\n\n'),
+      input: toOpenAiInput(messages as ChatMessage[]),
+      stream: true,
+      reasoning: { effort: 'low' },
+      max_output_tokens: 6000,
+    }, { signal: abortController.signal });
+  } else {
+    const system: Anthropic.TextBlockParam[] = [
+      { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
+    ];
+    if (volatileBlock) system.push({ type: 'text', text: volatileBlock });
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    stream = client.messages.stream({
+      model: selectedModel,
+      max_tokens: 4000,
+      system,
+      messages,
+    }, { signal: abortController.signal });
+  }
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
       try {
         for await (const chunk of stream) {
-          if (
-            chunk.type === 'content_block_delta' &&
-            chunk.delta.type === 'text_delta'
-          ) {
+          if (typeof chunk !== 'object' || chunk === null || !('type' in chunk)) continue;
+          if (chunk.type === 'response.output_text.delta' && 'delta' in chunk && typeof chunk.delta === 'string') {
+            controller.enqueue(encoder.encode(chunk.delta));
+          } else if (chunk.type === 'content_block_delta' && 'delta' in chunk &&
+            typeof chunk.delta === 'object' && chunk.delta !== null && 'type' in chunk.delta &&
+            chunk.delta.type === 'text_delta' && 'text' in chunk.delta && typeof chunk.delta.text === 'string') {
             controller.enqueue(encoder.encode(chunk.delta.text));
+          } else if (chunk.type === 'error' || chunk.type === 'response.failed') {
+            throw new Error(`AI stream failed: ${chunk.type}`);
           }
         }
       } catch (err) {
@@ -85,7 +128,7 @@ export async function POST(req: Request) {
     },
     cancel() {
       // 클라이언트가 중단 버튼을 누르면 업스트림 생성도 같이 멈춘다
-      stream.abort();
+      abortController.abort();
     },
   });
 

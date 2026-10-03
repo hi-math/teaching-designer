@@ -24,9 +24,11 @@ import WorkModeSwitch, { type WorkMode } from "@/components/workspace/WorkModeSw
 import { localWriteKey, readRemoteContent, stableStringify } from "@/components/workspace/remoteContent";
 import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/workspace/cardUndo";
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
+import { DEFAULT_CRITERIA, IDEATION_ROW } from "@/lib/ideation/model";
+import type { ContentMap } from "@/lib/ideation/application";
 
 // 아이디어 도출(성취기준 연결 탐색기)은 처음 열 때 코드를 받는다
-const StandardsGraphClient = dynamic(() => import("@/components/standards-graph/StandardsGraphClient"), {
+const IdeationWorkspace = dynamic(() => import("@/components/ideation/IdeationWorkspace"), {
   ssr: false,
   loading: () => (
     <div className="flex flex-1 items-center justify-center">
@@ -793,6 +795,8 @@ export default function WorkspaceShell({
   const [workMode, setWorkMode] = useState<WorkMode>(initialWorkMode);
   // 아이디어 도출은 한 번 연 뒤에는 숨기기만 해서 탐색 상태와 받아 둔 데이터를 유지한다
   const [ideationOpened, setIdeationOpened] = useState(initialWorkMode === "ideation");
+  const [ideationChatOpen, setIdeationChatOpen] = useState(false);
+  const [ideationContext, setIdeationContext] = useState("");
   const changeWorkMode = (next: WorkMode) => {
     setWorkMode(next);
     if (next === "ideation") setIdeationOpened(true);
@@ -863,6 +867,7 @@ export default function WorkspaceShell({
   const menuRef = useRef<HTMLDivElement>(null);
   // 자동저장 디바운스 타이머
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const inFlightSaves = useRef(new Map<string, number>());
   // 내가 마지막으로 DB 에 쓴 텍스트 — Realtime 에코를 걸러내는 데 쓴다
   const lastLocalWriteRef = useRef<Record<string, string>>({});
   // 의견 숨기기 핸들러가 현재 질문/상태를 의존성 없이 읽기 위한 ref
@@ -1185,6 +1190,7 @@ export default function WorkspaceShell({
       ]);
       const ownerId = lessonData.data?.owner_id;
       const amOwner = me?.id === ownerId;
+      setIsHost(amOwner);
 
       presenceChannel = supabaseRt.channel(`presence:${lessonId}`, {
         config: { presence: { key: me?.id ?? "anon" } },
@@ -1491,11 +1497,20 @@ export default function WorkspaceShell({
       if (writeKey !== undefined) lastLocalWriteRef.current[activityCode] = writeKey;
 
       const supabase = createClient();
+      inFlightSaves.current.set(activityCode, (inFlightSaves.current.get(activityCode) ?? 0) + 1);
       supabase.from("activity_contents").upsert(
         { lesson_id: lessonId, activity_code: activityCode, content },
         { onConflict: "lesson_id,activity_code" }
       ).then(({ error }) => {
-        if (error) { console.error("[save] error", error); return; }
+        const remaining = (inFlightSaves.current.get(activityCode) ?? 1) - 1;
+        if (remaining > 0) inFlightSaves.current.set(activityCode, remaining);
+        else inFlightSaves.current.delete(activityCode);
+        if (error) {
+          console.error("[save] error", error);
+          pendingContent.current[activityCode] ??= content;
+          setTitleSaveStatus("idle");
+          return;
+        }
         // 마지막 버전 생성으로부터 1분 이상 지났으면 자동 버전 생성
         if (Date.now() - lastSnapshotTimeRef.current > 60_000) {
           createSnapshot("auto");
@@ -1549,6 +1564,36 @@ export default function WorkspaceShell({
     rememberForUndo(code, mode);
     writeStructured(code, fields);
   }, [rememberForUndo, writeStructured]);
+
+  const hasPendingIdeationCards = useCallback(() =>
+    ["A-2", "A-3", "A-4"].some(code => pendingContent.current[code] !== undefined || inFlightSaves.current.has(code)), []);
+
+  const handleIdeationCommitted = (changes: ContentMap, applied: boolean) => {
+    const next = { ...structuredInputsRef.current };
+    for (const [code, content] of Object.entries(changes)) {
+      if (!content) continue;
+      if (content.type === "structured" && content.fields) {
+        if (code !== IDEATION_ROW) rememberForUndo(code, "step");
+        const fields = content.fields as Record<string, unknown>;
+        next[code] = fields;
+        lastLocalWriteRef.current[code] = stableStringify(fields);
+      } else if (code === "__selected_standards" && Array.isArray(content.items)) {
+        selectedStandardsRef.current = content.items as StandardItem[];
+        setSelectedStandards(content.items as StandardItem[]);
+      }
+    }
+    structuredInputsRef.current = next;
+    setStructuredInputs(next);
+    hasNewSavesRef.current = true;
+    setTitleSaveStatus("saved");
+    if (applied) {
+      changeWorkMode("design");
+      setActivePhase("A");
+      setActiveSection("A-a");
+      setSelectedActivityCode("A-2");
+      void createSnapshot("auto");
+    }
+  };
 
   // ── A-5 초안 미리보기 생성 — request: 교사 팀의 추가 요청 (프롬프트에서 최우선 반영) ──
   const handleSimulate = useCallback(async (request: string) => {
@@ -2083,8 +2128,11 @@ export default function WorkspaceShell({
           onClose={() => setActiveModal(null)}
           onRestore={async (contents) => {
             const supabase = createClient();
+            // Older snapshots predate ideation. Persist an empty structured row so
+            // the current draft cannot reappear on reload or in another window.
+            const restoredContents = { ...contents, [IDEATION_ROW]: contents[IDEATION_ROW] ?? { type: "structured", fields: {} } };
             await Promise.all(
-              Object.entries(contents)
+              Object.entries(restoredContents)
                 // 의견묻기 행은 복원 대상에서 제외 — 삭제한 의견이 되살아나지 않도록
                 .filter(([code]) => !code.includes("__opinion"))
                 .map(([code, content]) =>
@@ -2097,7 +2145,7 @@ export default function WorkspaceShell({
             const inputs: Record<string, string> = {};
             const statusMap: Record<string, "active" | "completed" | "skipped"> = {};
             const restoredStructured: Record<string, Record<string, unknown>> = {};
-            for (const [code, c] of Object.entries(contents)) {
+            for (const [code, c] of Object.entries(restoredContents)) {
               if (code === "__selected_standards" && Array.isArray(c.items)) {
                 const items = c.items as StandardItem[];
                 setSelectedStandards(items);
@@ -2821,13 +2869,28 @@ export default function WorkspaceShell({
 
           {/* ── 아이디어 도출: 성취기준 연결 탐색기 ─────────────────────── */}
           {ideationOpened && (
-            <div className={`${workMode === "ideation" ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-hidden`}>
-              <StandardsGraphClient />
+            <div className={`${workMode === "ideation" ? "flex" : "hidden"} relative min-w-0 flex-1 flex-col overflow-hidden`}>
+              <div className="flex shrink-0 justify-end border-b border-slate-200 bg-white px-4 py-1">
+                <button type="button" className="min-h-8 text-xs font-medium text-slate-600 hover:text-slate-900" onClick={() => setIdeationChatOpen(v => !v)}>{ideationChatOpen ? "채팅 접기" : "AI·팀 채팅 열기"}</button>
+              </div>
+              <IdeationWorkspace
+                lessonId={lessonId} isHost={isHost} model={llmModel}
+                saved={structuredInputs[IDEATION_ROW]}
+                initialStandardIds={selectedStandards.map(s => bracketCode(s.code))}
+                defaults={{
+                  subjects: toArr(relatedSubjects),
+                  grade: targetGrade, sessions: totalSessions, interest: "",
+                  vision: String(structuredInputs["T-1"]?.vision ?? activityInputs["T-1"] ?? ""),
+                  criteria: Array.isArray(structuredInputs["A-1"]?.criteria) && (structuredInputs["A-1"].criteria as string[]).some(s => s.trim())
+                    ? (structuredInputs["A-1"].criteria as string[]).filter(s => s.trim()) : DEFAULT_CRITERIA,
+                }}
+                onCommitted={handleIdeationCommitted} onContext={setIdeationContext} hasPendingCards={hasPendingIdeationCards}
+              />
             </div>
           )}
 
           {/* ── 우측 패널 ────────────────────────────────────────────── */}
-          <div className="flex w-[30%] min-w-[360px] shrink-0 flex-col bg-white shadow-[-4px_0px_24px_rgba(45,51,57,0.06)]">
+          <div className={`${workMode === "ideation" && !ideationChatOpen ? "hidden" : "flex"} w-[30%] min-w-[360px] shrink-0 flex-col bg-white shadow-[-4px_0px_24px_rgba(45,51,57,0.06)]`}>
 
             {/* 탭 헤더 */}
             <div className="shrink-0 flex bg-white border-b border-[#adb2ba]/20">
@@ -2890,7 +2953,7 @@ export default function WorkspaceShell({
                   const mergedInputs: Record<string, string> = {
                     ...activityInputs,
                     ...Object.fromEntries(
-                      Object.entries(structuredInputs).map(([code, fields]) => [
+                      Object.entries(structuredInputs).filter(([code]) => code !== IDEATION_ROW).map(([code, fields]) => [
                         code, serializeStructuredForAI(fields),
                       ])
                     ),
@@ -2904,7 +2967,8 @@ export default function WorkspaceShell({
                     targetGrade: targetGrade || undefined,
                     totalSessions: totalSessions ?? undefined,
                     activityInputs: mergedInputs,
-                    selectedActivityCode: selectedActivityCode ?? undefined,
+                    selectedActivityCode: workMode === "ideation" ? undefined : selectedActivityCode ?? undefined,
+                    ideationContext: workMode === "ideation" ? ideationContext : undefined,
                     referenceFiles: referenceFiles.length > 0 ? referenceFiles : undefined,
                     selectedStandards: selectedStandards.length > 0 ? selectedStandards : undefined,
                     selectedIdeas: selectedIdeas.length > 0 ? selectedIdeas : undefined,

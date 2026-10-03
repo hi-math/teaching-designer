@@ -360,6 +360,7 @@ export function loadSystemPrompt(stage: string): string {
 }
 
 export interface PageContext {
+  ideationContext?: string;
   projectTitle?: string;
   activePhase?: string;
   activeSection?: string;
@@ -513,6 +514,10 @@ export function buildPageContextBlock(ctx: PageContext): string {
 
   lines.push('---');
   lines.push('## 현재 워크스페이스 상태');
+  if (ctx.ideationContext) {
+    lines.push('### 아이디어 도출 작업', ctx.ideationContext.slice(0, 6000));
+    lines.push('위 후보는 아직 확정된 수업 설계가 아닙니다. 연결 근거와 교과별 역할을 검토하도록 돕고, 채택 여부는 교사가 결정합니다.');
+  }
 
   if (ctx.projectTitle) lines.push(`- 프로젝트명: ${ctx.projectTitle}`);
   if (ctx.activePhase)  lines.push(`- 현재 단계: ${ctx.activePhase}`);

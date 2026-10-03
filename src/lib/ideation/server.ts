@@ -1,17 +1,27 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@/lib/supabase/server";
-import type { EdgesFile, NodesFile, StandardsGraphManifest } from "@/lib/standards-graph/types";
+import { getCoreIdeas } from "@/lib/curriculumCatalog";
+import { getStandards } from "@/lib/standards";
+import type { StandardsGraphManifest } from "@/lib/standards-graph/types";
+import type { IdeationCatalog } from "./application";
 
-let cached: Promise<{ manifest: StandardsGraphManifest; nodes: NodesFile["nodes"]; edges: EdgesFile["edges"] }> | undefined;
-export function loadIdeationGraph() {
-  if (!cached) cached = (async () => {
-    const root = path.join(process.cwd(), "public");
-    const manifest = JSON.parse(await readFile(path.join(root, "standard/graph/manifest.json"), "utf8")) as StandardsGraphManifest;
-    const [n, e] = await Promise.all([manifest.files.nodes.url, manifest.files.edges.url].map(url => readFile(path.join(root, url.replace(/^\//, "")), "utf8")));
-    return { manifest, nodes: (JSON.parse(n) as NodesFile).nodes, edges: (JSON.parse(e) as EdgesFile).edges };
-  })().catch(error => { cached = undefined; throw error; });
-  return cached;
+/** 공식 핵심아이디어·성취기준 (서버에서만 — 파일을 읽는다) */
+export function loadCatalog(): IdeationCatalog {
+  return {
+    ideas: getCoreIdeas(),
+    standards: getStandards().map(({ code, subject, domain, content, keywords, explanation, grade_group }) =>
+      ({ code, subject, domain, content, keywords, explanation, grade_group })),
+  };
+}
+
+let version: Promise<string> | undefined;
+/** 저장하는 초안에 남기는 데이터 버전 — 성취기준 데이터 manifest 의 datasetVersion */
+export function readDataVersion(): Promise<string> {
+  if (!version) version = readFile(path.join(process.cwd(), "public/standard/graph/manifest.json"), "utf8")
+    .then((text) => (JSON.parse(text) as StandardsGraphManifest).datasetVersion)
+    .catch((error) => { version = undefined; throw error; });
+  return version;
 }
 
 export async function authorizeIdeation(lessonId: unknown) {

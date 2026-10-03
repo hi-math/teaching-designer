@@ -1,105 +1,179 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { buildBundles, emptyDraft, generationKey, readDraft, validateCandidates, DEFAULT_CRITERIA, type TopicCandidate } from "../model";
-import { buildApplication, comparable } from "../application";
-import type { StandardEdge, StandardNode } from "@/lib/standards-graph/types";
+import {
+  addLink, emptyDraft, readDraft, relatedTo, removeItem, removeLink, setElementText, setIdeaText,
+  type IdeationDraft,
+} from "../model";
+import { buildApplication, buildNarrative, canonicalize, type IdeationCatalog } from "../application";
 
-const root = path.join(process.cwd(), "public/standard/graph");
-const manifest = JSON.parse(readFileSync(path.join(root, "manifest.json"), "utf8"));
-const nodes: StandardNode[] = JSON.parse(readFileSync(path.join(process.cwd(), "public", manifest.files.nodes.url), "utf8")).nodes;
-const edges: StandardEdge[] = JSON.parse(readFileSync(path.join(process.cwd(), "public", manifest.files.edges.url), "utf8")).edges;
-const conditions = { subjects: ["과학", "사회"], grade: "중2", sessions: 6, interest: "기후변화", criteria: DEFAULT_CRITERIA, vision: "지역 문제 해결" };
-const seeds = ["[9과17-01]"];
-const bundles = buildBundles(nodes, edges, seeds, conditions.subjects);
+const catalog: IdeationCatalog = {
+  ideas: [
+    { id: "과학__과학과 사회__0", subject: "과학", domain: "과학과 사회", content: "과학적 탐구는 일상의 문제를 해결하는 데 쓰인다." },
+    { id: "사회__지역__0", subject: "사회", domain: "지역", content: "지역은 자연과 인간 활동의 상호작용으로 변화한다." },
+  ],
+  standards: [
+    { code: "[9과01-01]", subject: "과학", domain: "과학과 사회", content: "과학적 탐구 방법을 이해한다.", keywords: [], explanation: "", grade_group: "중1-3" },
+    { code: "[9사05-02]", subject: "사회", domain: "지역", content: "지역 문제를 조사한다.", keywords: [], explanation: "", grade_group: "중1-3" },
+  ],
+};
+const [sciIdea, socIdea] = catalog.ideas;
 
-function candidate(bundle = bundles[0]): TopicCandidate {
-  return {
-    id: "topic-1", bundleId: bundle.id, title: "우리 지역 기후 대응 제안", question: "지역 특성에 맞는 대응은?", product: "제안서", integration: "과학적 설명을 지역 대응 평가에 활용",
-    roles: [...new Set(bundle.standardIds.map(id => nodes.find(n => n.id === id)!.subject))].map(subject => ({ subject, role: `${subject} 근거 검토`, standardIds: bundle.standardIds.filter(id => nodes.find(n => n.id === id)!.subject === subject) })),
-    activities: ["원인 탐구", "대응 검토"], requirements: ["지역 자료 확보 확인"],
-    evaluations: conditions.criteria.map(criterion => ({ criterion, rating: "충분함", reason: "근거 검토" })),
-    standardIds: bundle.standardIds, edgeIds: bundle.edgeIds, warnings: bundle.warnings,
-  };
-}
-function draft() {
-  const d = emptyDraft(conditions, seeds);
-  d.datasetVersion = manifest.datasetVersion;
-  d.candidates = [candidate()]; d.selectedId = "topic-1"; d.rationale = "학생 삶과 연결";
-  d.generatedFor = generationKey(d.conditions, seeds, d.datasetVersion);
+/** 주제·하위요소 2개·공식 핵심아이디어 2개·성취기준 2개 */
+function workspace(): IdeationDraft {
+  let d = emptyDraft({ subjects: ["과학", "사회"], grade: "중2" }, {
+    topic: "우리 동네 폭염에 어떻게 대응할까?",
+    ideas: [{ catalogId: sciIdea.id, ...sciIdea }, { catalogId: socIdea.id, ...socIdea }],
+    standards: catalog.standards.map(({ code, subject, domain, content }) => ({ code, subject, domain, content })),
+  });
+  d = { ...d, elements: [{ id: "el_heat", text: "폭염의 원인", via: "manual" }, { id: "el_plan", text: "지역의 대응 방안", via: "manual" }] };
+  const [i1, i2] = d.ideas;
+  d = addLink(d, "elementIdea", "el_heat", i1.id);
+  d = addLink(d, "elementIdea", "el_plan", i2.id);
+  d = addLink(d, "ideaStandard", i1.id, "[9과01-01]");
+  d = addLink(d, "ideaStandard", i2.id, "[9사05-02]");
   return d;
 }
 
-describe("evidence retrieval on the shipped graph", () => {
-  it("preserves required standards, subject scope and the six-standard bound", () => {
-    for (const b of bundles) {
-      expect(b.standardIds).toContain(seeds[0]);
-      expect(b.standardIds.length).toBeLessThanOrEqual(6);
-      expect(b.standardIds.every(id => conditions.subjects.includes(nodes.find(n => n.id === id)!.subject))).toBe(true);
-      expect(b.edgeIds.every(id => { const e = edges.find(e => e.id === id)!; return b.standardIds.includes(e.source) && b.standardIds.includes(e.target) && e.dimension_weights[b.id] >= 2; })).toBe(true);
-    }
+describe("아이디어 도출 초안", () => {
+  it("저장했다가 다시 읽어도 항목·연결·수정본이 그대로다", () => {
+    const w = workspace();
+    const d = setIdeaText(w, w.ideas[0].id, "교사가 고친 문장");
+    expect(d.ideas[0].revision).toBe("교사가 고친 문장");
+    const restored = readDraft(JSON.parse(JSON.stringify(d)));
+    expect(restored).toEqual(d);
   });
-  it("does not recommend a content relation merely because its hierarchy is strong", () => {
-    const a = nodes.find(n => n.id === seeds[0])!, b = nodes.find(n => n.id === "[9사(지리)08-02]")!;
-    const source = edges.find(e => e.source === a.id && e.target === b.id)!;
-    const hierarchyOnly = { ...source, dimension_weights: { content: 0, competency: 0, other: 0, learning_hierarchy: 5 } } as StandardEdge;
-    expect(buildBundles([a, b], [hierarchyOnly], [a.id], conditions.subjects)[0].standardIds).toEqual([a.id]);
+
+  it("예전 단계형 초안은 고른 주제와 담은 성취기준만 옮긴다", () => {
+    const v1 = {
+      schemaVersion: 1, datasetVersion: "old",
+      conditions: { subjects: ["과학", "사회"], grade: "중2", sessions: 6, interest: "", criteria: ["a"], vision: "" },
+      seedIds: ["[9과01-01]"], selectedId: "topic-2", rationale: "", generatedFor: null,
+      candidates: [{ id: "topic-2", title: "기후 대응 제안", standardIds: ["[9과01-01]", "[9사05-02]"], roles: [{ subject: "사회", standardIds: ["[9사05-02]"] }] }],
+    };
+    const d = readDraft(v1)!;
+    expect(d.schemaVersion).toBe(2);
+    expect(d.topic).toBe("기후 대응 제안");
+    expect(d.conditions).toEqual({ subjects: ["과학", "사회"], grade: "중2" });
+    expect(d.standards.map((s) => s.code)).toEqual(["[9과01-01]", "[9사05-02]"]);
+    expect(d.standards[1].subject).toBe("사회");
   });
-  it("rejects unknown IDs and seeds outside participating subjects", () => {
-    expect(() => buildBundles(nodes, edges, ["fake"], conditions.subjects)).toThrow();
-    expect(() => buildBundles(nodes, edges, seeds, ["사회"])).toThrow();
+
+  it("깨진 값은 거부하고, 사라진 항목에 남은 연결과 중복 연결은 정리한다", () => {
+    expect(readDraft({ schemaVersion: 2 })).toBeNull();
+    expect(readDraft("x")).toBeNull();
+    const d = workspace();
+    const dangling = { ...d, elementIdeaLinks: [...d.elementIdeaLinks, { ...d.elementIdeaLinks[0], id: "ln_dup" }, { id: "ln_x", from: "el_gone", to: d.ideas[0].id, via: "manual", reason: "", review: false }] };
+    expect(readDraft(dangling)!.elementIdeaLinks).toEqual(d.elementIdeaLinks);
   });
-  it("retains disconnected mandatory standards and explains the missing evidence", () => {
-    const ids = [seeds[0], "[9사(지리)08-02]"];
-    const b = buildBundles(nodes, [], ids, conditions.subjects)[0];
-    expect(b.standardIds).toEqual(ids);
-    expect(b.warnings.join(" ")).toContain("기록된 연결이 없습니다");
+
+  it("항목을 지우면 연결도 정리되고, 연결만 지우면 양쪽 항목은 남는다", () => {
+    const d = workspace();
+    const idea = d.ideas[0];
+    const noIdea = removeItem(d, "idea", idea.id);
+    expect(noIdea.elementIdeaLinks.some((l) => l.to === idea.id)).toBe(false);
+    expect(noIdea.ideaStandardLinks.some((l) => l.from === idea.id)).toBe(false);
+    const link = d.elementIdeaLinks[0];
+    const unlinked = removeLink(d, "elementIdea", link.id);
+    expect(unlinked.elements).toEqual(d.elements);
+    expect(unlinked.ideas).toEqual(d.ideas);
+    expect(unlinked.elementIdeaLinks).toHaveLength(d.elementIdeaLinks.length - 1);
+  });
+
+  it("문장을 바꿔도 연결은 지우지 않고 다시 검토할 연결로 표시한다", () => {
+    const d = setElementText(workspace(), "el_heat", "폭염이 생기는 까닭");
+    const link = d.elementIdeaLinks.find((l) => l.from === "el_heat")!;
+    expect(link.review).toBe(true);
+    // 같은 연결을 다시 맺으면(재추천 채택) 검토 표시만 지운다
+    const relinked = addLink(d, "elementIdea", "el_heat", link.to);
+    expect(relinked.elementIdeaLinks.filter((l) => l.from === "el_heat")).toEqual([{ ...link, review: false }]);
+  });
+
+  it("공식 원문과 같게 고치면 수정본을 지운다", () => {
+    const d = workspace();
+    const id = d.ideas[0].id;
+    const revised = setIdeaText(d, id, "다르게 고친 문장");
+    expect(revised.ideas[0].revision).toBe("다르게 고친 문장");
+    expect(revised.ideas[0].official!.content).toBe(sciIdea.content);
+    expect(setIdeaText(revised, id, sciIdea.content).ideas[0].revision).toBeNull();
+  });
+
+  it("선택한 항목과 직접·한 단계 건너 연결된 항목을 양방향으로 찾는다", () => {
+    const d = workspace();
+    const [i1] = d.ideas;
+    expect(relatedTo(d, "element", "el_heat")).toEqual({ strong: new Set([i1.id]), soft: new Set(["[9과01-01]"]) });
+    expect(relatedTo(d, "idea", i1.id).strong).toEqual(new Set(["el_heat", "[9과01-01]"]));
+    expect(relatedTo(d, "standard", "[9과01-01]")).toEqual({ strong: new Set([i1.id]), soft: new Set(["el_heat"]) });
   });
 });
 
-describe("AI output validation", () => {
-  it("attaches canonical evidence and leaves operating conditions unconfirmed", () => {
-    const result = validateCandidates({ candidates: bundles.map(b => ({ ...candidate(b), edgeIds: ["invented"] })) }, bundles, nodes, conditions.criteria);
-    expect(result[0].edgeIds).toEqual(bundles[0].edgeIds);
-    expect(result[0].evaluations.find(e => e.criterion === "운영 가능성")?.rating).toBe("확인 필요");
+describe("저장 전 공식 원문 맞추기", () => {
+  it("클라이언트가 보낸 원문 대신 데이터 원문을 쓰고, 없는 코드는 연결과 함께 뺀다", () => {
+    const d = workspace();
+    const tampered: IdeationDraft = {
+      ...d,
+      ideas: d.ideas.map((i) => ({ ...i, official: i.official && { ...i.official, content: "바꿔 친 원문" } })),
+      standards: [...d.standards.map((s) => ({ ...s, content: "바꿔 친 원문" })), { id: "[9만들어낸01]", code: "[9만들어낸01]", subject: "과학", domain: "", content: "", note: "", via: "ai" }],
+      ideaStandardLinks: [...d.ideaStandardLinks, { id: "ln_fake", from: d.ideas[0].id, to: "[9만들어낸01]", via: "ai", reason: "", review: false }],
+    };
+    const c = canonicalize(tampered, catalog, "v9");
+    expect(c.dataVersion).toBe("v9");
+    expect(c.ideas.map((i) => i.official!.content)).toEqual([sciIdea.content, socIdea.content]);
+    expect(c.standards.map((s) => s.content)).toEqual(catalog.standards.map((s) => s.content));
+    expect(c.ideaStandardLinks.some((l) => l.to === "[9만들어낸01]")).toBe(false);
   });
-  it("rejects invented standard IDs, missing roles and repeated perspectives", () => {
-    const raw = bundles.map(b => candidate(b));
-    raw[0].roles[0].standardIds = ["invented"];
-    expect(() => validateCandidates({ candidates: raw }, bundles, nodes, conditions.criteria)).toThrow();
-    expect(() => validateCandidates({ candidates: [candidate(), candidate(), candidate()] }, bundles, nodes, conditions.criteria)).toThrow();
-  });
-  it("requires every selection criterion", () => {
-    const raw = bundles.map(b => candidate(b)); raw[0].evaluations.pop();
-    expect(() => validateCandidates({ candidates: raw }, bundles, nodes, conditions.criteria)).toThrow();
+
+  it("목록에 없는 핵심아이디어는 교사 작성 항목으로 남긴다", () => {
+    const d = workspace();
+    const odd = { ...d, ideas: [{ ...d.ideas[0], official: { catalogId: "없는__항목__9", subject: "과학", domain: "x", content: "옛 문장" } }] };
+    const c = canonicalize(odd, catalog, "v");
+    expect(c.ideas[0]).toMatchObject({ official: null, revision: "옛 문장", subject: "과학" });
   });
 });
 
-describe("reviewed application", () => {
-  it("preserves original goals, core ideas and status, and adds without duplicate standards", () => {
-    const d = draft();
-    const before = { "A-2": { type: "structured", fields: { candidates: ["기존 후보"], final_topic: "기존 주제" }, status: "completed" }, "A-3": { type: "structured", fields: { core_ideas: [{ core_idea: "기존 교육과정 핵심 아이디어" }], achievement_standards: [{ subject: "과학", standard: `${seeds[0]} 기존 교사 메모` }] } }, "A-4": { type: "structured", fields: { integrated_goal: "교사의 목표", integration_narrative: "기존 연계 설명" } } };
-    const result = buildApplication(d, nodes, edges, before);
-    expect(result["A-2"]?.status).toBe("completed");
-    const a3 = result["A-3"]?.fields as Record<string, unknown>;
-    expect(a3.core_ideas).toEqual(before["A-3"].fields.core_ideas);
-    expect((a3.achievement_standards as { standard: string }[]).filter(r => r.standard.includes(seeds[0]))).toHaveLength(1);
-    expect((result["A-4"]?.fields as Record<string, unknown>).integrated_goal).toBe("교사의 목표");
-    expect(buildApplication(d, nodes, edges, result)).toEqual(result);
+describe("수업 설계 반영", () => {
+  const before = {
+    "A-2": { type: "structured", fields: { candidates: ["기존 후보"], final_topic: "", selection_rationale: "기존 사유" }, status: "active" },
+    "A-3": { type: "structured", fields: { core_ideas: [{ subject: "국어", core_idea: "기존 아이디어" }], achievement_standards: [{ subject: "과학", standard: "[9과01-01] 과학적 탐구 방법을 이해한다." }] } },
+    "A-4": { type: "structured", fields: { integrated_goal: "기존 목표", integration_narrative: "기존 설명" } },
+    __selected_ideas: { type: "ideas", items: [{ id: "국어__듣기__0", subject: "국어", domain: "듣기", content: "기존 아이디어" }] },
+    __selected_standards: { type: "standards", items: [{ code: "[9과01-01]", subject: "과학", domain: "", content: "", keywords: [], explanation: "", grade_group: "" }] },
+    __ideation: null,
+  };
+
+  it("기존 카드 내용은 지우지 않고 새 항목만 더한다", () => {
+    const d = workspace();
+    const changes = buildApplication(d, catalog, before);
+    expect(changes["A-2"]!.fields).toEqual({ candidates: ["기존 후보"], final_topic: "우리 동네 폭염에 어떻게 대응할까?", selection_rationale: "기존 사유" });
+    expect(changes["A-2"]!.status).toBe("active");
+    const a3 = changes["A-3"]!.fields as Record<string, { subject: string }[]>;
+    expect(a3.core_ideas.map((r) => r.subject)).toEqual(["국어", "과학", "사회"]);
+    // 이미 있는 [9과01-01] 은 다시 넣지 않는다
+    expect(a3.achievement_standards.map((r) => r.subject)).toEqual(["과학", "사회"]);
+    expect((changes.__selected_ideas!.items as { id: string }[]).map((i) => i.id)).toEqual(["국어__듣기__0", sciIdea.id, socIdea.id]);
+    expect((changes.__selected_standards!.items as { code: string }[]).map((i) => i.code)).toEqual(["[9과01-01]", "[9사05-02]"]);
+    const a4 = changes["A-4"]!.fields as Record<string, string>;
+    expect(a4.integrated_goal).toBe("기존 목표");
+    expect(a4.integration_narrative.startsWith("기존 설명\n\n우리 동네 폭염에 어떻게 대응할까?")).toBe(true);
+    expect(changes.__ideation).toEqual({ type: "structured", fields: d });
   });
-  it("blocks stale candidates and candidates missing required standards", () => {
-    const d = draft(); d.conditions = { ...conditions, sessions: 4 };
-    expect(() => buildApplication(d, nodes, edges, {})).toThrow("조건이 변경");
-    const bad = draft(); bad.candidates[0].standardIds = bad.candidates[0].standardIds.filter(id => id !== seeds[0]);
-    expect(() => buildApplication(bad, nodes, edges, {})).toThrow("필수");
+
+  it("교사 수정본은 A-3 이 아니라 연계 설명에 들어가고, 다시 검토할 연결은 빠진다", () => {
+    const w = workspace();
+    const i1 = w.ideas[0].id;
+    let d = setIdeaText(w, i1, "폭염은 기후 변화와 도시 구조가 함께 만든다");
+    // 고친 뒤 교사가 연결을 다시 확인한다
+    d = addLink(addLink(d, "elementIdea", "el_heat", i1), "ideaStandard", i1, "[9과01-01]");
+    d = setElementText(d, "el_plan", "지역 대응");
+    const narrative = buildNarrative(d);
+    expect(narrative).toContain("폭염은 기후 변화와 도시 구조가 함께 만든다");
+    expect(narrative).not.toContain("지역 대응:");
+    const a3 = buildApplication(d, catalog, before)["A-3"]!.fields as Record<string, { core_idea?: string }[]>;
+    expect(a3.core_ideas.map((r) => r.core_idea)).toContain(sciIdea.content);
   });
-  it("compares structured fields independently of activity completion status", () => {
-    expect(comparable({ type: "structured", fields: { text: "동일" }, status: "completed" })).toEqual({ text: "동일" });
-    expect(comparable(null)).toBe(null);
-  });
-  it("rejects malformed saved drafts and keeps generation identity stable across seed ordering", () => {
-    expect(readDraft({ schemaVersion: 1 })).toBe(null);
-    expect(readDraft(draft())).not.toBe(null);
-    expect(generationKey(conditions, ["a", "b"], "v")).toBe(generationKey(conditions, ["b", "a"], "v"));
+
+  it("이미 모두 반영된 상태면 반영할 새 내용이 없다고 알린다", () => {
+    const d = workspace();
+    const first = buildApplication(d, catalog, before);
+    const after = { ...before, ...first };
+    expect(() => buildApplication(d, catalog, after)).toThrow("수업 설계에 반영할 새 내용이 없습니다.");
   });
 });

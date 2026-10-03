@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/chat": ["./public/standard/standards_middle.json", "./public/standard/ideas.json"],
     "/api/chat/card-apply": ["./public/standard/standards_middle.json", "./public/standard/ideas.json"],
-    "/api/ideation": ["./public/standard/graph/**/*.json"],
-    "/api/ideation/save": ["./public/standard/graph/**/*.json"],
+    "/api/ideation": ["./public/standard/standards_middle.json", "./public/standard/ideas.json"],
+    "/api/ideation/save": ["./public/standard/standards_middle.json", "./public/standard/ideas.json", "./public/standard/graph/manifest.json"],
   },
   async headers() {
     return [

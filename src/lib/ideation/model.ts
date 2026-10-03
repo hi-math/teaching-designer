@@ -1,162 +1,303 @@
-import type { StandardEdge, StandardNode } from "@/lib/standards-graph/types";
+// 아이디어 도출 작업 공간 — 주제 설계 ↔ 핵심아이디어 ↔ 성취기준 (prompt/idea.md)
+//
+// 세 영역의 항목은 모두 안정적인 ID 를 갖고, 관계는 두 종류로 따로 저장한다.
+//   하위요소 ↔ 핵심아이디어 (elementIdeaLinks: from = 하위요소 ID, to = 핵심아이디어 ID)
+//   핵심아이디어 ↔ 성취기준 (ideaStandardLinks: from = 핵심아이디어 ID, to = 성취기준 ID)
+// 배열 위치나 화면 순서를 연결 ID 로 쓰지 않는다.
+// 공식 데이터의 원문(핵심아이디어 content, 성취기준 code·content)은 그대로 보관하고,
+// 교사의 수정본·메모는 별도 필드에 둔다.
 
 export const IDEATION_ROW = "__ideation";
-export const DEFAULT_CRITERIA = ["교육과정 적합성", "교과별 기여", "학생 삶과의 연결", "운영 가능성", "평가 가능성"];
-export const STRATEGIES = ["content", "competency", "other"] as const;
-export type Strategy = typeof STRATEGIES[number];
-export const STRATEGY_LABELS: Record<Strategy, string> = { content: "공통 내용", competency: "공통 수행 역량", other: "교과 간 상호보완" };
-export const RATINGS = ["충분함", "보완 필요", "확인 필요"] as const;
-export type Rating = typeof RATINGS[number];
+
+/** 항목·연결이 어떻게 들어왔는지 — 교사가 직접 / AI 추천을 채택 */
+export type Via = "manual" | "ai";
 
 export interface IdeationConditions {
   subjects: string[];
   grade: string;
-  sessions: number | null;
-  interest: string;
-  criteria: string[];
-  vision: string;
 }
-export interface EvidenceBundle {
-  id: Strategy;
-  standardIds: string[];
-  edgeIds: string[];
-  warnings: string[];
-}
-export interface TopicCandidate {
+
+export interface TopicElement {
   id: string;
-  bundleId: Strategy;
-  title: string;
-  question: string;
-  product: string;
-  integration: string;
-  roles: { subject: string; role: string; standardIds: string[] }[];
-  activities: string[];
-  requirements: string[];
-  evaluations: { criterion: string; rating: Rating; reason: string }[];
-  standardIds: string[];
-  edgeIds: string[];
-  warnings: string[];
+  text: string;
+  via: Via;
 }
+
+/** 공식 핵심아이디어 원문 참조 — catalogId 는 ideas.json 의 `${교과}__${영역}__${순번}` */
+export interface OfficialIdea {
+  catalogId: string;
+  subject: string;
+  domain: string;
+  content: string;
+}
+
+export interface IdeaEntry {
+  id: string;
+  /** 공식 데이터에서 고른 항목이면 원문 참조, 교사가 직접 작성한 항목이면 null */
+  official: OfficialIdea | null;
+  /** 교사 수정본(공식 항목) 또는 직접 작성한 문장. 공식 원문 그대로면 null */
+  revision: string | null;
+  /** 직접 작성한 항목의 교과 (공식 항목은 official.subject) */
+  subject: string;
+  via: Via;
+}
+
+export interface StandardEntry {
+  /** 성취기준 코드 그대로 — 같은 기준을 두 번 담지 않는다 */
+  id: string;
+  code: string;
+  subject: string;
+  domain: string;
+  /** 공식 원문 (서버가 저장할 때 데이터 원문으로 맞춘다) */
+  content: string;
+  /** 교사의 재진술·메모 — 원문과 분리 */
+  note: string;
+  via: Via;
+}
+
+export interface IdeationLink {
+  id: string;
+  from: string;
+  to: string;
+  via: Via;
+  /** AI 가 제시한 관련 이유 — 공식 관계가 아니라 해석·제안 */
+  reason: string;
+  /** 한쪽 항목의 문장이 바뀌어 다시 검토할 연결 */
+  review: boolean;
+}
+
 export interface IdeationDraft {
-  schemaVersion: 1;
-  datasetVersion: string;
+  schemaVersion: 2;
+  dataVersion: string;
   conditions: IdeationConditions;
-  seedIds: string[];
-  candidates: TopicCandidate[];
-  selectedId: string | null;
-  rationale: string;
-  generatedFor: string | null;
+  topic: string;
+  elements: TopicElement[];
+  ideas: IdeaEntry[];
+  standards: StandardEntry[];
+  elementIdeaLinks: IdeationLink[];
+  ideaStandardLinks: IdeationLink[];
 }
 
-export function generationKey(conditions: IdeationConditions, seedIds: string[], version: string) {
-  return JSON.stringify([version, { ...conditions, subjects: [...conditions.subjects].sort() }, [...seedIds].sort()]);
+export const LIMITS = {
+  topic: 200, element: 300, revision: 1000, note: 1000, reason: 600,
+  elements: 30, ideas: 40, standards: 40, links: 300, subjects: 20,
+} as const;
+
+export function newId(prefix: "el" | "id" | "ln"): string {
+  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+    : Math.random().toString(36).slice(2, 14);
+  return `${prefix}_${random}`;
 }
 
-export function emptyDraft(conditions: IdeationConditions, seedIds: string[] = []): IdeationDraft {
-  return { schemaVersion: 1, datasetVersion: "", conditions, seedIds, candidates: [], selectedId: null, rationale: "", generatedFor: null };
+/** 수업 설계 쪽 선택을 시작점으로 — 처음 여는 수업은 A-2 주제·선택한 핵심아이디어·성취기준을 가져온다 */
+export function emptyDraft(
+  conditions: IdeationConditions,
+  seed: { topic?: string; ideas?: OfficialIdea[]; standards?: Omit<StandardEntry, "id" | "note" | "via">[] } = {},
+): IdeationDraft {
+  return {
+    schemaVersion: 2,
+    dataVersion: "",
+    conditions: { subjects: [...new Set(conditions.subjects)], grade: conditions.grade },
+    topic: (seed.topic ?? "").slice(0, LIMITS.topic),
+    elements: [],
+    ideas: uniqueBy(seed.ideas ?? [], (i) => i.catalogId).slice(0, LIMITS.ideas).map(({ catalogId, subject, domain, content }) => (
+      { id: newId("id"), official: { catalogId, subject, domain, content }, revision: null, subject, via: "manual" })),
+    standards: uniqueBy(seed.standards ?? [], (s) => s.code).slice(0, LIMITS.standards)
+      .map(({ code, subject, domain, content }) => ({ id: code, code, subject, domain, content, note: "", via: "manual" })),
+    elementIdeaLinks: [],
+    ideaStandardLinks: [],
+  };
 }
 
-/** Reject malformed persisted data before it reaches the UI. */
+// ─── 읽기·검증 (저장된 값은 믿지 않는다) ────────────────────────────
+
+const isStr = (v: unknown, max = 5000): v is string => typeof v === "string" && v.length <= max;
+const isId = (v: unknown): v is string => typeof v === "string" && /^[\w\-\[\]()가-힣·.]{1,64}$/.test(v);
+const isVia = (v: unknown): v is Via => v === "manual" || v === "ai";
+
+function readLinks(value: unknown, from: Set<string>, to: Set<string>): IdeationLink[] | null {
+  if (!Array.isArray(value) || value.length > LIMITS.links) return null;
+  const out: IdeationLink[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const l = raw as IdeationLink;
+    if (!l || !isId(l.id) || !isId(l.from) || !isId(l.to) || !isVia(l.via) || !isStr(l.reason, LIMITS.reason) || typeof l.review !== "boolean") return null;
+    // 삭제된 항목에 남은 연결·중복 연결은 조용히 정리한다
+    if (!from.has(l.from) || !to.has(l.to) || seen.has(`${l.from}|${l.to}`)) continue;
+    seen.add(`${l.from}|${l.to}`);
+    out.push({ id: l.id, from: l.from, to: l.to, via: l.via, reason: l.reason, review: l.review });
+  }
+  return out;
+}
+
+/** 저장된 `__ideation` → 화면에서 쓸 초안. 예전 형식(schemaVersion 1)은 변환하고, 깨진 값은 null */
 export function readDraft(value: unknown): IdeationDraft | null {
   if (!value || typeof value !== "object") return null;
+  const v = value as { schemaVersion?: unknown };
+  if (v.schemaVersion === 1) return convertV1(value);
+  if (v.schemaVersion !== 2) return null;
   const d = value as IdeationDraft;
-  if (d.schemaVersion !== 1 || !d.conditions || !Array.isArray(d.conditions.subjects) ||
-    !Array.isArray(d.conditions.criteria) || !Array.isArray(d.seedIds) || !Array.isArray(d.candidates)) return null;
-  if (![...d.conditions.subjects, ...d.conditions.criteria, ...d.seedIds].every(x => typeof x === "string")) return null;
-  if (![d.conditions.grade, d.conditions.interest, d.conditions.vision, d.rationale, d.datasetVersion].every(x => typeof x === "string")) return null;
-  if (d.conditions.sessions !== null && (!Number.isInteger(d.conditions.sessions) || d.conditions.sessions < 1 || d.conditions.sessions > 60)) return null;
-  if (d.selectedId !== null && typeof d.selectedId !== "string") return null;
-  if (d.generatedFor !== null && typeof d.generatedFor !== "string") return null;
-  if (d.seedIds.length > 6 || d.candidates.length > 3 || d.conditions.criteria.length > 10) return null;
-  if (!d.candidates.every(isCandidate)) return null;
-  return d;
+  if (!d.conditions || !Array.isArray(d.conditions.subjects) || d.conditions.subjects.length > LIMITS.subjects ||
+    !d.conditions.subjects.every((s) => isStr(s, 40)) || !isStr(d.conditions.grade, 60)) return null;
+  if (!isStr(d.dataVersion, 100) || !isStr(d.topic, LIMITS.topic)) return null;
+  if (!Array.isArray(d.elements) || d.elements.length > LIMITS.elements ||
+    !d.elements.every((e) => e && isId(e.id) && isStr(e.text, LIMITS.element) && isVia(e.via))) return null;
+  if (!Array.isArray(d.ideas) || d.ideas.length > LIMITS.ideas || !d.ideas.every((i) => i && isId(i.id) && isVia(i.via) &&
+    isStr(i.subject, 40) && (i.revision === null || isStr(i.revision, LIMITS.revision)) &&
+    (i.official === null || (i.official && isStr(i.official.catalogId, 120) && isStr(i.official.subject, 40) && isStr(i.official.domain, 80) && isStr(i.official.content, 2000))))) return null;
+  if (!Array.isArray(d.standards) || d.standards.length > LIMITS.standards || !d.standards.every((s) => s && isId(s.id) && s.id === s.code &&
+    isStr(s.subject, 40) && isStr(s.domain, 80) && isStr(s.content, 2000) && isStr(s.note, LIMITS.note) && isVia(s.via))) return null;
+  const ids = [...d.elements.map((e) => e.id), ...d.ideas.map((i) => i.id), ...d.standards.map((s) => s.id)];
+  if (new Set(ids).size !== ids.length) return null;
+  const elementIdeaLinks = readLinks(d.elementIdeaLinks, new Set(d.elements.map((e) => e.id)), new Set(d.ideas.map((i) => i.id)));
+  const ideaStandardLinks = readLinks(d.ideaStandardLinks, new Set(d.ideas.map((i) => i.id)), new Set(d.standards.map((s) => s.id)));
+  if (!elementIdeaLinks || !ideaStandardLinks) return null;
+  return {
+    schemaVersion: 2, dataVersion: d.dataVersion,
+    conditions: { subjects: [...new Set(d.conditions.subjects)], grade: d.conditions.grade },
+    topic: d.topic,
+    elements: d.elements.map((e) => ({ id: e.id, text: e.text, via: e.via })),
+    ideas: d.ideas.map((i) => ({ id: i.id, official: i.official && { catalogId: i.official.catalogId, subject: i.official.subject, domain: i.official.domain, content: i.official.content }, revision: i.revision, subject: i.subject, via: i.via })),
+    standards: d.standards.map((s) => ({ id: s.id, code: s.code, subject: s.subject, domain: s.domain, content: s.content, note: s.note, via: s.via })),
+    elementIdeaLinks, ideaStandardLinks,
+  };
 }
 
-function strings(value: unknown): value is string[] { return Array.isArray(value) && value.every(v => typeof v === "string"); }
-export function isCandidate(value: unknown): value is TopicCandidate {
-  if (!value || typeof value !== "object") return false;
-  const c = value as TopicCandidate;
-  return [c.id, c.title, c.question, c.product, c.integration].every(v => typeof v === "string" && v.trim().length > 0) &&
-    STRATEGIES.includes(c.bundleId) && strings(c.standardIds) && strings(c.edgeIds) && strings(c.warnings) &&
-    strings(c.activities) && strings(c.requirements) && Array.isArray(c.roles) && c.roles.every(r =>
-      r && typeof r.subject === "string" && typeof r.role === "string" && strings(r.standardIds)) &&
-    Array.isArray(c.evaluations) && c.evaluations.every(e => e && typeof e.criterion === "string" &&
-      typeof e.reason === "string" && RATINGS.includes(e.rating));
+/** 예전 단계형 초안(조건 → 출발 기준 → 후보 3개) — 고른 주제와 담은 성취기준만 옮긴다 */
+function convertV1(value: unknown): IdeationDraft | null {
+  const d = value as {
+    conditions?: { subjects?: unknown; grade?: unknown };
+    seedIds?: unknown; candidates?: unknown; selectedId?: unknown;
+  };
+  const subjects = Array.isArray(d.conditions?.subjects) ? d.conditions!.subjects.filter((s): s is string => isStr(s, 40)) : [];
+  const grade = isStr(d.conditions?.grade, 60) ? d.conditions!.grade : "";
+  const candidates = Array.isArray(d.candidates) ? d.candidates as { id?: unknown; title?: unknown; standardIds?: unknown; roles?: unknown }[] : [];
+  const chosen = candidates.find((c) => c && c.id === d.selectedId);
+  const seedIds = Array.isArray(d.seedIds) ? d.seedIds : [];
+  const codes = [...new Set([...seedIds, ...(Array.isArray(chosen?.standardIds) ? chosen!.standardIds as unknown[] : [])])]
+    .filter((c): c is string => isId(c) && /^\[.+\]$/.test(c)).slice(0, LIMITS.standards);
+  // 예전 후보의 교과별 역할에서 기준의 교과를 알 수 있으면 함께 옮긴다 (원문은 저장할 때 서버가 채운다)
+  const subjectOf = new Map<string, string>();
+  for (const role of Array.isArray(chosen?.roles) ? chosen!.roles as { subject?: unknown; standardIds?: unknown }[] : []) {
+    if (isStr(role?.subject, 40) && Array.isArray(role.standardIds)) for (const id of role.standardIds) if (typeof id === "string") subjectOf.set(id, role.subject);
+  }
+  return {
+    schemaVersion: 2, dataVersion: "",
+    conditions: { subjects: [...new Set(subjects)].slice(0, LIMITS.subjects), grade },
+    topic: isStr(chosen?.title, LIMITS.topic) ? chosen!.title as string : "",
+    elements: [], ideas: [],
+    standards: codes.map((code) => ({ id: code, code, subject: subjectOf.get(code) ?? "", domain: "", content: "", note: "", via: "manual" })),
+    elementIdeaLinks: [], ideaStandardLinks: [],
+  };
 }
 
-/** Relation dimensions are used separately; a high hierarchy weight is not content relevance. */
-export function buildBundles(nodes: StandardNode[], edges: StandardEdge[], seedIds: string[], subjects: string[]): EvidenceBundle[] {
-  const byId = new Map(nodes.map(n => [n.id, n]));
-  const seeds = [...new Set(seedIds)];
-  if (!seeds.length || seeds.length > 6 || seeds.some(id => !byId.has(id))) throw new Error("성취기준을 1~6개 선택하세요.");
-  const allowed = new Set(subjects);
-  if (seeds.some(id => !allowed.has(byId.get(id)!.subject))) throw new Error("담은 성취기준의 교과를 참여 교과에 포함하세요.");
-  const scoped = edges.filter(e => allowed.has(byId.get(e.source)!.subject) && allowed.has(byId.get(e.target)!.subject));
-  return STRATEGIES.map(strategy => {
-    const selected = new Set(seeds);
-    const distances = new Map(seeds.map(id => [id, 0]));
-    const evidence = new Set<string>();
-    // Direct neighbors first; at most two hops and six standards in a candidate.
-    while (selected.size < 6) {
-      const currentSubjects = new Set([...selected].map(id => byId.get(id)!.subject));
-      const frontier = scoped.flatMap(e => {
-        const a = selected.has(e.source), b = selected.has(e.target);
-        if (a === b) return [];
-        const from = a ? e.source : e.target, to = a ? e.target : e.source;
-        const depth = (distances.get(from) ?? 2) + 1;
-        const strength = e.dimension_weights[strategy];
-        if (depth > 2 || strength < 2) return [];
-        return [{ e, to, depth, strength, newSubject: !currentSubjects.has(byId.get(to)!.subject) }];
-      }).sort((a, b) => Number(b.newSubject) - Number(a.newSubject) || a.depth - b.depth || b.strength - a.strength || a.e.id.localeCompare(b.e.id));
-      const next = frontier[0];
-      if (!next) break;
-      if (selected.size >= Math.max(3, seeds.length) && !next.newSubject) break;
-      selected.add(next.to); distances.set(next.to, next.depth); evidence.add(next.e.id);
-    }
-    for (const e of scoped) if (selected.has(e.source) && selected.has(e.target) && e.dimension_weights[strategy] >= 2) evidence.add(e.id);
-    const used = new Set([...selected].map(id => byId.get(id)!.subject));
-    const warnings: string[] = [];
-    if (used.size < 2) warnings.push("이 관점에서는 교과 간 연결 근거가 부족합니다. 참여 교과나 출발 기준을 조정하세요.");
-    const missing = subjects.filter(s => !used.has(s));
-    if (missing.length) warnings.push(`이 묶음에 포함되지 않은 참여 교과: ${missing.join(", ")}`);
-    const reached = new Set<string>();
-    const todo = [[...selected][0]];
-    while (todo.length) {
-      const id = todo.pop()!;
-      if (reached.has(id)) continue;
-      reached.add(id);
-      for (const e of scoped) if (evidence.has(e.id)) {
-        if (e.source === id) todo.push(e.target);
-        if (e.target === id) todo.push(e.source);
-      }
-    }
-    if (reached.size < selected.size) warnings.push("일부 기준 사이에는 기록된 연결이 없습니다. 공동 과제에 기여하는 이유를 교사가 검토해야 합니다.");
-    return { id: strategy, standardIds: [...selected], edgeIds: [...evidence], warnings };
-  });
+// ─── 항목·연결 조작 (모두 새 초안을 돌려준다) ─────────────────────
+
+export function ideaText(idea: IdeaEntry): string {
+  return idea.revision ?? idea.official?.content ?? "";
+}
+export function ideaSubject(idea: IdeaEntry): string {
+  return idea.official?.subject ?? idea.subject;
+}
+/** 공식 원문 그대로 / 교사가 수정 / 교사가 직접 작성 */
+export function ideaOrigin(idea: IdeaEntry): "official" | "revised" | "custom" {
+  if (!idea.official) return "custom";
+  return idea.revision !== null && idea.revision !== idea.official.content ? "revised" : "official";
 }
 
-/** IDs and coverage come from our bundles, never from AI text. */
-export function validateCandidates(value: unknown, bundles: EvidenceBundle[], nodes: StandardNode[], criteria: string[]): TopicCandidate[] {
-  const raw = (value as { candidates?: unknown[] } | null)?.candidates;
-  if (!Array.isArray(raw) || raw.length !== 3) throw new Error("후보 3개를 완성하지 못했습니다. 다시 시도하세요.");
-  const byId = new Map(nodes.map(n => [n.id, n]));
+type LinkKind = "elementIdea" | "ideaStandard";
+const linkKey = (kind: LinkKind) => (kind === "elementIdea" ? "elementIdeaLinks" : "ideaStandardLinks") as "elementIdeaLinks" | "ideaStandardLinks";
+
+export function hasLink(d: IdeationDraft, kind: LinkKind, from: string, to: string): boolean {
+  return d[linkKey(kind)].some((l) => l.from === from && l.to === to);
+}
+
+/** 이미 있으면 다시 검토 표시만 지운다 (같은 연결을 두 번 만들지 않는다) */
+export function addLink(d: IdeationDraft, kind: LinkKind, from: string, to: string, via: Via = "manual", reason = ""): IdeationDraft {
+  const key = linkKey(kind);
+  if (d[key].some((l) => l.from === from && l.to === to)) {
+    return { ...d, [key]: d[key].map((l) => (l.from === from && l.to === to ? { ...l, review: false } : l)) };
+  }
+  if (d[key].length >= LIMITS.links) return d;
+  return { ...d, [key]: [...d[key], { id: newId("ln"), from, to, via, reason: reason.slice(0, LIMITS.reason), review: false }] };
+}
+
+/** 연결만 지운다 — 양쪽 항목은 남는다 */
+export function removeLink(d: IdeationDraft, kind: LinkKind, linkId: string): IdeationDraft {
+  const key = linkKey(kind);
+  return { ...d, [key]: d[key].filter((l) => l.id !== linkId) };
+}
+
+export function confirmLink(d: IdeationDraft, kind: LinkKind, linkId: string): IdeationDraft {
+  const key = linkKey(kind);
+  return { ...d, [key]: d[key].map((l) => (l.id === linkId ? { ...l, review: false } : l)) };
+}
+
+/** 항목을 지우면 그 항목에 달린 연결도 함께 정리한다 */
+export function removeItem(d: IdeationDraft, kind: "element" | "idea" | "standard", id: string): IdeationDraft {
+  if (kind === "element") {
+    return { ...d, elements: d.elements.filter((e) => e.id !== id), elementIdeaLinks: d.elementIdeaLinks.filter((l) => l.from !== id) };
+  }
+  if (kind === "idea") {
+    return {
+      ...d, ideas: d.ideas.filter((i) => i.id !== id),
+      elementIdeaLinks: d.elementIdeaLinks.filter((l) => l.to !== id),
+      ideaStandardLinks: d.ideaStandardLinks.filter((l) => l.from !== id),
+    };
+  }
+  return { ...d, standards: d.standards.filter((s) => s.id !== id), ideaStandardLinks: d.ideaStandardLinks.filter((l) => l.to !== id) };
+}
+
+/** 문장이 바뀐 항목의 연결은 지우지 않고 "다시 검토할 연결"로 표시한다 */
+export function markReview(d: IdeationDraft, kind: "element" | "idea", id: string): IdeationDraft {
+  if (kind === "element") {
+    return { ...d, elementIdeaLinks: d.elementIdeaLinks.map((l) => (l.from === id ? { ...l, review: true } : l)) };
+  }
+  return {
+    ...d,
+    elementIdeaLinks: d.elementIdeaLinks.map((l) => (l.to === id ? { ...l, review: true } : l)),
+    ideaStandardLinks: d.ideaStandardLinks.map((l) => (l.from === id ? { ...l, review: true } : l)),
+  };
+}
+
+export function setElementText(d: IdeationDraft, id: string, text: string): IdeationDraft {
+  const before = d.elements.find((e) => e.id === id);
+  const value = text.slice(0, LIMITS.element);
+  if (!before || before.text === value) return d;
+  const next = { ...d, elements: d.elements.map((e) => (e.id === id ? { ...e, text: value } : e)) };
+  return before.text.trim() ? markReview(next, "element", id) : next;
+}
+
+/** 공식 항목은 수정본으로, 직접 작성한 항목은 문장 자체로 저장. 공식 원문과 같아지면 수정본을 지운다 */
+export function setIdeaText(d: IdeationDraft, id: string, text: string): IdeationDraft {
+  const before = d.ideas.find((i) => i.id === id);
+  if (!before) return d;
+  const value = text.slice(0, LIMITS.revision);
+  const revision = before.official && value === before.official.content ? null : value;
+  if (revision === before.revision) return d;
+  const next = { ...d, ideas: d.ideas.map((i) => (i.id === id ? { ...i, revision } : i)) };
+  return ideaText(before).trim() ? markReview(next, "idea", id) : next;
+}
+
+/** 선택한 항목과 직접 연결된 항목(strong), 한 단계 건너 연결된 항목(soft) */
+export function relatedTo(d: IdeationDraft, kind: "element" | "idea" | "standard", id: string): { strong: Set<string>; soft: Set<string> } {
+  const strong = new Set<string>();
+  const soft = new Set<string>();
+  if (kind === "element") {
+    d.elementIdeaLinks.filter((l) => l.from === id).forEach((l) => strong.add(l.to));
+    d.ideaStandardLinks.filter((l) => strong.has(l.from)).forEach((l) => soft.add(l.to));
+  } else if (kind === "idea") {
+    d.elementIdeaLinks.filter((l) => l.to === id).forEach((l) => strong.add(l.from));
+    d.ideaStandardLinks.filter((l) => l.from === id).forEach((l) => strong.add(l.to));
+  } else {
+    d.ideaStandardLinks.filter((l) => l.to === id).forEach((l) => strong.add(l.from));
+    d.elementIdeaLinks.filter((l) => strong.has(l.to)).forEach((l) => soft.add(l.from));
+  }
+  return { strong, soft };
+}
+
+function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
   const seen = new Set<string>();
-  return raw.map((item, i) => {
-    const r = item as TopicCandidate;
-    const bundle = bundles.find(b => b.id === r?.bundleId);
-    if (!bundle || seen.has(bundle.id)) throw new Error("후보의 연결 근거가 올바르지 않습니다.");
-    seen.add(bundle.id);
-    const c = { ...r, id: `topic-${i + 1}`, standardIds: bundle.standardIds, edgeIds: bundle.edgeIds, warnings: bundle.warnings };
-    if (!isCandidate(c) || c.title.length > 150 || !c.roles.length || c.activities.length < 2 || !c.requirements.length) throw new Error("후보 형식을 확인하지 못했습니다.");
-    const covered = new Set<string>();
-    for (const role of c.roles) {
-      if (!role.role.trim() || !role.standardIds.length || role.standardIds.some(id => !bundle.standardIds.includes(id) || byId.get(id)?.subject !== role.subject)) throw new Error("교과별 역할에 잘못된 성취기준이 포함되었습니다.");
-      role.standardIds.forEach(id => covered.add(id));
-    }
-    if (bundle.standardIds.some(id => !covered.has(id))) throw new Error("후보에서 성취기준의 역할이 누락되었습니다.");
-    if (c.evaluations.length !== criteria.length || criteria.some(x => c.evaluations.filter(e => e.criterion === x).length !== 1)) throw new Error("선정 기준별 검토가 누락되었습니다.");
-    // Actual school resources and pacing are not known to the model.
-    c.evaluations = c.evaluations.map(e => /운영|진도|자료|차시|예산/.test(e.criterion) ? { ...e, rating: "확인 필요" } : e);
-    return c;
-  });
+  return items.filter((item) => (seen.has(key(item)) ? false : (seen.add(key(item)), true)));
 }

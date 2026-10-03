@@ -24,7 +24,7 @@ import WorkModeSwitch, { type WorkMode } from "@/components/workspace/WorkModeSw
 import { localWriteKey, readRemoteContent, stableStringify } from "@/components/workspace/remoteContent";
 import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/workspace/cardUndo";
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
-import { DEFAULT_CRITERIA, IDEATION_ROW } from "@/lib/ideation/model";
+import { IDEATION_ROW } from "@/lib/ideation/model";
 import type { ContentMap } from "@/lib/ideation/application";
 import { a3SelectionFields, mergeCatalogItems } from '@/lib/a3Selection';
 
@@ -1624,6 +1624,9 @@ export default function WorkspaceShell({
       } else if (code === "__selected_standards" && Array.isArray(content.items)) {
         selectedStandardsRef.current = content.items as StandardItem[];
         setSelectedStandards(content.items as StandardItem[]);
+      } else if (code === "__selected_ideas" && Array.isArray(content.items)) {
+        selectedIdeasRef.current = content.items as IdeaItem[];
+        setSelectedIdeas(content.items as IdeaItem[]);
       }
     }
     structuredInputsRef.current = next;
@@ -2916,20 +2919,12 @@ export default function WorkspaceShell({
           {/* ── 아이디어 도출: 성취기준 연결 탐색기 ─────────────────────── */}
           {ideationOpened && (
             <div className={`${workMode === "ideation" ? "flex" : "hidden"} relative min-w-0 flex-1 flex-col overflow-hidden`}>
-              <div className="flex shrink-0 justify-end border-b border-slate-200 bg-white px-4 py-1">
-                <button type="button" className="min-h-8 text-xs font-medium text-slate-600 hover:text-slate-900" onClick={() => setIdeationChatOpen(v => !v)}>{ideationChatOpen ? "채팅 접기" : "AI·팀 채팅 열기"}</button>
-              </div>
               <IdeationWorkspace
-                lessonId={lessonId} isHost={isHost} model={llmModel}
+                lessonId={lessonId} isHost={isHost}
                 saved={structuredInputs[IDEATION_ROW]}
-                initialStandardIds={selectedStandards.map(s => bracketCode(s.code))}
-                defaults={{
-                  subjects: toArr(relatedSubjects),
-                  grade: targetGrade, sessions: totalSessions, interest: "",
-                  vision: String(structuredInputs["T-1"]?.vision ?? activityInputs["T-1"] ?? ""),
-                  criteria: Array.isArray(structuredInputs["A-1"]?.criteria) && (structuredInputs["A-1"].criteria as string[]).some(s => s.trim())
-                    ? (structuredInputs["A-1"].criteria as string[]).filter(s => s.trim()) : DEFAULT_CRITERIA,
-                }}
+                defaults={{ subjects: toArr(relatedSubjects), grade: targetGrade }}
+                seed={{ topic: String(structuredInputs["A-2"]?.final_topic ?? ""), ideas: selectedIdeas, standards: selectedStandards }}
+                chatOpen={ideationChatOpen} onToggleChat={() => setIdeationChatOpen(v => !v)}
                 onCommitted={handleIdeationCommitted} onContext={setIdeationContext} hasPendingCards={hasPendingIdeationCards}
               />
             </div>

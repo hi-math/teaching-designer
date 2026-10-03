@@ -2,6 +2,7 @@
 
 import Markdown, { type Components } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkGfm from 'remark-gfm';
 
 /**
@@ -11,6 +12,7 @@ import remarkGfm from 'remark-gfm';
  * - 표는 가로로 넘겨 볼 수 있게 감싸고, 칸이 한 글자씩 세로로 서지 않게 최소 폭을 둔다
  * - HTML 은 그리지 않는다 (react-markdown 기본값 — rehype-raw 를 붙이지 말 것)
  * - 한 줄 바꿈은 그대로 줄바꿈 (remark-breaks)
+ * - **"평가 질문"**이 처럼 한글 조사가 붙은 굵은 글씨도 ** 가 남지 않게 (remark-cjk-friendly)
  * - 응답이 흐르는 중 닫히지 않은 ** 같은 기호는 닫힐 때까지 글자로 보였다가 자연스럽게 바뀐다
  */
 
@@ -55,7 +57,7 @@ const components: Components = {
 };
 
 // 한 줄 바꿈도 줄바꿈으로 — 예전처럼 AI 가 줄마다 나눠 쓴 문장이 한 문단으로 합쳐지지 않게
-const plugins = [remarkGfm, remarkBreaks];
+const plugins = [remarkGfm, remarkCjkFriendly, remarkBreaks];
 
 export default function ChatMarkdown({ text }: { text: string }) {
   return (

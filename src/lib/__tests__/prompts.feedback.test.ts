@@ -37,7 +37,7 @@ describe("buildPageContextBlock — with AI 피드백", () => {
 
   it("성취기준을 싣고, 확인 멘트 대신 피드백 지침으로 끝낸다", () => {
     expect(out).toContain("### 성취기준 (R1)");
-    expect(out).not.toContain("응답 마지막 확인 멘트 (아래 문장으로 끝낼 것)");
+    expect(out).not.toContain("### 응답 마지막 확인 멘트");
     expect(out).toContain("## with AI 피드백 요청");
     expect(out.trimEnd().endsWith("이 응답에는 '응답 마지막 확인 멘트'를 붙이지 않습니다.")).toBe(true);
   });

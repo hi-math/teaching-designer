@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getSubjectBadge } from './CardFields';
 
 // ─── 타입 ──────────────────────────────────────────────────────────
 
@@ -13,22 +14,7 @@ export interface IdeaItem {
 
 type IdeasJson = Record<string, Record<string, { order: number; 핵심아이디어: string[] }>>;
 
-// ─── 교과별 배지 색상 ──────────────────────────────────────────────
-
-const LANGUAGE = new Set(['국어', '영어', '한문', '생활 독일어', '생활 러시아어', '생활 베트남어', '생활 스페인어', '생활 아랍어', '생활 일본어', '생활 중국어', '생활 프랑스어']);
-const MATH     = new Set(['수학']);
-const SCIENCE  = new Set(['과학', '정보', '기술·가정']);
-const SOCIAL   = new Set(['사회', '역사', '도덕']);
-const ARTS     = new Set(['체육', '음악', '미술']);
-
-function getBadgeColor(subject: string): string {
-  if (LANGUAGE.has(subject)) return '#2563EB';
-  if (MATH.has(subject))     return '#7C3AED';
-  if (SCIENCE.has(subject))  return '#059669';
-  if (SOCIAL.has(subject))   return '#D97706';
-  if (ARTS.has(subject))     return '#DB2777';
-  return '#64748B';
-}
+// 교과 배지 색은 초안 미리보기·카드 표와 같은 getSubjectBadge 를 쓴다
 
 // ─── 검색어 강조 ───────────────────────────────────────────────────
 
@@ -252,7 +238,7 @@ export default function IdeasModal({
                   <div className="flex flex-col gap-3">
                     {filteredItems.map((item) => {
                       const checked = draft.some((s) => s.id === item.id);
-                      const badgeColor = getBadgeColor(item.subject);
+                      const badge = getSubjectBadge(item.subject);
                       return (
                         <div
                           key={item.id}
@@ -279,8 +265,8 @@ export default function IdeasModal({
                               {/* 배지 */}
                               <div className="flex flex-wrap items-center gap-2 mb-2">
                                 <span
-                                  className="rounded-md px-2 py-0.5 text-[13px] font-bold text-white"
-                                  style={{ backgroundColor: badgeColor }}
+                                  className="rounded-md px-2 py-0.5 text-[12.5px] font-semibold"
+                                  style={{ backgroundColor: badge.bg, color: badge.text }}
                                 >
                                   {item.subject}
                                 </span>
@@ -340,15 +326,15 @@ export default function IdeasModal({
               ) : (
                 <div className="flex flex-col gap-3">
                   {draft.map((item) => {
-                    const badgeColor = getBadgeColor(item.subject);
+                    const badge = getSubjectBadge(item.subject);
                     return (
                       <div key={item.id} className="rounded-xl border border-[#E4EBF5] bg-[#F7F9FD] p-3.5">
                         <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                               <span
-                                className="rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
-                                style={{ backgroundColor: badgeColor }}
+                                className="rounded-md px-2 py-0.5 text-[12px] font-semibold"
+                                style={{ backgroundColor: badge.bg, color: badge.text }}
                               >
                                 {item.subject}
                               </span>

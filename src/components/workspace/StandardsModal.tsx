@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getSubjectBadge } from './CardFields';
 
 // ─── 타입 ──────────────────────────────────────────────────────────
 
@@ -25,22 +26,7 @@ function stripPUA(text: string): string {
   return text.replace(/[\uE000-\uF8FF]/g, '');
 }
 
-// ─── 교과별 배지 색상 ──────────────────────────────────────────────
-
-const LANGUAGE  = new Set(['국어','영어','한문','생활 독일어','생활 러시아어','생활 베트남어','생활 스페인어','생활 아랍어','생활 일본어','생활 중국어','생활 프랑스어']);
-const MATH      = new Set(['수학']);
-const SCIENCE   = new Set(['과학','정보','기술·가정']);
-const SOCIAL    = new Set(['사회','역사','도덕']);
-const ARTS      = new Set(['체육','음악','미술']);
-
-function getBadgeColor(subject: string): string {
-  if (LANGUAGE.has(subject)) return '#2563EB';  // 언어 — 파랑
-  if (MATH.has(subject))     return '#7C3AED';  // 수학 — 보라
-  if (SCIENCE.has(subject))  return '#059669';  // 과학/기술 — 에메랄드
-  if (SOCIAL.has(subject))   return '#D97706';  // 사회/역사/도덕 — 황토
-  if (ARTS.has(subject))     return '#DB2777';  // 예체능 — 핑크
-  return '#64748B';                              // 기타 — 슬레이트
-}
+// 교과 배지 색은 초안 미리보기·카드 표와 같은 getSubjectBadge 를 쓴다
 
 // ─── 드롭다운 ────────────────────────────────────────────────────
 
@@ -83,7 +69,7 @@ function StandardCard({
   onToggle: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const badgeColor = getBadgeColor(standard.subject);
+  const badge = getSubjectBadge(standard.subject);
 
   return (
     <div
@@ -109,13 +95,15 @@ function StandardCard({
         <div className="flex-1 min-w-0">
           {/* 메타 */}
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span
-              className="rounded-md px-2 py-0.5 text-[13px] font-bold text-white"
-              style={{ backgroundColor: badgeColor }}
-            >
+            <span className="rounded bg-[#f1f4f9] px-1.5 py-0.5 font-mono text-[13px] text-[#2d3339]">
               {standard.code}
             </span>
-            <span className="text-[13px] text-[#9AAAC0]">{standard.subject}</span>
+            <span
+              className="rounded-md px-2 py-0.5 text-[12.5px] font-semibold"
+              style={{ backgroundColor: badge.bg, color: badge.text }}
+            >
+              {standard.subject}
+            </span>
             {standard.domain && (
               <>
                 <span className="text-[13px] text-[#9AAAC0]">·</span>
@@ -402,19 +390,21 @@ export default function StandardsModal({
             ) : (
               <div className="flex flex-col gap-3">
                 {draft.map((std) => {
-                  const badgeColor = getBadgeColor(std.subject);
+                  const badge = getSubjectBadge(std.subject);
                   return (
                     <div key={std.code} className="rounded-xl border border-[#E4EBF5] bg-[#F7F9FD] p-3.5">
                       <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                            <span
-                              className="rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
-                              style={{ backgroundColor: badgeColor }}
-                            >
+                            <span className="rounded bg-[#f1f4f9] px-1.5 py-0.5 font-mono text-[12px] text-[#2d3339]">
                               {std.code}
                             </span>
-                            <span className="text-[12px] text-[#9AAAC0]">{std.subject}</span>
+                            <span
+                              className="rounded-md px-2 py-0.5 text-[12px] font-semibold"
+                              style={{ backgroundColor: badge.bg, color: badge.text }}
+                            >
+                              {std.subject}
+                            </span>
                             {std.domain && (
                               <span className="rounded-full bg-[#EEF2F8] px-1.5 py-0.5 text-[11px] text-[#6B7A99]">
                                 {std.domain}

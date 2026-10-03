@@ -2876,6 +2876,7 @@ export default function WorkspaceShell({
                       structuredValue={structuredInputs[act.code] ?? EMPTY_FIELDS}
                       selectedIdeas={act.code === 'A-3' ? selectedIdeas : undefined}
                       selectedStandards={act.code === 'A-3' ? selectedStandards : undefined}
+                      onA3SelectionsChange={act.code === 'A-3' && isHost ? updateA3Selections : undefined}
                       opinions={opinionsByActivity[act.code] ?? EMPTY_OPINIONS}
                       myUserId={userProfile?.id ?? ""}
                       memberNames={memberNames}

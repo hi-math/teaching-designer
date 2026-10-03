@@ -4,6 +4,7 @@ import { memo, useState } from "react";
 import CardFieldRenderer from "@/components/workspace/CardFields";
 import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
 import SimulationBoard from "@/components/workspace/SimulationBoard";
+import A3SelectionTables from "@/components/workspace/A3SelectionTables";
 import type { IdeaItem } from '@/components/workspace/IdeasModal';
 import type { StandardItem } from '@/components/workspace/StandardsModal';
 
@@ -70,6 +71,8 @@ interface Props {
   onClear: (code: string) => void;
   /** 카드 안의 버튼·입력칸을 누르면 그 카드를 활성화 */
   onActivate: (code: string) => void;
+  /** A-3 선택 항목 바꾸기 (표의 × = 선택 해제). 팀장만 — 없으면 × 를 감춘다 */
+  onA3SelectionsChange?: (ideas: IdeaItem[], standards: StandardItem[]) => void;
 
   onToggleOpinionHidden: (opinionKey: string) => void;
   onDeleteOpinion: (opinionKey: string) => void;
@@ -251,6 +254,7 @@ function ActivityCard({
   onUndo,
   onClear,
   onActivate,
+  onA3SelectionsChange,
   onToggleOpinionHidden,
   onDeleteOpinion,
   onSubmitOpinion,
@@ -430,22 +434,16 @@ function ActivityCard({
           {unlinkedA3Rows > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
             이전 직접 입력 {unlinkedA3Rows}건은 목록의 선택 항목과 일치하지 않아 반영되지 않습니다. 검색에서 해당 항목을 다시 선택해 주세요.
           </p>}
-          <div>
-            <p className="mb-2 text-[12px] font-semibold text-[#757b82]">핵심 아이디어 · {selectedIdeas.length}개</p>
-            {selectedIdeas.length ? selectedIdeas.map(item => (
-              <div key={item.id} className="mb-2 rounded-lg border border-[#e2e4ea] bg-[#f8f9fc] px-3 py-2 text-[13px] leading-relaxed">
-                <span className="mr-2 font-semibold text-[#D1260F]">{item.subject} · {item.domain}</span>{item.content}
-              </div>
-            )) : <p className="rounded-lg bg-[#f1f4f9] px-3 py-2 text-[13px] text-[#9aa2ad]">선택한 항목이 없습니다.</p>}
-          </div>
-          <div>
-            <p className="mb-2 text-[12px] font-semibold text-[#757b82]">성취기준 · {selectedStandards.length}개</p>
-            {selectedStandards.length ? selectedStandards.map(item => (
-              <div key={item.code} className="mb-2 rounded-lg border border-[#e2e4ea] bg-[#f8f9fc] px-3 py-2 text-[13px] leading-relaxed">
-                <span className="mr-2 font-semibold text-[#D1260F]">{item.code} · {item.subject}</span>{item.content}
-              </div>
-            )) : <p className="rounded-lg bg-[#f1f4f9] px-3 py-2 text-[13px] text-[#9aa2ad]">선택한 항목이 없습니다.</p>}
-          </div>
+          <A3SelectionTables
+            ideas={selectedIdeas}
+            standards={selectedStandards}
+            onRemoveIdea={onA3SelectionsChange && !locked
+              ? (id) => onA3SelectionsChange(selectedIdeas.filter((item) => item.id !== id), selectedStandards)
+              : undefined}
+            onRemoveStandard={onA3SelectionsChange && !locked
+              ? (code) => onA3SelectionsChange(selectedIdeas, selectedStandards.filter((item) => item.code !== code))
+              : undefined}
+          />
         </div>
       ) : CARD_SCHEMAS[act.code] ? (
         <CardFieldRenderer

@@ -368,7 +368,65 @@ export interface PageContext {
   allStandards?: { code: string; subject: string; domain: string; content: string }[]; // R8: 성취기준 후보
   relatedSubjects?: string; // R8 후보 선별용
   targetGrade?: string;     // R8 후보 선별용
+  totalSessions?: number;
+  /** feedback: with AI 버튼 — 현재 카드를 수업설계 전체 흐름에 비추어 피드백 */
+  intent?: 'feedback';
+  /** 활동 코드 → 카드 이름 (피드백 흐름 표시용) */
+  cardLabels?: Record<string, string>;
 }
+
+// 피드백에서 다른 카드를 싣는 길이 — 흐름을 판단할 만큼 넉넉히, 카드 19장이어도 2만 자 남짓
+const FEEDBACK_CARD_CAP = 1200;
+
+/**
+ * with AI 피드백 — 팀 준비부터 평가까지 모든 카드를 순서대로 싣는다.
+ * 비어 있는 카드도 "(미작성)"으로 남겨 AI 가 없는 내용을 짐작하지 않게 한다.
+ */
+function buildFeedbackFlow(ctx: PageContext, code: string): string[] {
+  const inputs = ctx.activityInputs ?? {};
+  const labels = ctx.cardLabels ?? {};
+  // 흐름 순서: 리소스 매트릭스의 카드 순서(T → A → Ds → DI → E), 그 밖의 카드는 뒤에
+  const order = [...Object.keys(CARD_RESOURCES), ...Object.keys(labels).filter((c) => !(c in CARD_RESOURCES))];
+
+  const lines: string[] = ['', '### 수업설계 전체 흐름 (팀 준비 → 분석 → 설계 → 실행 → 평가)'];
+  const basics = [
+    ctx.targetGrade && `대상 학년: ${ctx.targetGrade}`,
+    ctx.relatedSubjects && `관련 교과: ${ctx.relatedSubjects}`,
+    ctx.totalSessions && `총 차시: ${ctx.totalSessions}차시`,
+  ].filter(Boolean);
+  if (basics.length) lines.push(`- 수업 기본정보: ${basics.join(' · ')}`);
+
+  for (const c of order) {
+    const label = labels[c] ? ` ${labels[c]}` : '';
+    if (c === code) {
+      lines.push(`**[${c}${label}]** ← 피드백 대상 (내용은 위 '현재 카드 입력 내용')`);
+      continue;
+    }
+    const text = inputs[c]?.trim();
+    if (!text) {
+      lines.push(`**[${c}${label}]** (미작성)`);
+      continue;
+    }
+    lines.push(`**[${c}${label}]**`);
+    lines.push(text.length > FEEDBACK_CARD_CAP ? `${text.slice(0, FEEDBACK_CARD_CAP)}…` : text);
+  }
+  return lines;
+}
+
+const FEEDBACK_DIRECTIVE = (code: string) => `## with AI 피드백 요청
+교사 팀이 [${code}] 카드의 현재 내용에 대해 피드백을 요청했습니다. 위 '수업설계 전체 흐름'에 비추어 이 카드를 점검하세요.
+- 먼저 이 카드가 맡은 역할(카드의 AI 행동 지침)에 비추어 현재 내용이 충실한지 봅니다.
+- 앞 카드(팀 비전, 주제, 성취기준, 통합 수업 목표 등)와 어긋나지 않는지, 뒤 카드(설계·실행·평가)로 자연스럽게 이어질 수 있는지 봅니다.
+- '(미작성)' 카드의 내용은 짐작하지 않습니다. 필요하면 "아직 작성되지 않은 [Ds-1]과 맞춰 볼 것"처럼 짚기만 합니다.
+- 실제 입력된 표현을 짧게 인용해 근거를 보이고, 칭찬이나 일반론으로 채우지 않습니다.
+
+다음 구성으로 답합니다.
+1. **한 줄 총평**
+2. **잘 맞는 점** 1~3개
+3. **보완할 점** 1~3개 — 항목마다 근거가 된 카드를 [A-4]처럼 밝히고, 고쳐 쓸 문장이나 더할 내용을 구체적으로 제안
+4. **팀이 함께 확인할 질문** 1개
+
+이 응답에는 '응답 마지막 확인 멘트'를 붙이지 않습니다.`;
 
 // 카드별로 더 길게 참조할 선행 카드 — DI-1 은 설계안(학습활동·스캐폴딩)을 근거로 자료 목록을 만든다
 const R5_DETAILED: Record<string, string[]> = {
@@ -434,6 +492,7 @@ export function buildPageContextBlock(ctx: PageContext): string {
   const code = ctx.selectedActivityCode;
   const res = getCardResources(code);
   const lines: string[] = [];
+  const feedback = ctx.intent === 'feedback' && !!code;
 
   lines.push('---');
   lines.push('## 현재 워크스페이스 상태');
@@ -453,13 +512,17 @@ export function buildPageContextBlock(ctx: PageContext): string {
     }
 
     // 확인 멘트는 호출마다 변형이 번갈아 바뀐다 → 안정 블록에 두면 캐시가 매번 깨진다
-    lines.push('');
-    lines.push(`### 응답 마지막 확인 멘트 (아래 문장으로 끝낼 것)`);
-    lines.push(`"${getClosingMessage(code)}"`);
+    // 피드백 응답은 확인 멘트 없이 끝낸다
+    if (!feedback) {
+      lines.push('');
+      lines.push(`### 응답 마지막 확인 멘트 (아래 문장으로 끝낼 것)`);
+      lines.push(`"${getClosingMessage(code)}"`);
+    }
   }
 
-  // ── R5: 선행 카드 요약 (항상 포함, 200자 제한) ───────────────────
-  const r5 = buildR5Summary(ctx.activityInputs ?? {}, code);
+  // ── R5: 선행 카드 요약 (200자 제한) — 피드백이면 모든 카드를 흐름 순서대로 길게 ──
+  const r5 = feedback ? [] : buildR5Summary(ctx.activityInputs ?? {}, code);
+  if (feedback) lines.push(...buildFeedbackFlow(ctx, code!));
   if (r5.length > 0) {
     lines.push('');
     lines.push('### 선행 카드 요약 (R5)');
@@ -489,8 +552,8 @@ export function buildPageContextBlock(ctx: PageContext): string {
     }
   }
 
-  // ── R1: 성취기준 (A-2, A-3만) ──────────────────────────────
-  if (res.r1 && ctx.selectedStandards && ctx.selectedStandards.length > 0) {
+  // ── R1: 성취기준 (A-2, A-3만 · 피드백은 모든 카드) ─────────────
+  if ((res.r1 || feedback) && ctx.selectedStandards && ctx.selectedStandards.length > 0) {
     lines.push('');
     lines.push('### 성취기준 (R1)');
     lines.push('아래 성취기준을 핵심 분석 대상으로 삼으세요.');
@@ -501,8 +564,8 @@ export function buildPageContextBlock(ctx: PageContext): string {
     }
   }
 
-  // ── R2: 핵심 아이디어 (A-2, A-3, A-4만) ───────────────────
-  if (res.r2 && ctx.selectedIdeas && ctx.selectedIdeas.length > 0) {
+  // ── R2: 핵심 아이디어 (A-2, A-3, A-4만 · 피드백은 모든 카드) ──────
+  if ((res.r2 || feedback) && ctx.selectedIdeas && ctx.selectedIdeas.length > 0) {
     lines.push('');
     lines.push('### 핵심 아이디어 (R2)');
     lines.push('아래 핵심 아이디어를 수업 목표·활동 설계에 반영하세요.');
@@ -531,7 +594,9 @@ export function buildPageContextBlock(ctx: PageContext): string {
   }
 
   lines.push('---');
-  if (code) {
+  if (feedback) {
+    lines.push(FEEDBACK_DIRECTIVE(code!));
+  } else if (code) {
     lines.push(`[${code}] 카드를 기준으로 위 지침에 따라 답변하세요.`);
   } else {
     lines.push('팀의 현재 진행 상황을 파악하고 구체적인 제안을 제공하세요.');

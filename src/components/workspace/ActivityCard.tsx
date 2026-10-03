@@ -52,6 +52,8 @@ interface Props {
   onStatusChange: (code: string, next: ActivityStatus) => void;
   onAskOpinion: (code: string) => void;
   onAiGuide: (act: Activity) => void;
+  /** with AI — 카드의 현재 내용을 수업설계 전체 흐름에 비추어 본 피드백을 Minerva AI 에 요청 */
+  onAiFeedback: (act: Activity) => void;
   onOpenModal: (name: string) => void;
   onTextChange: (code: string, text: string) => void;
   onStructuredChange: (code: string, fields: Record<string, unknown>) => void;
@@ -226,6 +228,7 @@ function ActivityCard({
   onStatusChange,
   onAskOpinion,
   onAiGuide,
+  onAiFeedback,
   onOpenModal,
   onTextChange,
   onStructuredChange,
@@ -235,10 +238,12 @@ function ActivityCard({
   onSimulate,
   onApplyToDesign,
 }: Props) {
-  // 수업 시뮬레이션 카드는 코드·완료·건너뛰기·의견묻기 없이 보여 준다
+  // 초안 미리보기 카드는 코드·with AI·반영하기·건너뛰기·의견묻기 없이 보여 준다
   const isSim = act.code === "A-5";
   const locked = !isSim && (st === "completed" || st === "skipped");
   const getName = (uid: string) => memberNames[uid] ?? uid;
+  // 비어 있는 카드는 피드백할 내용이 없다
+  const filled = CARD_SCHEMAS[act.code] ? hasContent(structuredValue) : textValue.trim() !== "";
 
   return (
     <div
@@ -261,22 +266,17 @@ function ActivityCard({
           {act.code}
         </p>
         <div className="flex flex-row gap-1.5">
-          {canComplete && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(act.code);
-                onStatusChange(act.code, st === "completed" ? "active" : "completed");
-              }}
-              className={`rounded-md px-3 py-1 text-[12px] font-medium transition ${
-                st === "completed"
-                  ? "bg-orange-200 text-orange-800"
-                  : "bg-orange-50 text-orange-700 hover:bg-orange-100"
-              }`}
-            >
-              완료
-            </button>
-          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onAiFeedback(act); }}
+            disabled={!filled}
+            title={filled ? "카드의 현재 내용을 수업설계 전체 흐름에 비추어 피드백합니다" : "카드에 내용을 입력하면 피드백을 받을 수 있습니다"}
+            className="flex items-center gap-1 rounded-md bg-gradient-to-br from-[#D1260F] to-[#F0603C] px-3 py-1 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+            </svg>
+            with AI
+          </button>
           {canSkip && (
             <button
               onClick={(e) => {
@@ -396,8 +396,42 @@ function ActivityCard({
           onSubmit={onSubmitOpinion}
         />
       ))}
+
+      {/* 반영하기 — 예전 완료 버튼. 누르면 완료, 다시 누르면 취소 */}
+      {!isSim && canComplete && (
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(act.code);
+              onStatusChange(act.code, st === "completed" ? "active" : "completed");
+            }}
+            title={st === "completed" ? "다시 누르면 반영을 취소합니다" : "카드 내용을 반영하고 완료로 표시합니다"}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-semibold transition ${
+              st === "completed"
+                ? "bg-orange-200 text-orange-800"
+                : "bg-orange-50 text-orange-700 hover:bg-orange-100"
+            }`}
+          >
+            {st === "completed" && (
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            반영하기
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+/** 카드 값에 실제로 적힌 내용이 있는지 — 표의 행 id 같은 내부 키는 빼고 본다 */
+function hasContent(v: unknown): boolean {
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.some(hasContent);
+  if (v && typeof v === "object") return Object.entries(v).some(([k, x]) => k !== "id" && hasContent(x));
+  return false;
 }
 
 export default memo(ActivityCard);

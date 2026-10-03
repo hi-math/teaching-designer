@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import ProfilePanel, { type UserProfile } from "@/components/dashboard/ProfilePanel";
 import { AppShellHeader, AppShellLogo } from "@/components/layout/AppShellHeader";
 import { getAppShellHeaderSurface } from "@/lib/appThemeHeader";
-import ChatInterface from "@/components/ChatInterface";
+import ChatInterface, { type ChatTrigger } from "@/components/ChatInterface";
 import TeamChatPanel from "@/components/TeamChatPanel";
 import ReferenceModal from "@/components/workspace/ReferenceModal";
 import StandardsModal, { type StandardItem } from "@/components/workspace/StandardsModal";
@@ -803,7 +803,7 @@ export default function WorkspaceShell({
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"team" | "ai">("team");
   const [notifOpen, setNotifOpen] = useState(false);
-  const [chatTrigger, setChatTrigger] = useState('');
+  const [chatTrigger, setChatTrigger] = useState<ChatTrigger | undefined>(undefined);
   const notifHeaderRef = useRef<HTMLDivElement>(null);
   const [structuredInputs, setStructuredInputs] = useState<Record<string, Record<string, unknown>>>({});
   const [aiReady, setAiReady] = useState(false);
@@ -1721,7 +1721,21 @@ export default function WorkspaceShell({
   const handleAiGuide = useCallback((act: { code: string; label: string }) => {
     setSelectedActivityCode(act.code);
     setRightTab("ai");
-    setChatTrigger(`${act.code} "${act.label}" 카드 작성법을 안내해 주세요. 어떤 내용을 어떻게 입력하면 좋은지 구체적으로 알려주세요.`);
+    setChatTrigger({
+      text: `${act.code} "${act.label}" 카드 작성법을 안내해 주세요. 어떤 내용을 어떻게 입력하면 좋은지 구체적으로 알려주세요.`,
+      nonce: Date.now(),
+    });
+  }, []);
+
+  // with AI — 카드의 현재 내용을 수업설계 전체 흐름에 비추어 피드백. 서버는 intent 를 보고 모든 카드 내용을 길게 싣는다.
+  const handleAiFeedback = useCallback((act: { code: string; label: string }) => {
+    setSelectedActivityCode(act.code);
+    setRightTab("ai");
+    setChatTrigger({
+      text: `[with AI] ${act.code} "${act.label}" 카드의 현재 내용을 수업설계 전체 흐름에 비추어 피드백해 주세요.`,
+      nonce: Date.now(),
+      intent: "feedback",
+    });
   }, []);
 
   // 숨기기는 로컬 state 만 바꾸면 새로고침 시 풀리고 다른 참여자에게도 전달되지 않는다.
@@ -1877,7 +1891,10 @@ export default function WorkspaceShell({
     localStorage.setItem(key, '1');
     setRightTab('ai');
     const t = setTimeout(() => {
-      setChatTrigger(`안녕하세요! 수업 설계 프로젝트를 시작하신 것을 환영합니다. Minerva의 간단한 사용법과 첫 번째 단계(팀 준비)에서 무엇을 해야 하는지 안내해 주세요.`);
+      setChatTrigger({
+        text: `안녕하세요! 수업 설계 프로젝트를 시작하신 것을 환영합니다. Minerva의 간단한 사용법과 첫 번째 단계(팀 준비)에서 무엇을 해야 하는지 안내해 주세요.`,
+        nonce: Date.now(),
+      });
     }, 400);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2725,6 +2742,7 @@ export default function WorkspaceShell({
                       onStatusChange={handleActivityStatusChange}
                       onAskOpinion={setOpinionModal}
                       onAiGuide={handleAiGuide}
+                      onAiFeedback={handleAiFeedback}
                       onOpenModal={setActiveModal}
                       onTextChange={handleActivityChange}
                       onStructuredChange={handleStructuredChange}
@@ -2823,6 +2841,7 @@ export default function WorkspaceShell({
                     // A-3 성취기준 후보를 이 수업의 교과로 좁히는 데 쓰인다
                     relatedSubjects: relatedSubjects || undefined,
                     targetGrade: targetGrade || undefined,
+                    totalSessions: totalSessions ?? undefined,
                     activityInputs: mergedInputs,
                     selectedActivityCode: selectedActivityCode ?? undefined,
                     referenceFiles: referenceFiles.length > 0 ? referenceFiles : undefined,

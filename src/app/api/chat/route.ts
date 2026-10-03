@@ -24,10 +24,16 @@ function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined
 }
 
 export async function POST(req: Request) {
-  const { messages, stage = 'T', pageContext, model } = await req.json();
+  const { messages, stage = 'T', pageContext, model, intent, cardLabels } = await req.json();
 
   const selectedCode = pageContext?.selectedActivityCode as string | undefined;
   const enrichedContext = { ...pageContext };
+
+  // with AI 피드백 — 선행 카드 요약 대신 모든 카드 내용을 흐름 순서대로 길게 싣는다 (buildPageContextBlock)
+  if (intent === 'feedback') {
+    enrichedContext.intent = 'feedback';
+    if (cardLabels && typeof cardLabels === 'object') enrichedContext.cardLabels = cardLabels;
+  }
 
   if (selectedCode === 'A-3') {
     // 전량 주입(655건 · 약 4만 자) 대신 이 수업의 교과로 좁힌 후보만 싣는다.

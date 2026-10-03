@@ -19,7 +19,14 @@ interface PageContext {
   opinions?: { activityCode: string; question: string; responses: { name: string; text: string }[] }[];
   relatedSubjects?: string;
   targetGrade?: string;
+  totalSessions?: number;
 }
+
+/** 채팅의 특별한 요청 — feedback: 카드의 현재 내용을 수업설계 전체 흐름에 비추어 본 피드백 (with AI) */
+export type ChatIntent = 'feedback';
+
+/** 바깥에서 보내는 메시지. nonce 가 바뀌면 같은 문장도 다시 보낸다 */
+export type ChatTrigger = { text: string; nonce: number; intent?: ChatIntent };
 
 interface Props {
   stage: string;
@@ -27,7 +34,7 @@ interface Props {
   pageContext?: PageContext;
   lessonId?: string;
   userId?: string;
-  triggerMessage?: string; // auto-sends when changed
+  triggerMessage?: ChatTrigger; // auto-sends when nonce changes
   /** 채팅관리에서 고른 LLM 모델 id */
   model?: string;
   /** 활동 코드 → 카드 이름 (반영 버튼 문구용) */
@@ -75,8 +82,8 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   // auth UID를 ref로 캐시 — 소유자/참여자 모두 동일하게 auth.uid() 사용
   const authUidRef = useRef<string | null>(null);
   // triggerMessage auto-send
-  const sendMessageRef = useRef<(text: string) => Promise<void>>(async () => {});
-  const lastTriggerRef = useRef<string>('');
+  const sendMessageRef = useRef<(text: string, intent?: ChatIntent) => Promise<void>>(async () => {});
+  const lastTriggerRef = useRef<number>(0);
 
   // 마운트 시: auth UID 캐시 + API 연결 확인
   useEffect(() => {
@@ -194,7 +201,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
     return () => ro.disconnect();
   }, []);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, intent?: ChatIntent) => {
     if (!text.trim() || isStreaming) return;
     // 히스토리 로드 중에 메시지를 보내면 stale 로드가 메시지를 덮어쓰지 않도록 세션 무효화
     loadGenRef.current += 1;
@@ -261,6 +268,8 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
               : pageContext,
           }),
           model,
+          // 피드백은 서버가 카드 전체 흐름을 길게 싣는다 — 흐름 순서·이름을 알려 준다
+          ...(intent ? { intent, cardLabels } : {}),
         }),
         signal: abortRef.current.signal,
       });
@@ -355,9 +364,9 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
 
   // auto-send when triggerMessage changes — wait until history loading is done
   useEffect(() => {
-    if (!triggerMessage || triggerMessage === lastTriggerRef.current || isLoadingHistory) return;
-    lastTriggerRef.current = triggerMessage;
-    const t = setTimeout(() => sendMessageRef.current(triggerMessage), 120);
+    if (!triggerMessage || triggerMessage.nonce === lastTriggerRef.current || isLoadingHistory) return;
+    lastTriggerRef.current = triggerMessage.nonce;
+    const t = setTimeout(() => sendMessageRef.current(triggerMessage.text, triggerMessage.intent), 120);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerMessage, isLoadingHistory]);

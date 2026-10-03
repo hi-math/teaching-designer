@@ -58,6 +58,15 @@ interface Props {
   onTextChange: (code: string, text: string) => void;
   onStructuredChange: (code: string, fields: Record<string, unknown>) => void;
 
+  /** 이 카드에 되돌릴 이전 상태가 있는지 */
+  canUndo: boolean;
+  /** 이 카드의 직전 작업 상태로 되돌린다 */
+  onUndo: (code: string) => void;
+  /** 카드 내용을 모두 지운다 (확인 창은 호출한 쪽에서 띄운다) */
+  onClear: (code: string) => void;
+  /** 카드 안의 버튼·입력칸을 누르면 그 카드를 활성화 */
+  onActivate: (code: string) => void;
+
   onToggleOpinionHidden: (opinionKey: string) => void;
   onDeleteOpinion: (opinionKey: string) => void;
   onSubmitOpinion: (opinionKey: string, text: string) => void;
@@ -232,6 +241,10 @@ function ActivityCard({
   onOpenModal,
   onTextChange,
   onStructuredChange,
+  canUndo,
+  onUndo,
+  onClear,
+  onActivate,
   onToggleOpinionHidden,
   onDeleteOpinion,
   onSubmitOpinion,
@@ -248,6 +261,10 @@ function ActivityCard({
   return (
     <div
       onClick={() => onSelect(act.code)}
+      // 안쪽 버튼·입력칸은 클릭을 막아(stopPropagation) 위 onClick 이 닿지 않는다.
+      // 캡처 단계에서 먼저 받아, 카드 안 어디를 누르거나 Tab 으로 들어와도 이 카드가 활성화되게 한다.
+      onPointerDownCapture={() => { if (!isSelected) onActivate(act.code); }}
+      onFocusCapture={() => { if (!isSelected) onActivate(act.code); }}
       className={`relative mb-6 rounded-2xl p-6 border transition-all cursor-pointer overflow-hidden ${
         locked && st === "completed" ? "bg-[#FFF8F3] border-[#F8D2BF]"
         : locked && st === "skipped"  ? "bg-[#f5f6f8] border-[#e2e4ea]"
@@ -318,16 +335,42 @@ function ActivityCard({
               </span>
             )}
           </div>
-          {/* AI 안내 버튼 */}
-          <button
-            onClick={(e) => { e.stopPropagation(); onAiGuide(act); }}
-            title="AI 안내"
-            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* 되돌리기 — 이 카드의 직전 작업 상태로 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onUndo(act.code); }}
+              disabled={!canUndo || locked}
+              title="되돌리기"
+              aria-label="되돌리기"
+              className={`${toolBtn} hover:bg-[#e6eaf0] hover:text-[#2d3339]`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11" />
+              </svg>
+            </button>
+            {/* 지우기 — 확인 창을 거쳐 카드 내용을 모두 비운다 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onClear(act.code); }}
+              disabled={!filled || locked}
+              title="지우기"
+              aria-label="지우기"
+              className={`${toolBtn} hover:bg-red-50 hover:text-[#D1260F]`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21l-4.3-4.3a2.4 2.4 0 010-3.4l9.6-9.6a2.4 2.4 0 013.4 0l5.6 5.6a2.4 2.4 0 010 3.4L13 21M22 21H7M5 11l9 9" />
+              </svg>
+            </button>
+            {/* AI 안내 버튼 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onAiGuide(act); }}
+              title="AI 안내"
+              className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          </div>
         </div>
         <p className="text-[15px] leading-relaxed text-[#5a6066]">{act.description}</p>
       </div>
@@ -431,6 +474,11 @@ function ActivityCard({
     </div>
   );
 }
+
+// 제목 오른쪽 작은 원형 버튼(되돌리기·지우기) 공통 모양 — 쓸 수 없을 때는 흐리게 자리만 지킨다
+const toolBtn =
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f1f4f9] text-[#757b82] transition-colors " +
+  "disabled:cursor-default disabled:opacity-35 disabled:hover:bg-[#f1f4f9] disabled:hover:text-[#757b82]";
 
 /** 카드 값에 실제로 적힌 내용이 있는지 — 표의 행 id 같은 내부 키는 빼고 본다 */
 function hasContent(v: unknown): boolean {

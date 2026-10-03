@@ -22,6 +22,7 @@ import { DEFAULT_LLM_MODEL, LLM_MODEL_ROW, resolveLlmModel, type LlmModelId } fr
 import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
 import WorkModeSwitch, { type WorkMode } from "@/components/workspace/WorkModeSwitch";
 import { localWriteKey, readRemoteContent, stableStringify } from "@/components/workspace/remoteContent";
+import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/workspace/cardUndo";
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
 
 // 아이디어 도출(성취기준 연결 탐색기)은 처음 열 때 코드를 받는다
@@ -139,6 +140,10 @@ const PHASE_SECTIONS: Record<string, PhaseSection[]> = {
 
 
 // ─── 버전 타입 ────────────────────────────────────────────────────
+
+/** 반영(완료)·건너뛴 카드는 잠겨 지우기·되돌리기도 막는다 — 초안 미리보기(A-5)는 잠기지 않는다 */
+const isLockedCard = (code: string, status?: string) =>
+  code !== "A-5" && (status === "completed" || status === "skipped");
 
 type Snapshot = {
   id: string;
@@ -1500,8 +1505,22 @@ export default function WorkspaceShell({
   }, [lessonId, createSnapshot]);
 
 
+  // ── 카드별 되돌리기 기록 (규칙은 cardUndo.ts) ─────────────────
+  const [undoHistory] = useState(() => new CardUndoHistory());
+  // 버튼 활성화를 다시 그리기 위한 카드별 단계 수
+  const [undoDepth, setUndoDepth] = useState<Record<string, number>>({});
+
+  /** 바뀌기 직전의 카드 값을 기록 — 로컬 변경 경로에서만 부른다 */
+  const rememberForUndo = useCallback((code: string, mode: UndoMode) => {
+    const current: CardValue = CARD_SCHEMAS[code]
+      ? { fields: structuredInputsRef.current[code] ?? {} }
+      : { text: activityInputsRef.current[code] ?? "" };
+    const depth = undoHistory.remember(code, current, mode);
+    if (depth !== null) setUndoDepth((prev) => ({ ...prev, [code]: depth }));
+  }, [undoHistory]);
+
   // ── activity 텍스트 변경 ─────────────────────────────────────
-  const handleActivityChange = useCallback((code: string, text: string) => {
+  const writeText = useCallback((code: string, text: string) => {
     setActivityInputs((prev) => ({ ...prev, [code]: text }));
     setTitleSaveStatus("idle");
     const status = activityStatusRef.current[code] ?? "active";
@@ -1510,8 +1529,13 @@ export default function WorkspaceShell({
     scheduleSave(code, content);
   }, [scheduleSave]);
 
+  const handleActivityChange = useCallback((code: string, text: string) => {
+    rememberForUndo(code, "group");
+    writeText(code, text);
+  }, [rememberForUndo, writeText]);
+
   // ── 구조화 카드 변경 ─────────────────────────────────────────
-  const handleStructuredChange = useCallback((code: string, fields: Record<string, unknown>) => {
+  const writeStructured = useCallback((code: string, fields: Record<string, unknown>) => {
     setStructuredInputs(prev => ({ ...prev, [code]: fields }));
     setTitleSaveStatus("idle");
     const status = activityStatusRef.current[code] ?? "active";
@@ -1519,6 +1543,12 @@ export default function WorkspaceShell({
     pendingContent.current[code] = content;
     scheduleSave(code, content);
   }, [scheduleSave]);
+
+  /** mode: 카드에서 직접 입력하면 group(이어 쓰기는 한 단계), AI 반영·검색 결과처럼 한 번에 바뀌면 step */
+  const handleStructuredChange = useCallback((code: string, fields: Record<string, unknown>, mode: UndoMode = "group") => {
+    rememberForUndo(code, mode);
+    writeStructured(code, fields);
+  }, [rememberForUndo, writeStructured]);
 
   // ── A-5 초안 미리보기 생성 — request: 교사 팀의 추가 요청 (프롬프트에서 최우선 반영) ──
   const handleSimulate = useCallback(async (request: string) => {
@@ -1559,7 +1589,7 @@ export default function WorkspaceShell({
     const sessions = (data.sessions as { subject: string; title: string; standard: string; objective: string; content: string }[])
       .map((s) => ({ id: newSessionId(), ...s }));
     // 요청도 함께 남겨 팀원이 어떤 요청으로 만든 초안인지 보고, 다음에 다시 만들 때 이어 쓴다
-    handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions, draft_request: request });
+    handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions, draft_request: request }, "step");
 
     // 추가 요청으로 차시 수가 바뀌면 수업 기본정보의 총 차시도 맞춘다 (팀원에게는 lessons 실시간 변경으로 전달)
     if (typeof data.totalSessions !== "number" || data.totalSessions === totalSessions) return null;
@@ -1601,7 +1631,7 @@ export default function WorkspaceShell({
       ].filter(Boolean).join("\n"),
       linked_standards: standardCodesOnly(s.standard),
     }));
-    handleStructuredChange("Ds-3", { ...ds3, activities });
+    handleStructuredChange("Ds-3", { ...ds3, activities }, "step");
 
     // Ds-4: 차시별 지원 도구는 AI 가 제안한다. 실패해도 차시 틀은 채워 둔다.
     let tools: { tool: string; purpose: string }[][] = [];
@@ -1627,7 +1657,7 @@ export default function WorkspaceShell({
       const list = tools[i]?.length ? tools[i] : [{ tool: "", purpose: "" }];
       return list.map((t) => ({ stage, tool: t.tool, purpose: t.purpose, related_period: `${i + 1}차시` }));
     });
-    handleStructuredChange("Ds-4", { ...ds4, support_tools });
+    handleStructuredChange("Ds-4", { ...ds4, support_tools }, "step");
 
     return toolsFailed
       ? `Ds-3에 ${sessions.length}개 차시를 반영했습니다. 지원 도구 제안에 실패해 Ds-4는 차시 틀만 채웠습니다.`
@@ -1665,10 +1695,37 @@ export default function WorkspaceShell({
     ))) {
       return null;
     }
-    handleStructuredChange(code, { ...existing, ...fields });
+    handleStructuredChange(code, { ...existing, ...fields }, "step");
     setSelectedActivityCode(code);
     return `${code} 카드에 반영했습니다.`;
   }, [handleStructuredChange]);
+
+  // ── 카드 지우기 · 되돌리기 ───────────────────────────────────
+  const handleClearCard = useCallback(async (code: string) => {
+    if (isLockedCard(code, activityStatusRef.current[code])) return;
+    if (!(await showConfirm(
+      `${code} ${cardLabels[code] ?? ""} 카드의 내용을 모두 지울까요?
+지운 뒤에도 되돌리기로 복구할 수 있습니다.`,
+      { title: "카드 지우기", confirmText: "지우기" },
+    ))) return;
+    setSelectedActivityCode(code);
+    rememberForUndo(code, "step");
+    if (CARD_SCHEMAS[code]) writeStructured(code, {});
+    else writeText(code, "");
+  }, [cardLabels, rememberForUndo, writeStructured, writeText]);
+
+  const handleUndoCard = useCallback((code: string) => {
+    if (isLockedCard(code, activityStatusRef.current[code])) return;
+    const popped = undoHistory.pop(code);
+    if (!popped) return;
+    setUndoDepth((d) => ({ ...d, [code]: popped.depth }));
+    setSelectedActivityCode(code);
+    if ("fields" in popped.value) writeStructured(code, popped.value.fields);
+    else writeText(code, popped.value.text);
+  }, [undoHistory, writeStructured, writeText]);
+
+  // 카드 안의 버튼·입력칸을 누르면 그 카드를 활성화 (오른쪽 탭은 그대로 둔다)
+  const handleActivateCard = useCallback((code: string) => setSelectedActivityCode(code), []);
 
   // ── 완료 / 건너뛰기 ──────────────────────────────────────────
   const handleActivityStatusChange = useCallback(async (code: string, newStatus: "active" | "completed" | "skipped") => {
@@ -2119,7 +2176,7 @@ export default function WorkspaceShell({
             const rows = items.length > 0
               ? items.map(item => ({ subject: item.subject, core_idea: item.content }))
               : [{ subject: '', core_idea: '' }, { subject: '', core_idea: '' }];
-            handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), core_ideas: rows });
+            handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), core_ideas: rows }, "step");
             createClient().from("activity_contents").upsert(
               { lesson_id: lessonId, activity_code: "__selected_ideas", content: { type: "ideas", items }, updated_by: userProfile?.id ?? null },
               { onConflict: "lesson_id,activity_code" }
@@ -2137,7 +2194,7 @@ export default function WorkspaceShell({
             const rows = items.length > 0
               ? items.map(item => ({ subject: item.subject, standard: `${bracketCode(item.code)} ${item.content}` }))
               : [{ subject: '', standard: '' }, { subject: '', standard: '' }];
-            handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), achievement_standards: rows });
+            handleStructuredChange('A-3', { ...(structuredInputs['A-3'] ?? {}), achievement_standards: rows }, "step");
             createClient().from("activity_contents").upsert(
               { lesson_id: lessonId, activity_code: "__selected_standards", content: { type: "standards", items }, updated_by: userProfile?.id ?? null },
               { onConflict: "lesson_id,activity_code" }
@@ -2746,6 +2803,10 @@ export default function WorkspaceShell({
                       onOpenModal={setActiveModal}
                       onTextChange={handleActivityChange}
                       onStructuredChange={handleStructuredChange}
+                      canUndo={(undoDepth[act.code] ?? 0) > 0}
+                      onUndo={handleUndoCard}
+                      onClear={handleClearCard}
+                      onActivate={handleActivateCard}
                       onToggleOpinionHidden={handleToggleOpinionHidden}
                       onDeleteOpinion={handleDeleteOpinion}
                       onSubmitOpinion={handleSubmitOpinion}

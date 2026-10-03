@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { IdeaItem } from '@/components/workspace/IdeasModal';
 import type { StandardItem } from '@/components/workspace/StandardsModal';
 import MessageBubble, { type Message } from './MessageBubble';
+import type { BulletPicker } from './ChatMarkdown';
 import { buildChatPayload } from '@/lib/chat/trimPayload';
 import { CARD_SCHEMAS } from '@/components/workspace/cardSchemas';
 import { readChatStream, type ChatStreamError } from '@/lib/chat/streamProtocol';
@@ -26,8 +27,13 @@ interface PageContext {
   totalSessions?: number;
 }
 
-/** 채팅의 특별한 요청 — feedback: 카드의 현재 내용을 수업설계 전체 흐름에 비추어 본 피드백 (with AI) */
-export type ChatIntent = 'feedback';
+/**
+ * 채팅의 특별한 요청
+ * - feedback: 카드의 현재 내용을 수업설계 전체 흐름에 비추어 본 피드백 (with AI)
+ * - guide: 카드 작성법 안내(AI 안내 버튼)·첫 방문 안내
+ * 둘 다 정책상 카드 반영 판정을 하지 않는다 (반영 버튼·체크박스 없음)
+ */
+export type ChatIntent = 'feedback' | 'guide';
 
 /** 바깥에서 보내는 메시지. nonce 가 바뀌면 같은 문장도 다시 보낸다 */
 export type ChatTrigger = { text: string; nonce: number; intent?: ChatIntent };
@@ -78,6 +84,19 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   const [messages, setMessages] = useState<Message[]>([]);
   // 메시지 인덱스 → 반영 정보 (새로고침하면 사라진다 — 판정 결과는 저장하지 않음)
   const [cardApply, setCardApply] = useState<Record<number, CardApply>>({});
+  // 불릿 체크박스 — 가장 최근 답변이 카드에 반영할 수 있을 때만 (idx: 그 답변, code: 그때 카드)
+  const [pickTarget, setPickTarget] = useState<{ idx: number; code: string } | null>(null);
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [pickApply, setPickApply] = useState<{ applying: boolean; note?: string }>({ applying: false });
+  const picker = useMemo<BulletPicker>(() => ({
+    picked: new Set(Object.keys(picked)),
+    onToggle: (id, itemText) => setPicked((prev) => {
+      const next = { ...prev };
+      if (next[id] !== undefined) delete next[id];
+      else next[id] = itemText;
+      return next;
+    }),
+  }), [picked]);
   const [timestamps, setTimestamps] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -212,6 +231,9 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   const sendMessage = async (text: string, intent?: ChatIntent) => {
     if (!text.trim() || isStreaming) return;
     setChatError(null);
+    setPickTarget(null);
+    setPicked({});
+    setPickApply({ applying: false });
     // 히스토리 로드 중에 메시지를 보내면 stale 로드가 메시지를 덮어쓰지 않도록 세션 무효화
     loadGenRef.current += 1;
     setIsLoadingHistory(false);
@@ -278,7 +300,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
           }),
           model,
           // 피드백은 서버가 카드 전체 흐름을 길게 싣는다 — 흐름 순서·이름을 알려 준다
-          ...(intent ? { intent, cardLabels } : {}),
+          ...(intent === 'feedback' ? { intent, cardLabels } : {}),
         }),
         signal: abortRef.current.signal,
       });
@@ -338,10 +360,11 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
       });
 
       // 이 답변을 선택된 카드에 반영할 수 있는지 판정 — 가능할 때만 버튼이 생긴다
-      // 정책: with AI(피드백) 답변은 카드에 반영하지 않는다 — 판정도 하지 않는다
+      // 정책: with AI(피드백)·AI 안내 답변은 카드에 반영하지 않는다 — 판정도, 체크박스도 없다
       const cardCode = pageContext?.selectedActivityCode;
       const assistantIdx = newMessages.length;
-      if (intent !== 'feedback' && onApplyToCard && cardCode && (CARD_SCHEMAS[cardCode]?.fields.length ?? 0) > 0 && accumulated.trim().length >= 60) {
+      if (!intent && onApplyToCard && cardCode && (CARD_SCHEMAS[cardCode]?.fields.length ?? 0) > 0 && accumulated.trim().length >= 60) {
+        setPickTarget({ idx: assistantIdx, code: cardCode });
         fetch('/api/chat/card-apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -349,6 +372,8 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
             code: cardCode,
             label: cardLabels?.[cardCode],
             answer: accumulated,
+            // 판정이 "작성해 달라는 요청에 대한 답인지"를 보도록 교사의 질문도 함께 보낸다
+            question: text.trim(),
             current: getCardFields?.(cardCode),
             relatedSubjects: pageContext?.relatedSubjects,
           }),
@@ -397,6 +422,40 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerMessage, isLoadingHistory]);
 
+  /** 체크한 불릿만 판정에 보내고, 반영할 수 있으면 그 카드에 넣는다 */
+  const applyPicked = async () => {
+    if (!pickTarget || !onApplyToCard || pickApply.applying) return;
+    // 답변 안의 순서대로 (id = 글자 오프셋)
+    const items = Object.entries(picked).sort(([a], [b]) => Number(a) - Number(b)).map(([, t]) => t);
+    if (items.length === 0) return;
+    const { code } = pickTarget;
+    setPickApply({ applying: true });
+    try {
+      const res = await fetch('/api/chat/card-apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          label: cardLabels?.[code],
+          answer: items.map((t) => `- ${t}`).join('\n'),
+          picked: true,
+          current: getCardFields?.(code),
+          relatedSubjects: pageContext?.relatedSubjects,
+        }),
+      });
+      const data = await res.json() as { applicable?: boolean; fields?: Record<string, unknown>; selections?: CatalogSelections };
+      if (!data.applicable || !data.fields) {
+        setPickApply({ applying: false, note: '선택한 항목에서 반영할 내용을 찾지 못했습니다.' });
+        return;
+      }
+      const note = await onApplyToCard(code, data.fields, data.selections);
+      setPickApply({ applying: false, note: note ?? undefined });
+      if (note) setPicked({});
+    } catch (e) {
+      setPickApply({ applying: false, note: e instanceof Error ? e.message : '반영하지 못했습니다.' });
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -432,6 +491,9 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
           const isFirst = !prev || prev.role !== msg.role;
           const isLast = !next || next.role !== msg.role;
           const apply = cardApply[i];
+          // 가장 최근 답변이 카드에 반영할 수 있을 때만 불릿 체크박스
+          const pickable = !isStreaming && pickTarget?.idx === i && msg.role === 'assistant';
+          const pickedCount = pickable ? Object.keys(picked).length : 0;
           return (
             <div key={i}>
               <MessageBubble
@@ -440,7 +502,25 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
                 isLast={isLast}
                 timestamp={timestamps[i] ?? ''}
                 isStreaming={isStreaming && i === messages.length - 1 && msg.role === 'assistant'}
+                picker={pickable ? picker : undefined}
               />
+              {pickable && (pickedCount > 0 || pickApply.note) && (
+                <div className="mb-1 ml-9 mt-1 flex flex-wrap items-center gap-2">
+                  {pickedCount > 0 && (
+                    <button
+                      disabled={pickApply.applying}
+                      onClick={applyPicked}
+                      className="flex items-center gap-1.5 rounded-lg border border-[#D1260F] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#D1260F] transition hover:bg-[#FFF1ED] disabled:opacity-60"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M5 5h14v14H5z" />
+                      </svg>
+                      {pickApply.applying ? '반영 중…' : '선택한 항목만 반영'}
+                    </button>
+                  )}
+                  {pickApply.note && <span className="text-[12px] text-[#757b82]">{pickApply.note}</span>}
+                </div>
+              )}
               {apply && (
                 <div className="mb-3 ml-9 mt-1 flex flex-wrap items-center gap-2">
                   <button

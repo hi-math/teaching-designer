@@ -1902,6 +1902,8 @@ export default function WorkspaceShell({
     setChatTrigger({
       text: `${act.code} "${act.label}" 카드 작성법을 안내해 주세요. 어떤 내용을 어떻게 입력하면 좋은지 구체적으로 알려주세요.`,
       nonce: Date.now(),
+      // 작성법 안내는 정책상 카드에 반영하지 않는다
+      intent: "guide",
     });
   }, []);
 
@@ -2072,6 +2074,7 @@ export default function WorkspaceShell({
       setChatTrigger({
         text: `안녕하세요! 수업 설계 프로젝트를 시작하신 것을 환영합니다. Minerva의 간단한 사용법과 첫 번째 단계(팀 준비)에서 무엇을 해야 하는지 안내해 주세요.`,
         nonce: Date.now(),
+        intent: "guide",
       });
     }, 400);
     return () => clearTimeout(t);

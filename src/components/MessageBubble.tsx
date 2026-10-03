@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import ChatMarkdown from './ChatMarkdown';
+import ChatMarkdown, { type BulletPicker } from './ChatMarkdown';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -14,9 +14,11 @@ interface Props {
   isLast: boolean;
   isStreaming?: boolean;
   timestamp: string;
+  /** 가장 최근 답변이 카드에 반영할 수 있을 때만 — 불릿마다 체크박스 */
+  picker?: BulletPicker;
 }
 
-function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp }: Props) {
+function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp, picker }: Props) {
   const isUser = message.role === 'user';
 
   /* ── 사용자 메시지: 말풍선 ── */
@@ -60,7 +62,7 @@ function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp }: Pro
             ))}
           </div>
         ) : (
-          <ChatMarkdown text={message.content} />
+          <ChatMarkdown text={message.content} picker={picker} />
         )}
         {isLast && <p className="mt-1.5 text-xs text-[#adb2ba]">{timestamp}</p>}
       </div>

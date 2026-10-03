@@ -1,10 +1,12 @@
 'use client';
 
-import Markdown, { type Components } from 'react-markdown';
+import { useMemo, type ComponentPropsWithoutRef } from 'react';
+import Markdown, { type Components, type ExtraProps } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkGfm from 'remark-gfm';
 import remarkTitles, { separateTitleLines } from '@/lib/chat/remarkTitles';
+import { CLOSING_LINES } from '@/lib/chat/closingMessages';
 
 /**
  * Minerva AI 답변의 마크다운을 채팅 패널 폭에 맞춰 그린다.
@@ -16,9 +18,44 @@ import remarkTitles, { separateTitleLines } from '@/lib/chat/remarkTitles';
  * - 한 줄 바꿈은 그대로 줄바꿈 (remark-breaks)
  * - **"평가 질문"**이 처럼 한글 조사가 붙은 굵은 글씨도 ** 가 남지 않게 (remark-cjk-friendly)
  * - 응답이 흐르는 중 닫히지 않은 ** 같은 기호는 닫힐 때까지 글자로 보였다가 자연스럽게 바뀐다
+ * - picker 를 주면 불릿마다 체크박스 (소제목·확인 멘트 줄 제외) — 고른 항목만 카드에 반영할 때 쓴다
  */
 
+/** 불릿 체크박스 — id 는 답변 안에서 그 항목의 위치(글자 오프셋)라 같은 답변이면 그대로 유지된다 */
+export type BulletPicker = {
+  picked: ReadonlySet<string>;
+  onToggle: (id: string, text: string) => void;
+};
+
+type HastLike = { type: string; value?: string; tagName?: string; children?: HastLike[]; position?: { start: { offset?: number } } };
+
+/** 항목 자신의 글 (하위 목록은 빼고) */
+function ownText(node: HastLike): string {
+  let out = '';
+  const walk = (n: HastLike) => {
+    if (n.type === 'text') out += n.value ?? '';
+    else if (n.type === 'element') {
+      if (n.tagName === 'ul' || n.tagName === 'ol') return;
+      if (n.tagName === 'br') out += ' ';
+      n.children?.forEach(walk);
+    }
+  };
+  node.children?.forEach(walk);
+  return out.replace(/\s+/g, ' ').trim();
+}
+
 const heading = 'mt-3 mb-1 first:mt-0 text-[15px] font-bold text-[#2d3339] [&_strong]:text-inherit';
+
+type LiProps = ComponentPropsWithoutRef<'li'> & ExtraProps;
+
+// 소제목으로 시작하는 항목(예전 형식의 "- 잘 맞는 점" + 하위 불릿)은 불릿을 떼고 목록 왼쪽 끝에 맞춘다
+function BaseLi({ node, children }: LiProps) {
+  const first = node?.children.find((c) => c.type === 'element');
+  const titled = first?.type === 'element' && /^h[1-6]$/.test(first.tagName);
+  return (
+    <li className={`[&>ol]:mt-1 [&>ul]:mt-1 [&>p]:mb-1 ${titled ? '-ml-5 list-none' : 'pl-0.5'}`}>{children}</li>
+  );
+}
 
 const components: Components = {
   h1: ({ children }) => <p className={heading}>{children}</p>,
@@ -31,14 +68,7 @@ const components: Components = {
   strong: ({ children }) => <strong className="font-semibold text-[#D1260F]">{children}</strong>,
   ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0 marker:text-[#F0603C]">{children}</ul>,
   ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0 marker:font-semibold marker:text-[#757b82]">{children}</ol>,
-  // 소제목으로 시작하는 항목(예전 형식의 "- 잘 맞는 점" + 하위 불릿)은 불릿을 떼고 목록 왼쪽 끝에 맞춘다
-  li: ({ node, children }) => {
-    const first = node?.children.find((c) => c.type === 'element');
-    const titled = first?.type === 'element' && /^h[1-6]$/.test(first.tagName);
-    return (
-      <li className={`[&>ol]:mt-1 [&>ul]:mt-1 [&>p]:mb-1 ${titled ? '-ml-5 list-none' : 'pl-0.5'}`}>{children}</li>
-    );
-  },
+  li: (props) => <BaseLi {...props} />,
   hr: () => <div className="my-3 h-px bg-[#eef0f4]" />,
   blockquote: ({ children }) => (
     <blockquote className="mb-2 border-l-2 border-[#F5B8A8] pl-3 text-[#5a6066]">{children}</blockquote>
@@ -68,10 +98,37 @@ const components: Components = {
 // 한 줄 바꿈도 줄바꿈으로 — 예전처럼 AI 가 줄마다 나눠 쓴 문장이 한 문단으로 합쳐지지 않게
 const plugins = [remarkGfm, remarkCjkFriendly, remarkBreaks, remarkTitles];
 
-export default function ChatMarkdown({ text }: { text: string }) {
+export default function ChatMarkdown({ text, picker }: { text: string; picker?: BulletPicker }) {
+  const comps = useMemo<Components>(() => {
+    if (!picker) return components;
+    return {
+      ...components,
+      li: (props) => {
+        const node = props.node as unknown as HastLike | undefined;
+        const first = node?.children?.find((c) => c.type === 'element');
+        const titled = !!first?.tagName && /^h[1-6]$/.test(first.tagName);
+        const itemText = node ? ownText(node) : '';
+        if (!node || titled || !itemText || CLOSING_LINES.has(itemText)) return <BaseLi {...props} />;
+        const id = String(node.position?.start.offset ?? itemText);
+        return (
+          <li className="pl-0.5 [&>ol]:mt-1 [&>ul]:mt-1 [&>p]:mb-1 [&>p:first-of-type]:inline">
+            <input
+              type="checkbox"
+              aria-label={itemText}
+              checked={picker.picked.has(id)}
+              onChange={() => picker.onToggle(id, itemText)}
+              className="mr-1.5 h-3.5 w-3.5 translate-y-[2px] cursor-pointer accent-[#D1260F]"
+            />
+            {props.children}
+          </li>
+        );
+      },
+    };
+  }, [picker]);
+
   return (
     <div className="break-keep text-[15px] leading-relaxed text-[#2d3339] [overflow-wrap:anywhere]">
-      <Markdown remarkPlugins={plugins} components={components}>
+      <Markdown remarkPlugins={plugins} components={comps}>
         {separateTitleLines(text)}
       </Markdown>
     </div>

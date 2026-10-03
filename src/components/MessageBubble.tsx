@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+import ChatMarkdown from './ChatMarkdown';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -59,9 +60,7 @@ function MessageBubble({ message, isFirst, isLast, isStreaming, timestamp }: Pro
             ))}
           </div>
         ) : (
-          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#2d3339]">
-            {message.content}
-          </p>
+          <ChatMarkdown text={message.content} />
         )}
         {isLast && <p className="mt-1.5 text-xs text-[#adb2ba]">{timestamp}</p>}
       </div>

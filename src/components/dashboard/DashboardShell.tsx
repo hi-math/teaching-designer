@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { AppShellHeader, AppShellLogo } from "@/components/layout/AppShellHeader";
-import { AppModeSwitch } from "@/components/layout/AppModeSwitch";
 import { getAppShellHeaderSurface } from "@/lib/appThemeHeader";
 import Sidebar from "./Sidebar";
 import ProjectGrid from "./ProjectGrid";
@@ -23,7 +22,7 @@ export default function DashboardShell({ profile }: { profile: UserProfile }) {
     <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       <AppShellHeader style={getAppShellHeaderSurface()}>
         <AppShellLogo className="-ml-6" />
-        <AppModeSwitch current="design" />
+        <div className="w-8 shrink-0" aria-hidden />
       </AppShellHeader>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ProfilePanel, { type UserProfile } from "@/components/dashboard/ProfilePanel";
@@ -19,6 +20,18 @@ import ChatManageModal from "@/components/workspace/ChatManageModal";
 import { bracketCode, fixDoubleBrackets } from "@/lib/standardCode";
 import { DEFAULT_LLM_MODEL, LLM_MODEL_ROW, resolveLlmModel, type LlmModelId } from "@/lib/llmModels";
 import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
+import WorkModeSwitch, { type WorkMode } from "@/components/workspace/WorkModeSwitch";
+import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
+
+// 아이디어 도출(성취기준 연결 탐색기)은 처음 열 때 코드를 받는다
+const StandardsGraphClient = dynamic(() => import("@/components/standards-graph/StandardsGraphClient"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-1 items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#D1260F] border-t-transparent" />
+    </div>
+  ),
+});
 
 // ─── 워크스페이스 UI 토큰 (세이지 테마 고정) ─────────────────────
 
@@ -748,7 +761,13 @@ function WorkNavButton({
   );
 }
 
-export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
+export default function WorkspaceShell({
+  lessonId,
+  initialWorkMode = "design",
+}: {
+  lessonId: string;
+  initialWorkMode?: WorkMode;
+}) {
   const [activePhase, setActivePhase] = useState("T");
   const [activeSection, setActiveSection] = useState("T-a");
   const [projectTitle, setProjectTitle] = useState("");
@@ -763,6 +782,22 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // 헤더의 수업 설계 / 아이디어 도출 전환 — 사이드바·채팅은 두 화면이 함께 쓴다
+  const [workMode, setWorkMode] = useState<WorkMode>(initialWorkMode);
+  // 아이디어 도출은 한 번 연 뒤에는 숨기기만 해서 탐색 상태와 받아 둔 데이터를 유지한다
+  const [ideationOpened, setIdeationOpened] = useState(initialWorkMode === "ideation");
+  const changeWorkMode = (next: WorkMode) => {
+    setWorkMode(next);
+    if (next === "ideation") setIdeationOpened(true);
+    const url = new URL(window.location.href);
+    if (next === "ideation") url.searchParams.set("tab", "ideation");
+    else {
+      // 수업 설계로 돌아오면 탐색기 상태 파라미터를 지운다 (탐색기의 "링크 복사"가 다시 기록한다)
+      url.searchParams.delete("tab");
+      for (const key of EXPLORER_URL_KEYS) url.searchParams.delete(key);
+    }
+    window.history.replaceState(window.history.state, "", url);
+  };
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"team" | "ai">("team");
   const [notifOpen, setNotifOpen] = useState(false);
@@ -2215,8 +2250,10 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
             </span>
           </div>
         </div>
-        {/* 우: 알림 + 멤버 아바타 + 액션 버튼 */}
+        {/* 우: 작업 전환 + 알림 + 멤버 아바타 + 액션 버튼 */}
         <div className="flex shrink-0 items-center gap-3">
+          <WorkModeSwitch mode={workMode} onChange={changeWorkMode} />
+
           {/* 알림 아코디언 */}
           {pendingOpinionsList.length > 0 && (
             <div className="relative" ref={notifHeaderRef}>
@@ -2247,6 +2284,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
                       <button
                         key={opinionKey}
                         onClick={() => {
+                          if (workMode !== "design") changeWorkMode("design");
                           setActivePhase(phaseCode);
                           setSelectedActivityCode(actCode);
                           setNotifOpen(false);
@@ -2531,7 +2569,7 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
       <div className="flex flex-1 overflow-hidden">
 
           {/* ── 워크스페이스 ───────────────────────────────────────── */}
-          <main className="flex flex-1 flex-col overflow-hidden bg-[#f8f9fd]">
+          <main className={`${workMode === "design" ? "flex" : "hidden"} flex-1 flex-col overflow-hidden bg-[#f8f9fd]`}>
             {/* 단계 스테퍼 + 섹션 탭 통합 영역 */}
             <div className="shrink-0 pt-3" style={{ backgroundColor: "#f8f9fd" }}>
 
@@ -2638,6 +2676,13 @@ export default function WorkspaceShell({ lessonId }: { lessonId: string }) {
               );
             })()}
           </main>
+
+          {/* ── 아이디어 도출: 성취기준 연결 탐색기 ─────────────────────── */}
+          {ideationOpened && (
+            <div className={`${workMode === "ideation" ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-hidden`}>
+              <StandardsGraphClient />
+            </div>
+          )}
 
           {/* ── 우측 패널 ────────────────────────────────────────────── */}
           <div className="flex w-[30%] min-w-[360px] shrink-0 flex-col bg-white shadow-[-4px_0px_24px_rgba(45,51,57,0.06)]">

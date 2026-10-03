@@ -47,4 +47,15 @@ describe("CardUndoHistory", () => {
     expect(h.depth("A-4")).toBe(0);
     expect(h.pop("T-1")?.value).toEqual({ text: `v${UNDO_LIMIT + 4}` });
   });
+
+  it("A-3 선택 목록도 카드 내용과 함께 되돌린다", () => {
+    const h = new CardUndoHistory();
+    const snapshot = {
+      fields: { core_ideas: [{ subject: '과학', core_idea: '목록 원문' }] },
+      selectedIdeas: [{ id: '과학__영역__0', subject: '과학', domain: '영역', content: '목록 원문' }],
+      selectedStandards: [],
+    };
+    h.remember('A-3', snapshot, 'step');
+    expect(h.pop('A-3')?.value).toEqual(snapshot);
+  });
 });

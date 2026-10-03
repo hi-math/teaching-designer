@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import CardRowsEditor from './CardRowsEditor';
-import { bracketCode } from '@/lib/standardCode';
 
 // ─── 타입 ──────────────────────────────────────────────────────────
 
@@ -170,13 +168,11 @@ export default function StandardsModal({
   onClose,
   selectedStandards,
   onSelectionChange,
-  manualRows,
   readOnly = false,
 }: {
   onClose: () => void;
   selectedStandards: StandardItem[];
-  onSelectionChange: (standards: StandardItem[], rows?: Record<string, string>[]) => void;
-  manualRows?: Record<string, string>[];
+  onSelectionChange: (standards: StandardItem[]) => void;
   readOnly?: boolean;
 }) {
   const [meta, setMeta] = useState<Meta>({ subjects: [], domains: [] });
@@ -189,7 +185,6 @@ export default function StandardsModal({
 
   // 모달 열릴 때 초기 선택 상태를 draft로 복사
   const [draft, setDraft] = useState<StandardItem[]>(() => [...selectedStandards]);
-  const [rowsDraft, setRowsDraft] = useState<Record<string, string>[]>(() => manualRows ?? []);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -239,7 +234,7 @@ export default function StandardsModal({
   const handleReset = () => { setSubject(''); setDomain(''); setQuery(''); };
 
   const handleConfirm = () => {
-    onSelectionChange(draft, manualRows ? rowsDraft : undefined);
+    onSelectionChange(draft);
     onClose();
   };
 
@@ -370,11 +365,6 @@ export default function StandardsModal({
 
         {/* ── 우측 40%: 선택된 성취기준 ── */}
         <div className="flex w-[40%] flex-col bg-white">
-
-          {manualRows && <CardRowsEditor label="성취기준" contentKey="standard" rows={rowsDraft} onChange={(rows) => {
-            setRowsDraft(rows);
-            setDraft(prev => prev.filter(item => !selectedStandards.some(old => old.code === item.code) || rows.some(row => row.subject === item.subject && row.standard === `${bracketCode(item.code)} ${item.content}`)));
-          }} readOnly={readOnly} />}
 
           {/* 헤더 */}
           <div className="shrink-0 flex items-center justify-between border-b border-[#E4EBF5] px-6 py-4">

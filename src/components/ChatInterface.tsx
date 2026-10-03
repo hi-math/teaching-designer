@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import type { IdeaItem } from '@/components/workspace/IdeasModal';
+import type { StandardItem } from '@/components/workspace/StandardsModal';
 import MessageBubble, { type Message } from './MessageBubble';
 import { buildChatPayload } from '@/lib/chat/trimPayload';
 import { CARD_SCHEMAS } from '@/components/workspace/cardSchemas';
@@ -44,7 +46,7 @@ interface Props {
   /** 카드의 현재 입력값 (반영 판정 시 참고) */
   getCardFields?: (code: string) => Record<string, unknown>;
   /** 답변에서 뽑은 값을 카드에 쓴다. 결과 안내 문구를 돌려주고, 취소되면 null */
-  onApplyToCard?: (code: string, fields: Record<string, unknown>) => Promise<string | null>;
+  onApplyToCard?: (code: string, fields: Record<string, unknown>, selections?: CatalogSelections) => Promise<string | null>;
   /**
    * 참고자료 본문(PDF base64 / 텍스트)을 전송 직전에 가져오는 콜백.
    * 페이지 진입 시점에 수십 MB 를 미리 받지 않기 위해 지연 호출한다.
@@ -53,6 +55,8 @@ interface Props {
     { name: string; mime: string; content?: string; pdfData?: string }[]
   >;
 }
+
+type CatalogSelections = { ideas: IdeaItem[]; standards: StandardItem[] };
 
 function nowTimestamp() {
   const d = new Date();
@@ -65,6 +69,7 @@ function nowTimestamp() {
 type CardApply = {
   code: string;
   fields: Record<string, unknown>;
+  selections?: CatalogSelections;
   state: 'ready' | 'applying' | 'applied';
   note?: string;
 };
@@ -344,12 +349,13 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
             label: cardLabels?.[cardCode],
             answer: accumulated,
             current: getCardFields?.(cardCode),
+            relatedSubjects: pageContext?.relatedSubjects,
           }),
         })
           .then((r) => r.json())
-          .then((data: { applicable?: boolean; fields?: Record<string, unknown> }) => {
+          .then((data: { applicable?: boolean; fields?: Record<string, unknown>; selections?: CatalogSelections }) => {
             if (data.applicable && data.fields) {
-              setCardApply((prev) => ({ ...prev, [assistantIdx]: { code: cardCode, fields: data.fields!, state: 'ready' } }));
+              setCardApply((prev) => ({ ...prev, [assistantIdx]: { code: cardCode, fields: data.fields!, selections: data.selections, state: 'ready' } }));
             }
           })
           .catch((e) => console.error('[card-apply] 판정 실패:', e));
@@ -442,7 +448,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
                       if (!onApplyToCard) return;
                       setCardApply((prev) => ({ ...prev, [i]: { ...apply, state: 'applying', note: undefined } }));
                       try {
-                        const note = await onApplyToCard(apply.code, apply.fields);
+                        const note = await onApplyToCard(apply.code, apply.fields, apply.selections);
                         setCardApply((prev) => ({ ...prev, [i]: { ...apply, state: note ? 'applied' : 'ready', note: note ?? undefined } }));
                       } catch (e) {
                         setCardApply((prev) => ({

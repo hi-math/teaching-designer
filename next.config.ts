@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   serverExternalPackages: ["playwright-core", "@sparticuz/chromium-min"],
   outputFileTracingIncludes: {
+    "/api/chat": ["./public/standard/standards_middle.json", "./public/standard/ideas.json"],
+    "/api/chat/card-apply": ["./public/standard/standards_middle.json", "./public/standard/ideas.json"],
     "/api/ideation": ["./public/standard/graph/**/*.json"],
     "/api/ideation/save": ["./public/standard/graph/**/*.json"],
   },

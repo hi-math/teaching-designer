@@ -3,7 +3,7 @@ import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } f
 import { resolveLlmModel } from '@/lib/llmModels';
 import { bracketCode, extractCodes } from '@/lib/standardCode';
 
-// A-5 수업 시뮬레이션 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
+// A-5 초안 미리보기 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
 // 채팅과 달리 결과를 카드에 바로 넣어야 하므로, 구조화 출력으로 JSON 을 받는다.
 
 // 생각이 항상 켜진 모델(Fable 5.1)로 차시가 많으면 1분을 넘길 수 있다
@@ -133,13 +133,13 @@ export async function POST(req: Request) {
     });
     if (!result.ok) {
       console.error('[simulate] no result:', result.reason);
-      return Response.json({ error: describeJsonFailure(result.reason, '시뮬레이션 결과를 만들지 못했습니다.') }, { status: 502 });
+      return Response.json({ error: describeJsonFailure(result.reason, '차시 초안을 만들지 못했습니다.') }, { status: 502 });
     }
 
     type RawSession = Partial<Omit<SimulatedSession, 'content'>> & { content?: string[] | string };
     const raw = (result.value as { sessions?: RawSession[] } | null)?.sessions;
     if (!Array.isArray(raw) || raw.length === 0) {
-      return Response.json({ error: '시뮬레이션 결과를 만들지 못했습니다.' }, { status: 502 });
+      return Response.json({ error: '차시 초안을 만들지 못했습니다.' }, { status: 502 });
     }
 
     const sessionsOut: SimulatedSession[] = raw.map((s) => ({
@@ -156,6 +156,6 @@ export async function POST(req: Request) {
     return Response.json({ sessions: sessionsOut });
   } catch (err) {
     console.error('[simulate] error:', err);
-    return Response.json({ error: describeApiError(err, '시뮬레이션 중 오류가 발생했습니다.') }, { status: 500 });
+    return Response.json({ error: describeApiError(err, '초안 미리보기 중 오류가 발생했습니다.') }, { status: 500 });
   }
 }

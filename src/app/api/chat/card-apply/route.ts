@@ -16,6 +16,11 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
   if (f.type === 'bullets') {
     return { type: 'array', description, items: { type: 'string' } };
   }
+  if (f.type === 'choice') {
+    return f.multiple
+      ? { type: 'array', description: `${description} — 해당하는 것 모두`, items: { type: 'string', enum: f.options } }
+      : { type: 'string', description: `${description} — 다음 중 하나`, enum: f.options };
+  }
   if (f.type === 'table') {
     return {
       type: 'array',
@@ -105,7 +110,11 @@ export async function POST(req: Request) {
     // 스키마에 있는 필드만, 빈 값은 빼고 남긴다
     const fields: Record<string, unknown> = {};
     for (const f of schema.fields) {
-      const v = input?.fields?.[f.key];
+      let v = input?.fields?.[f.key];
+      // 보기 칸은 정해진 보기만 남긴다
+      if (f.type === 'choice') {
+        v = Array.isArray(v) ? v.filter((o) => f.options.includes(String(o))) : f.options.includes(String(v)) ? v : undefined;
+      }
       if (typeof v === 'string' && v.trim()) fields[f.key] = v.trim();
       else if (Array.isArray(v) && v.length > 0) fields[f.key] = v;
     }

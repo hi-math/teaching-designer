@@ -13,7 +13,7 @@ export interface TableColumn {
   width?: number; // 고정 폭(px). 지정하면 flex 대신 쓴다
 }
 
-export type FieldType = 'text' | 'textarea' | 'bullets' | 'table' | 'richtext';
+export type FieldType = 'text' | 'textarea' | 'bullets' | 'table' | 'richtext' | 'choice';
 
 interface BaseField {
   key: string;
@@ -35,7 +35,14 @@ export interface TableFieldDef extends BaseField {
   noAddRow?: boolean;
 }
 
-export type FieldDef = SimpleField | BulletsFieldDef | TableFieldDef;
+/** 정해진 보기 중에서 고르는 칸 — multiple 이면 여러 개(값: string[]), 아니면 하나(값: string) */
+export interface ChoiceFieldDef extends BaseField {
+  type: 'choice';
+  options: string[];
+  multiple?: boolean;
+}
+
+export type FieldDef = SimpleField | BulletsFieldDef | TableFieldDef | ChoiceFieldDef;
 
 export interface CardSchema {
   fields: FieldDef[];
@@ -57,6 +64,9 @@ const bl = (key: string, label?: string, minRows = 3): BulletsFieldDef =>
 
 const tb = (key: string, label: string | undefined, columns: TableColumn[], minRows = 3): TableFieldDef =>
   ({ type: 'table', key, label, columns, minRows });
+
+const ch = (key: string, label: string, options: string[], multiple = false): ChoiceFieldDef =>
+  ({ type: 'choice', key, label, options, multiple });
 
 // ─── 카드 스키마 ──────────────────────────────────────────────────────
 
@@ -180,6 +190,35 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
         { key: 'purpose',        label: '활용 목적', type: 'text', flex: 2 },
         { key: 'related_period', label: '관련 차시', type: 'text', flex: 1, align: 'center' },
       ], 3),
+      // 학생이 AI 결과를 그대로 받아들이지 않고 검토·수정·선택하는지, 교사가 개입할 순간이 있는지 점검한다
+      tb('ai_agency', 'Human-AI Agency 점검', [
+        { key: 'activity', label: '활동 / 도구',          type: 'text',     flex: 1.5 },
+        { key: 'student',  label: '학생이 직접 할 일',     type: 'textarea', flex: 2 },
+        { key: 'ai',       label: 'AI가 지원할 일',        type: 'textarea', flex: 2 },
+        { key: 'teacher',  label: '교사가 확인·개입할 일', type: 'textarea', flex: 2 },
+      ], 3),
+    ],
+  },
+  'Ds-5': {
+    fields: [
+      tb('difficulties', '활동별 어려움 예상', [
+        { key: 'activity',   label: '활동',                    type: 'text',     flex: 1.5 },
+        { key: 'difficulty', label: '학생의 어려움 예상 지점', type: 'textarea', flex: 3 },
+        { key: 'scaffold',   label: '필요한 스캐폴딩',         type: 'textarea', flex: 2.5 },
+      ], 3),
+      tb('support_level', '지원 수준 검토', [
+        { key: 'support',   label: '지원 내용',                                     type: 'textarea', flex: 2 },
+        { key: 'necessary', label: '이 지원이 없으면 수행이 어려운가?',             type: 'textarea', flex: 2 },
+        { key: 'overreach', label: '이 지원이 있으면 스스로 생각하지 않아도 되는가?', type: 'textarea', flex: 2 },
+        { key: 'adjust',    label: '조정 의견',                                     type: 'textarea', flex: 2 },
+      ], 2),
+      tb('support_plan', '지원 방안', [
+        { key: 'stage',  label: '활동 단계', type: 'text',     flex: 1.5 },
+        { key: 'target', label: '대상',      type: 'text',     flex: 1.2 },
+        { key: 'method', label: '지원 방법', type: 'textarea', flex: 3 },
+        { key: 'timing', label: '제공 시점', type: 'text',     flex: 1.2 },
+      ], 3),
+      ta('scaffold_summary', '스캐폴딩 핵심 정리', '지금까지의 논의를 바탕으로 핵심 내용을 정리하세요…'),
     ],
   },
 
@@ -196,6 +235,12 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
   },
   'DI-2': {
     fields: [
+      ch('exec_mode', '실행 방식', ['개별 실행', '공동 실행']),
+      tb('exec_roles', '역할 분담', [
+        { key: 'role',    label: '역할',      type: 'text',     flex: 1.5 },
+        { key: 'teacher', label: '담당 교사', type: 'text',     flex: 1.2 },
+        { key: 'detail',  label: '주요 내용', type: 'textarea', flex: 3 },
+      ], 2),
       tb('exec_schedule', '수업 실행 일정', [
         { key: 'period',  label: '차시',     type: 'text', flex: 0.8, align: 'center' },
         { key: 'date',    label: '날짜',     type: 'date', flex: 1.5, align: 'center' },
@@ -203,20 +248,36 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
         { key: 'place',   label: '장소',     type: 'text', flex: 1.5, align: 'center' },
         { key: 'teacher', label: '담당 교사', type: 'text', flex: 1.5, align: 'center' },
       ], 3),
+      tb('episodes', '수업 주요 상황·에피소드 기록', [
+        { key: 'when',     label: '시간 / 차시',     type: 'text',     flex: 1,   align: 'center' },
+        { key: 'episode',  label: '상황 / 에피소드', type: 'textarea', flex: 3.5 },
+        { key: 'activity', label: '관련 활동',       type: 'text',     flex: 1.5 },
+        { key: 'method',   label: '기록 방식',       type: 'text',     flex: 1.2, align: 'center' },
+        { key: 'recorder', label: '기록자',          type: 'text',     flex: 1,   align: 'center' },
+      ], 3),
+      ch('record_types', '공유한 기록의 유형 (복수 선택)', ['영상', '사진', '녹음', '노트', '기타'], true),
+      ta('observations', '주요 관찰 및 공유 내용', '예상과 달랐던 학생 반응, 인상적인 발화, 뜻밖의 질문 등을 근거와 함께 적어 주세요…'),
     ],
   },
 
   // ── 5단계: 평가·성찰 ────────────────────────────────────────────
   'E-1': {
     fields: [
-      tb('design_rubric', '협력적 수업설계 종합 평가', [
-        { key: 'area',     label: '영역',    type: 'select',   flex: 1.5,
-          options: ['T 팀 준비','A 분석','Ds 설계','DI 개발·실행','E 평가·성찰','공통'] },
-        { key: 'question', label: '평가 문항', type: 'textarea', flex: 4 },
-        { key: 'score',    label: '점수(1~4)', type: 'select',   flex: 0.8,
-          options: ['1','2','3','4'] },
+      tb('student_evidence', '학생 자료 분석', [
+        { key: 'achieved',   label: '목표에 잘 도달한 사례',          type: 'textarea', flex: 1 },
+        { key: 'struggles',  label: '자주 보인 어려움 / 오개념 사례', type: 'textarea', flex: 1 },
+        { key: 'unexpected', label: '예상 밖의 창의적 반응 사례',     type: 'textarea', flex: 1 },
+      ], 2),
+      tb('gap_improvements', '간극의 원인과 개선 아이디어', [
+        { key: 'cause', label: '간극의 원인 분석',     type: 'textarea', flex: 1 },
+        { key: 'idea',  label: '개선 아이디어 / 대안', type: 'textarea', flex: 1 },
       ], 3),
-      ta('reflection_note', '팀 성찰 메모', '개선 과제를 기록하세요…'),
+      tb('design_revisions', '설계안 수정 기록', [
+        { key: 'item',   label: '수정 항목', type: 'text',     flex: 1.5 },
+        { key: 'before', label: '수정 전',   type: 'textarea', flex: 2.5 },
+        { key: 'after',  label: '수정 후',   type: 'textarea', flex: 2.5 },
+        { key: 'reason', label: '수정 이유', type: 'textarea', flex: 2 },
+      ], 3),
     ],
   },
   'E-2': {

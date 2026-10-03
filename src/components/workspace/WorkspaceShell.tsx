@@ -47,7 +47,7 @@ const EMPTY_OPINIONS: OpinionEntry[] = [];
 const PHASES = [
   { code: "T",  label: "팀 준비",   english: "PHASE 01 — Team Prep",     description: "협력적 수업설계를 위한 팀 비전을 설정하고, 역할과 일정을 합의합니다." },
   { code: "A",  label: "분석",      english: "PHASE 02 — Analysis",       description: "수업 주제를 선정하고 핵심 아이디어와 성취 기준을 분석합니다." },
-  { code: "Ds", label: "설계",      english: "PHASE 03 — Design",         description: "평가 계획, 문제 상황, 학습 활동 및 지원 도구를 설계합니다." },
+  { code: "Ds", label: "설계",      english: "PHASE 03 — Design",         description: "평가 계획, 문제 상황, 학습 활동, 지원 도구와 스캐폴딩을 설계합니다." },
   { code: "DI", label: "개발/실행", english: "PHASE 04 — Development",    description: "수업 자료를 개발하고 실제 수업을 실행하며 기록합니다." },
   { code: "E",  label: "평가/성찰", english: "PHASE 05 — Evaluation",     description: "수업과 설계 과정을 성찰하고 다음 설계를 위한 개선안을 도출합니다." },
 ];
@@ -86,7 +86,7 @@ const PHASE_SECTIONS: Record<string, PhaseSection[]> = {
       activities: [
         { code: "A-3", label: "성취 기준 분석", description: "팀원들은 선정된 주제와 관련된 교과별 성취기준을 분석하고, 핵심적으로 반영할 요소를 통합하며 재구조화한다." },
         { code: "A-4", label: "통합된 수업 목표", description: "팀원들은 재구조화한 성취기준을 결합하여 통합된 수업목표로 진술하고, 필요에 따라 평가의 준거가 될 성취수준으로 구체화한다." },
-        { code: "A-5", label: "수업 시뮬레이션", description: "팀 비전, 수업 기본정보, 핵심 아이디어, 성취기준, 분석 단계의 결과를 바탕으로 수업을 차시별로 시뮬레이션합니다." },
+        { code: "A-5", label: "초안 미리보기", description: "팀 비전, 수업 기본정보, 핵심 아이디어, 성취기준, 분석 단계의 결과를 바탕으로 차시별 수업 초안을 미리 그려 봅니다." },
       ],
     },
   ],
@@ -100,9 +100,10 @@ const PHASE_SECTIONS: Record<string, PhaseSection[]> = {
       ],
     },
     {
-      code: "Ds-b", label: "지원 도구 설계", tabLabel: "학습 지원 환경 설계",
+      code: "Ds-b", label: "지원 도구·스캐폴딩 설계", tabLabel: "학습 지원 환경 설계",
       activities: [
         { code: "Ds-4", label: "지원 도구 설계", description: "학습활동을 지원하는 도구들을 각각의 활동과 연결하고, 공동의 논의를 통해 조정한다." },
+        { code: "Ds-5", label: "스캐폴딩 설계", description: "각 활동에서 학생들에게 필요한 스캐폴딩을 나열하고, 팀원들의 논의를 통해 조정한다." },
       ],
     },
   ],
@@ -1550,7 +1551,7 @@ export default function WorkspaceShell({
         data.error ??
           (res.status === 504
             ? "응답 시간이 초과되었습니다. 차시 수를 줄이거나 채팅관리에서 더 빠른 모델로 바꿔 다시 시도하세요."
-            : "시뮬레이션 중 오류가 발생했습니다."),
+            : "초안 미리보기 중 오류가 발생했습니다."),
       );
     }
 
@@ -1571,7 +1572,7 @@ export default function WorkspaceShell({
     const ds3 = structuredInputsRef.current["Ds-3"] ?? {};
     const ds4 = structuredInputsRef.current["Ds-4"] ?? {};
     if ((hasRows(ds3.activities) || hasRows(ds4.support_tools)) &&
-        !(await showConfirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 시뮬레이션 결과로 바꿉니다.\n계속할까요?", { title: "", confirmText: "바꾸기" }))) {
+        !(await showConfirm("Ds-3 학습 활동과 Ds-4 지원 도구의 기존 내용을 초안 미리보기 결과로 바꿉니다.\n계속할까요?", { title: "", confirmText: "바꾸기" }))) {
       return null;
     }
 

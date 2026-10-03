@@ -6,7 +6,7 @@ import { showConfirm } from '@/components/ui/dialog';
 import { extractCodes } from '@/lib/standardCode';
 
 /**
- * 수업 시뮬레이션 보드.
+ * 초안 미리보기(A-5) 보드 — 차시별 수업 초안 카드.
  *
  * 차시별 카드(과목·수업 타이틀·학습목표·성취기준 코드·지도내용)를 한 줄에 3개씩 놓고,
  * 손잡이를 끌어 순서를 바꾼다. 차시 번호는 저장하지 않고 배열 순서로 매긴다
@@ -216,13 +216,13 @@ export default function SimulationBoard({
 
   const runSimulate = async () => {
     if (!onSimulate || loading) return;
-    if (sessions.length > 0 && !(await showConfirm('현재 차시 카드를 새 시뮬레이션 결과로 바꿉니다.\n계속할까요?', { title: '', confirmText: '바꾸기' }))) return;
+    if (sessions.length > 0 && !(await showConfirm('현재 차시 카드를 새 초안으로 바꿉니다.\n계속할까요?', { title: '', confirmText: '바꾸기' }))) return;
     setLoading(true);
     setError('');
     try {
       await onSimulate();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '시뮬레이션 중 오류가 발생했습니다.');
+      setError(e instanceof Error ? e.message : '초안 미리보기 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -273,7 +273,7 @@ export default function SimulationBoard({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
-            {loading ? '시뮬레이션 중…' : sessions.length > 0 ? '다시 시뮬레이션' : '시뮬레이션 생성'}
+            {loading ? '초안 만드는 중…' : sessions.length > 0 ? '초안 다시 만들기' : '초안 만들기'}
           </button>
         </div>
       )}
@@ -281,7 +281,7 @@ export default function SimulationBoard({
 
       {sessions.length === 0 && (
         <div className="mb-3 rounded-xl border border-dashed border-[#dde3eb] px-4 py-8 text-center text-[14px] text-[#adb2ba]">
-          아직 차시 카드가 없습니다. 시뮬레이션을 생성하거나 직접 추가하세요.
+          아직 차시 카드가 없습니다. 초안을 만들거나 직접 추가하세요.
         </div>
       )}
 

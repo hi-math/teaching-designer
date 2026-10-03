@@ -62,8 +62,21 @@ type CardContent = {
   problem_situations?: Array<{ situation: string; decision: string }>;
   activities?: Array<{ period: string; activity: string; linked_standards: string[] | string }>;
   support_tools?: Array<{ stage: string; tool: string; purpose: string; related_period: string }>;
+  ai_agency?: Array<{ activity: string; student: string; ai: string; teacher: string }>;
+  difficulties?: Array<{ activity: string; difficulty: string; scaffold: string }>;
+  support_level?: Array<{ support: string; necessary: string; overreach: string; adjust: string }>;
+  support_plan?: Array<{ stage: string; target: string; method: string; timing: string }>;
+  scaffold_summary?: string;
   dev_materials?: Array<{ member: string; material: string; content: string; reviewer: string }>;
+  exec_mode?: string;
+  exec_roles?: Array<{ role: string; teacher: string; detail: string }>;
   exec_schedule?: Array<{ period: string; date: string; time: string; place: string; teacher: string }>;
+  episodes?: Array<{ when: string; episode: string; activity: string; method: string; recorder: string }>;
+  record_types?: string[];
+  observations?: string;
+  student_evidence?: Array<{ achieved: string; struggles: string; unexpected: string }>;
+  gap_improvements?: Array<{ cause: string; idea: string }>;
+  design_revisions?: Array<{ item: string; before: string; after: string; reason: string }>;
   design_rubric?: Array<{ area: string; question: string; score: string }>;
   reflection_note?: string;
 };
@@ -163,6 +176,13 @@ function hasField(c: CardContent | undefined, ...fields: string[]): boolean {
     if (Array.isArray(v)) return v.length > 0;
     return v != null && String(v).trim().length > 0;
   });
+}
+
+// 표에서 내용이 하나도 없는 행은 뺀다 (카드 표는 빈 기본 행이 함께 저장될 수 있다)
+function filledRows<T extends object>(rows: T[] | undefined): T[] {
+  return (rows ?? []).filter((r) =>
+    Object.entries(r).some(([k, v]) => k !== "id" && String(v ?? "").trim()),
+  );
 }
 
 // 프리텍스트 폴백
@@ -553,9 +573,9 @@ function renderChapterA(d: RenderData): string {
       s24 += textFallback(A22);
     }
 
-    // 2.5 수업 시뮬레이션
+    // 2.5 초안 미리보기
     const A5 = c["A-5"];
-    let s25 = sub("2.5 수업 시뮬레이션");
+    let s25 = sub("2.5 초안 미리보기 (A-5)");
     if (hasField(A5, "sessions")) {
       s25 += table(
         ["차시", "과목", "수업 타이틀", "학습목표", "성취기준", "지도내용"],
@@ -664,10 +684,55 @@ function renderChapterDs(d: RenderData): string {
     } else {
       s34 += textFallback(Ds21);
     }
+    const agency = filledRows(Ds21?.ai_agency);
+    if (agency.length > 0) {
+      s34 += `<h3 class="sub">3.4.1 Human-AI Agency 점검</h3>`;
+      s34 += table(
+        ["활동 / 도구", "학생이 직접 할 일", "AI가 지원할 일", "교사가 확인·개입할 일"],
+        agency.map((r) => [r.activity, r.student, r.ai, r.teacher]),
+        { colWidthsMm: [31, 46, 46, 47] }
+      );
+    }
+
+    // 3.5 스캐폴딩
+    const Ds5 = c["Ds-5"];
+    let s35 = sub("3.5 스캐폴딩 설계 (Ds-5)");
+    const difficulties = filledRows(Ds5?.difficulties);
+    const supportLevel = filledRows(Ds5?.support_level);
+    const supportPlan = filledRows(Ds5?.support_plan);
+    if (difficulties.length || supportLevel.length || supportPlan.length || Ds5?.scaffold_summary?.trim()) {
+      if (difficulties.length) {
+        s35 += `<h3 class="sub">3.5.1 활동별 어려움 예상</h3>`;
+        s35 += table(
+          ["활동", "학생의 어려움 예상 지점", "필요한 스캐폴딩"],
+          difficulties.map((r) => [r.activity, r.difficulty, r.scaffold]),
+          { colWidthsMm: [35, 70, 65] }
+        );
+      }
+      if (supportLevel.length) {
+        s35 += `<h3 class="sub">3.5.2 지원 수준 검토</h3>`;
+        s35 += table(
+          ["지원 내용", "없으면 수행이 어려운가?", "있으면 스스로 생각하지 않아도 되는가?", "조정 의견"],
+          supportLevel.map((r) => [r.support, r.necessary, r.overreach, r.adjust]),
+          { colWidthsMm: [42, 42, 44, 42] }
+        );
+      }
+      if (supportPlan.length) {
+        s35 += `<h3 class="sub">3.5.3 지원 방안</h3>`;
+        s35 += table(
+          ["활동 단계", "대상", "지원 방법", "제공 시점"],
+          supportPlan.map((r) => [r.stage, r.target, r.method, r.timing]),
+          { colWidthsMm: [32, 28, 80, 30] }
+        );
+      }
+      if (Ds5?.scaffold_summary?.trim()) s35 += emphasisBox("스캐폴딩 핵심 정리", Ds5.scaffold_summary);
+    } else {
+      s35 += textFallback(Ds5);
+    }
 
     return `<section class="chapter" data-num="3">
   <div class="chapter-header">3. 설계 (Ds)</div>
-  ${s31}<div class="page-break"></div>${s32}${s33}${s34}
+  ${s31}<div class="page-break"></div>${s32}${s33}${s34}${s35}
 </section>`;
   } catch (e) {
     console.error("[pdf/Ds]", e);
@@ -693,10 +758,23 @@ function renderChapterDI(d: RenderData): string {
       s41 += textFallback(DI11);
     }
 
-    // 4.2 수업 기록 및 실행 일정 — 5개 열 모두 가운데
+    // 4.2 수업 실행·기록 — 실행 방식·역할 → 일정 → 에피소드·기록 유형·관찰
     const DI21 = c["DI-2"];
-    let s42 = sub("4.2 수업 기록 및 실행 일정 (DI-2)");
+    let s42 = sub("4.2 수업 실행·기록 (DI-2)");
+    const execRoles = filledRows(DI21?.exec_roles);
+    if (DI21?.exec_mode || execRoles.length) {
+      s42 += `<h3 class="sub">4.2.1 실행 방식과 역할</h3>`;
+      if (DI21?.exec_mode) s42 += `<p>실행 방식: <strong>${esc(DI21.exec_mode)}</strong></p>`;
+      if (execRoles.length) {
+        s42 += table(
+          ["역할", "담당 교사", "주요 내용"],
+          execRoles.map((r) => [r.role, r.teacher, r.detail]),
+          { colWidthsMm: [40, 30, 100], centerCols: [1] }
+        );
+      }
+    }
     if (hasField(DI21, "exec_schedule")) {
+      s42 += `<h3 class="sub">4.2.2 수업 실행 일정</h3>`;
       s42 += table(
         ["차시", "날짜", "시간", "장소", "담당 교사"],
         (DI21!.exec_schedule ?? []).map((r) => [
@@ -708,7 +786,21 @@ function renderChapterDI(d: RenderData): string {
         ]),
         { colWidthsMm: [15, 22, 18, 65, 50], centerCols: [0, 1, 2, 3, 4] }
       );
-    } else {
+    }
+    const episodes = filledRows(DI21?.episodes);
+    if (episodes.length) {
+      s42 += `<h3 class="sub">4.2.3 수업 주요 상황·에피소드</h3>`;
+      s42 += table(
+        ["시간/차시", "상황 / 에피소드", "관련 활동", "기록 방식", "기록자"],
+        episodes.map((r) => [r.when, r.episode, r.activity, r.method, r.recorder]),
+        { colWidthsMm: [18, 80, 30, 22, 20], centerCols: [0, 3, 4] }
+      );
+    }
+    if (DI21?.record_types?.length) {
+      s42 += `<p>공유한 기록의 유형: ${esc(DI21.record_types.join(", "))}</p>`;
+    }
+    if (DI21?.observations?.trim()) s42 += emphasisBox("주요 관찰 및 공유 내용", DI21.observations);
+    if (!DI21?.exec_mode && !execRoles.length && !hasField(DI21, "exec_schedule") && !episodes.length && !DI21?.observations?.trim()) {
       s42 += textFallback(DI21);
     }
 
@@ -726,8 +818,8 @@ function renderChapterDI(d: RenderData): string {
 function renderChapterE(d: RenderData): string {
   try {
     const c = d.contents;
-    // E-2: 수업설계 과정 성찰 (design_rubric)
-    // E-1: 수업 성찰 (reflection_note)
+    // E-1: 수업 성찰과 공동 개선 (학생 자료 분석 · 간극과 개선 · 설계안 수정)
+    // E-2: 수업설계 과정 성찰 (design_rubric) — 예전 E-1 카드에 같은 표가 있던 수업도 그대로 보여 준다
     const E21 = c["E-2"];
     const E11 = c["E-1"];
 
@@ -741,7 +833,42 @@ function renderChapterE(d: RenderData): string {
       "전체 항목의 60% 미만이 3~4점이면 Rework(전면 재설계)를 권고한다.",
     ];
 
-    let s51 = sub("5.1 협력적 수업설계 종합 평가 체크리스트");
+    // 5.1 수업 성찰과 공동 개선 (E-1)
+    let s50 = sub("5.1 수업 성찰과 공동 개선 (E-1)");
+    const evidence = filledRows(E11?.student_evidence);
+    const gaps = filledRows(E11?.gap_improvements);
+    const revisions = filledRows(E11?.design_revisions);
+    if (evidence.length || gaps.length || revisions.length) {
+      if (evidence.length) {
+        s50 += `<h3 class="sub">5.1.1 학생 자료 분석</h3>`;
+        s50 += table(
+          ["목표에 잘 도달한 사례", "자주 보인 어려움 / 오개념", "예상 밖의 창의적 반응"],
+          evidence.map((r) => [r.achieved, r.struggles, r.unexpected]),
+          { colWidthsMm: [57, 57, 56] }
+        );
+      }
+      if (gaps.length) {
+        s50 += `<h3 class="sub">5.1.2 간극의 원인과 개선 아이디어</h3>`;
+        s50 += table(
+          ["간극의 원인 분석", "개선 아이디어 / 대안"],
+          gaps.map((r) => [r.cause, r.idea]),
+          { colWidthsMm: [85, 85] }
+        );
+      }
+      if (revisions.length) {
+        s50 += `<h3 class="sub">5.1.3 설계안 수정 기록</h3>`;
+        s50 += table(
+          ["수정 항목", "수정 전", "수정 후", "수정 이유"],
+          revisions.map((r) => [r.item, r.before, r.after, r.reason]),
+          { colWidthsMm: [30, 48, 48, 44] }
+        );
+      }
+    } else {
+      s50 += `<p class="empty">(입력된 내용이 없습니다.)</p>`;
+    }
+
+    let s51 = sub("5.2 협력적 수업설계 종합 평가 체크리스트 (E-2)");
+    s51 += `<p>협력적 수업설계 전 과정의 질을 점검하기 위해 4점 척도 체크리스트를 사용한다. 4=매우 잘 됨, 3=대체로 잘 됨, 2=다소 미흡, 1=개선 필요.</p>`;
     if (designRubric.length > 0) {
       const checkRows = designRubric.map((item) => {
         const score = parseInt(String(item.score), 10) || 0;
@@ -774,15 +901,14 @@ function renderChapterE(d: RenderData): string {
       s51 += textFallback(E21 ?? E11);
     }
 
-    const s52 = `${sub("5.2 체크리스트 활용 안내")}${bullets(FIXED_GUIDANCE)}`;
+    const s52 = `${sub("5.3 체크리스트 활용 안내")}${bullets(FIXED_GUIDANCE)}`;
     const note = reflectionNote
       ? emphasisBox("성찰 메모", reflectionNote)
       : "";
 
     return `<section class="chapter" data-num="5">
   <div class="chapter-header">5. 평가·성찰 (E)</div>
-  <p>협력적 수업설계 전 과정의 질을 점검하기 위해 4점 척도 체크리스트를 사용한다. 4=매우 잘 됨, 3=대체로 잘 됨, 2=다소 미흡, 1=개선 필요.</p>
-  ${s51}${s52}${note}
+  ${s50}${s51}${s52}${note}
 </section>`;
   } catch (e) {
     console.error("[pdf/E]", e);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import type { CardSchema, FieldDef, BulletsFieldDef, TableFieldDef, TableColumn } from './cardSchemas';
+import type { CardSchema, FieldDef, BulletsFieldDef, TableFieldDef, TableColumn, ChoiceFieldDef } from './cardSchemas';
 
 // ─── Auto-resize textarea ─────────────────────────────────────────────
 
@@ -360,6 +360,71 @@ function TableInput({
   );
 }
 
+// ─── Choice field (보기 중 하나 / 여러 개 고르기) ─────────────────────
+
+function ChoiceInput({
+  field, value, onChange, locked,
+}: {
+  field: ChoiceFieldDef;
+  value: unknown;
+  onChange: (v: string | string[]) => void;
+  locked: boolean;
+}) {
+  const selected: string[] = field.multiple
+    ? (Array.isArray(value) ? (value as string[]) : [])
+    : (typeof value === 'string' && value ? [value] : []);
+
+  const toggle = (option: string) => {
+    if (field.multiple) {
+      onChange(selected.includes(option) ? selected.filter(o => o !== option) : [...selected, option]);
+    } else {
+      // 하나만 고르는 칸은 같은 보기를 다시 누르면 선택을 지운다
+      onChange(selected.includes(option) ? '' : option);
+    }
+  };
+
+  return (
+    <div
+      role={field.multiple ? 'group' : 'radiogroup'}
+      aria-label={field.label}
+      className="flex flex-wrap gap-2"
+      onClick={e => e.stopPropagation()}
+    >
+      {field.options.map(option => {
+        const on = selected.includes(option);
+        return (
+          <button
+            key={option}
+            type="button"
+            role={field.multiple ? 'checkbox' : 'radio'}
+            aria-checked={on}
+            onClick={() => toggle(option)}
+            disabled={locked}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors disabled:opacity-50 ${
+              on
+                ? 'border-[#D1260F] bg-[#FFF1ED] text-[#D1260F]'
+                : 'border-[#e2e4ea] bg-white text-[#5a6066] hover:border-[#F5B8A8] hover:bg-[#FFFAF8]'
+            }`}
+          >
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center border ${field.multiple ? 'rounded' : 'rounded-full'} ${
+                on ? 'border-[#D1260F] bg-[#D1260F] text-white' : 'border-[#c3c8d0] bg-white'
+              }`}
+            >
+              {on && (
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Single field renderer ─────────────────────────────────────────────
 
 function FieldRenderer({
@@ -398,6 +463,15 @@ function FieldRenderer({
           onChange={onChange as (v: Record<string, string>[]) => void}
           locked={locked}
         />
+      </div>
+    );
+  }
+
+  if (field.type === 'choice') {
+    return (
+      <div>
+        {labelEl}
+        <ChoiceInput field={field} value={value} onChange={onChange} locked={locked} />
       </div>
     );
   }

@@ -9,7 +9,7 @@ import { LLM_MODELS, type LlmModelId } from "@/lib/llmModels";
  * 채팅관리 모달 (소유자 전용)
  *  1. 팀 채팅 기록 다운받기
  *  2. AI 채팅 기록 다운받기 — ai_messages 는 RLS 상 본인 것만 읽을 수 있다
- *  3. LLM 모델 설정 — 이 수업의 AI 채팅·수업 시뮬레이션에 쓰인다
+ *  3. LLM 모델 설정 — 이 수업의 AI 채팅·초안 미리보기에 쓰인다
  */
 
 function stamp(iso: string) {
@@ -170,7 +170,7 @@ export default function ChatManageModal({
           <div className="py-4">
             <p className="text-[15px] font-semibold text-[#2d3339]">LLM 모델 설정하기</p>
             <p className="mt-0.5 mb-3 text-[13px] leading-relaxed text-[#757b82]">
-              이 수업의 Minerva AI 채팅과 수업 시뮬레이션에 쓰는 모델입니다.
+              이 수업의 Minerva AI 채팅과 초안 미리보기에 쓰는 모델입니다.
             </p>
             <select
               value={model}

@@ -407,15 +407,19 @@ function ActivityCard({
               onStatusChange(act.code, st === "completed" ? "active" : "completed");
             }}
             title={st === "completed" ? "다시 누르면 반영을 취소합니다" : "카드 내용을 반영하고 완료로 표시합니다"}
-            className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-semibold transition ${
+            className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-[13.5px] font-bold shadow-sm transition ${
               st === "completed"
-                ? "bg-orange-200 text-orange-800"
-                : "bg-orange-50 text-orange-700 hover:bg-orange-100"
+                ? "border-orange-500 bg-orange-500 text-white hover:border-orange-600 hover:bg-orange-600"
+                : "border-orange-400 bg-orange-50 text-orange-700 hover:border-orange-500 hover:bg-orange-100"
             }`}
           >
-            {st === "completed" && (
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {st === "completed" ? (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
             반영하기

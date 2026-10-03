@@ -302,10 +302,9 @@ function Explorer({ summary, data: client, layout: layoutClient, size }: Loaded 
     };
   }, []);
 
-  // URL 동기화 — 대시보드의 view 파라미터는 유지한다
+  // URL 동기화 — 탐색기와 무관한 파라미터는 그대로 둔다
   const syncUrl = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
-    params.set("view", "ideation");
     writeViewState(params, state, dv);
     const url = `${window.location.pathname}?${params.toString()}`;
     if (url !== `${window.location.pathname}${window.location.search}`) {

@@ -1,14 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import DashboardShell, { type View } from "@/components/dashboard/DashboardShell";
+import DashboardShell from "@/components/dashboard/DashboardShell";
 
-const VIEWS: View[] = ["recent", "all", "mine", "shared", "ongoing", "ended", "trash", "ideation"];
-
-export default async function Dashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ view?: string | string[] }>;
-}) {
+export default async function Dashboard() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,8 +27,5 @@ export default async function Dashboard({
       null,
   };
 
-  const { view } = await searchParams;
-  const initialView = VIEWS.find((v) => v === view);
-
-  return <DashboardShell profile={profile} initialView={initialView} />;
+  return <DashboardShell profile={profile} />;
 }

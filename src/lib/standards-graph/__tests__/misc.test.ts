@@ -80,13 +80,13 @@ describe("URL 상태", () => {
     s.filters.minimumWeight = 2;
     s.hops = 2;
     s.comparisonNodeIds = ["[9국01-09]", "[9수01-01]"];
-    const params = new URLSearchParams("view=ideation");
+    const params = new URLSearchParams("other=keep");
     writeViewState(params, s, index.summary.datasetVersion);
     const back = readViewState(new URLSearchParams(params.toString()), index, index.summary.datasetVersion, false);
     expect(back.missing).toEqual([]);
     expect(back.versionChanged).toBeNull();
     expect(back.state).toEqual(s);
-    expect(params.get("view")).toBe("ideation");
+    expect(params.get("other")).toBe("keep");
   });
 
   it("없는 code 는 기본 화면으로 복구하며 알린다", () => {

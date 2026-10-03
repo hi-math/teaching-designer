@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { ProjectView as View } from "./DashboardShell";
+import type { View } from "./DashboardShell";
 
 type Item = {
   id: string;

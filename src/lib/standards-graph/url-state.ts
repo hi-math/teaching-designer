@@ -12,7 +12,7 @@ import {
   type Weight,
 } from "./types";
 
-/** 탐색기가 쓰는 query key — 대시보드의 다른 key(view 등)는 건드리지 않는다 */
+/** 탐색기가 쓰는 query key — 그 밖의 key 는 건드리지 않는다 */
 export const URL_KEYS = ["mode", "focus", "subject", "domain", "types", "w", "rel", "hop", "cmp", "hw", "hx", "dv"] as const;
 
 const MODES: GraphMode[] = ["overview", "focus", "hierarchy", "table"];

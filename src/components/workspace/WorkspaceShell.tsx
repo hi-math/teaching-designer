@@ -1560,7 +1560,19 @@ export default function WorkspaceShell({
       .map((s) => ({ id: newSessionId(), ...s }));
     // 요청도 함께 남겨 팀원이 어떤 요청으로 만든 초안인지 보고, 다음에 다시 만들 때 이어 쓴다
     handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions, draft_request: request });
-  }, [totalSessions, relatedSubjects, targetGrade, llmModel, handleStructuredChange]);
+
+    // 추가 요청으로 차시 수가 바뀌면 수업 기본정보의 총 차시도 맞춘다 (팀원에게는 lessons 실시간 변경으로 전달)
+    if (typeof data.totalSessions !== "number" || data.totalSessions === totalSessions) return null;
+    const next: number = data.totalSessions;
+    const { data: updated, error } = await createClient()
+      .from("lessons").update({ total_sessions: next }).eq("id", lessonId).select("id");
+    if (error || !updated?.length) {
+      if (error) console.error("[simulate] total_sessions save error:", error.message);
+      return `추가 요청에 따라 ${next}차시로 만들었지만 총 차시를 바꾸지 못했습니다. 수업 기본정보에서 직접 바꿔 주세요.`;
+    }
+    setTotalSessions(next);
+    return `추가 요청에 따라 수업 기본정보의 총 차시를 ${totalSessions != null ? `${totalSessions}차시에서 ` : ""}${next}차시로 바꿨습니다.`;
+  }, [lessonId, totalSessions, relatedSubjects, targetGrade, llmModel, handleStructuredChange]);
 
   // ── 수업 시뮬레이션 → 설계(Ds-3 학습 활동 · Ds-4 지원 도구) 반영 ──
   // 표는 차시 수만큼 행을 새로 만들어 채운다 — 기존 행 수보다 차시가 많으면 그만큼 늘어난다.

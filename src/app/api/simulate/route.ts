@@ -29,6 +29,7 @@ interface SimulateRequest {
 }
 
 const REQUEST_MAX = 1000;
+const MAX_SESSIONS = 30;
 
 export type SimulatedSession = {
   subject: string;
@@ -119,6 +120,7 @@ function buildPrompt(body: SimulateRequest, sessions: number, request: string): 
       request,
       '</request>',
       '- 이 요청을 가장 먼저 반영합니다. 위 기본 지침과 어긋나면 추가 요청을 따릅니다 (차시 수, 교과 배분, 활동 방식 포함).',
+      `- 요청이 총 차시 수를 정하면 기본정보의 ${sessions}차시 대신 요청한 수만큼 차시를 만듭니다 (최대 ${MAX_SESSIONS}차시). 요청이 차시 수를 말하지 않으면 정확히 ${sessions}차시입니다.`,
       '- 요청이 다루지 않는 부분만 기본 지침과 설계 내용을 따릅니다.',
       '- 요청을 반영한 흔적이 해당 차시의 타이틀·학습목표·지도내용에 구체적으로 드러나게 씁니다.',
     );
@@ -139,7 +141,7 @@ export async function POST(req: Request) {
 
   const body = (await req.json()) as SimulateRequest;
   const requested = Number(body.totalSessions);
-  const sessions = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 30) : 6;
+  const sessions = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), MAX_SESSIONS) : 6;
   const request = typeof body.request === 'string' ? body.request.trim().slice(0, REQUEST_MAX) : '';
 
   try {
@@ -163,7 +165,7 @@ export async function POST(req: Request) {
       return Response.json({ error: '차시 초안을 만들지 못했습니다.' }, { status: 502 });
     }
 
-    const sessionsOut: SimulatedSession[] = raw.map((s) => ({
+    const sessionsOut: SimulatedSession[] = raw.slice(0, MAX_SESSIONS).map((s) => ({
       subject: String(s?.subject ?? ''),
       title: String(s?.title ?? ''),
       standard: codesOnly(String(s?.standard ?? '')),
@@ -174,7 +176,9 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join('\n'),
     }));
-    return Response.json({ sessions: sessionsOut });
+    // 추가 요청으로 차시 수가 바뀌었으면 알려 준다 — 클라이언트가 수업 기본정보의 총 차시를 맞춘다
+    const changed = request && sessionsOut.length !== sessions;
+    return Response.json(changed ? { sessions: sessionsOut, totalSessions: sessionsOut.length } : { sessions: sessionsOut });
   } catch (err) {
     console.error('[simulate] error:', err);
     return Response.json({ error: describeApiError(err, '초안 미리보기 중 오류가 발생했습니다.') }, { status: 500 });

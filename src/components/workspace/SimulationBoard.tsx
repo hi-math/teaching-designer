@@ -201,6 +201,9 @@ function DraftRequestDialog({
         <p className="mt-1 break-keep text-[13px] leading-relaxed text-[#5a6066]">
           지금까지의 팀 준비·분석 내용으로 차시별 초안을 만듭니다. 바라는 점이 있으면 적어 주세요.
           적은 내용을 가장 우선해 반영합니다.
+          <span className="mt-1 block text-[12px] text-[#757b82]">
+            요청에서 차시 수를 바꾸면 수업 기본정보의 총 차시도 그 수로 바뀝니다.
+          </span>
         </p>
 
         <label className="mt-4 block text-[12px] font-semibold text-[#757b82]">
@@ -280,13 +283,15 @@ export default function SimulationBoard({
   onChange: (fields: Record<string, unknown>) => void;
   locked: boolean;
   /** 지금까지의 설계 내용으로 차시 초안을 새로 만든다. request 는 교사 팀의 추가 요청(우선 반영) */
-  onSimulate?: (request: string) => Promise<void>;
+  onSimulate?: (request: string) => Promise<string | null>;
   /** 차시 카드를 Ds-3 학습 활동·Ds-4 지원 도구에 옮긴다. 결과 안내 문구를 돌려준다(취소 시 null). */
   onApplyToDesign?: () => Promise<string | null>;
 }) {
   const sessions = readSessions(value);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // 생성 뒤 알릴 내용 — 추가 요청으로 수업 기본정보의 총 차시가 바뀐 경우 등
+  const [notice, setNotice] = useState('');
   const [applying, setApplying] = useState(false);
   const [applyMsg, setApplyMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 손잡이를 누른 카드만 draggable 로 만든다. 카드 전체를 draggable 로 두면
@@ -351,8 +356,9 @@ export default function SimulationBoard({
     if (!onSimulate || loading) return;
     setLoading(true);
     setError('');
+    setNotice('');
     try {
-      await onSimulate(request);
+      setNotice((await onSimulate(request)) ?? '');
     } catch (e) {
       setError(e instanceof Error ? e.message : '초안 미리보기 중 오류가 발생했습니다.');
     } finally {
@@ -423,6 +429,7 @@ export default function SimulationBoard({
         />
       )}
       {error && <p className="mb-3 text-[13px] text-red-500">{error}</p>}
+      {notice && <p className="mb-3 text-right text-[13px] text-orange-600">{notice}</p>}
 
       {sessions.length === 0 && (
         <div className="mb-3 rounded-xl border border-dashed border-[#dde3eb] px-4 py-8 text-center text-[14px] text-[#adb2ba]">

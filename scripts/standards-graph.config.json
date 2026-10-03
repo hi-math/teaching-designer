@@ -1,0 +1,9 @@
+{
+  "input": {
+    "nodes": "C:/Users/PC/Documents/Codex/2026-10-02/new-chat/outputs/standards_middle_nodes.json",
+    "edges": "C:/Users/PC/Documents/Codex/2026-10-02/new-chat/outputs/standards_middle_edges.json",
+    "original": "public/standard/standards_middle.json"
+  },
+  "outputDir": "public/standard/graph",
+  "publicBasePath": "/standard/graph"
+}

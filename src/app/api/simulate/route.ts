@@ -1,9 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } from '@/lib/llmJson';
 import { resolveLlmModel } from '@/lib/llmModels';
 import { bracketCode, extractCodes } from '@/lib/standardCode';
 
 // A-5 수업 시뮬레이션 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
-// 채팅과 달리 결과를 카드에 바로 넣어야 하므로, 도구 호출로 JSON 을 강제한다.
+// 채팅과 달리 결과를 카드에 바로 넣어야 하므로, 구조화 출력으로 JSON 을 받는다.
+
+// 생각이 항상 켜진 모델(Fable 5.1)로 차시가 많으면 1분을 넘길 수 있다
+export const maxDuration = 300;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -30,33 +34,32 @@ export type SimulatedSession = {
   content: string;
 };
 
-const SESSION_TOOL: Anthropic.Tool = {
-  name: 'submit_sessions',
-  description: '차시별 수업 시뮬레이션 결과를 제출한다. 배열 순서가 곧 차시 순서다.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      sessions: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            subject:   { type: 'string', description: '이 차시를 맡는 교과 하나. 차시가 교과 수보다 부족할 때만 "국어·사회"처럼 두 교과를 병기' },
-            title:     { type: 'string', description: '이 차시의 수업 타이틀을 직접 지어 넣는다. 차시 내용을 압축한 20자 내외의 짧은 제목' },
-            objective: { type: 'string', description: '학습목표 한 문장 ("~할 수 있다" 형식)' },
-            standard:  { type: 'string', description: '이 차시에서 다루는 성취기준의 코드만. 내용 없이 "[9수01-02]" 형식, 여러 개면 ", "로 구분' },
-            content: {
-              type: 'array',
-              description: '지도내용: 개조식 3~4개 항목. 각 항목은 한 줄, "~하기"·"~ 탐구" 같은 명사형 종결',
-              items: { type: 'string' },
-            },
+const SESSIONS_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    sessions: {
+      type: 'array',
+      description: '차시별 수업 시뮬레이션 결과. 배열 순서가 곧 차시 순서다.',
+      items: {
+        type: 'object',
+        properties: {
+          subject:   { type: 'string', description: '이 차시를 맡는 교과 하나. 차시가 교과 수보다 부족할 때만 "국어·사회"처럼 두 교과를 병기' },
+          title:     { type: 'string', description: '이 차시의 수업 타이틀을 직접 지어 넣는다. 차시 내용을 압축한 20자 내외의 짧은 제목' },
+          objective: { type: 'string', description: '학습목표 한 문장 ("~할 수 있다" 형식)' },
+          standard:  { type: 'string', description: '이 차시에서 다루는 성취기준의 코드만. 내용 없이 "[9수01-02]" 형식, 여러 개면 ", "로 구분' },
+          content: {
+            type: 'array',
+            description: '지도내용: 개조식 3~4개 항목. 각 항목은 한 줄, "~하기"·"~ 탐구" 같은 명사형 종결',
+            items: { type: 'string' },
           },
-          required: ['subject', 'title', 'objective', 'standard', 'content'],
         },
+        required: ['subject', 'title', 'objective', 'standard', 'content'],
+        additionalProperties: false,
       },
     },
-    required: ['sessions'],
   },
+  required: ['sessions'],
+  additionalProperties: false,
 };
 
 const LABELS: Record<string, string> = {
@@ -101,7 +104,6 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
     '- 흐름이 팀 비전과 통합 수업 목표로 수렴하도록 배열합니다.',
     '- 한 차시에는 가급적 한 교과만 배정합니다. 차시 수가 관련 교과 수보다 적어 모든 교과를 담기 어려울 때만 한 차시에 두 교과를 함께 넣습니다.',
     '- 관련 교과가 여럿이면 교과별 차시가 고르게 돌아가도록 배열하고, 교과 간 연결은 앞뒤 차시의 흐름으로 드러냅니다.',
-    '- submit_sessions 도구로만 답합니다.',
   );
   return lines.join('\n');
 }
@@ -122,36 +124,38 @@ export async function POST(req: Request) {
   const sessions = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 30) : 6;
 
   try {
-    const res = await client.messages.create({
+    const result = await requestJson(client, {
       model: resolveLlmModel(body.model),
-      max_tokens: 8000,
+      maxTokens: 16000,
       system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.',
-      tools: [SESSION_TOOL],
-      tool_choice: { type: 'tool', name: SESSION_TOOL.name },
-      messages: [{ role: 'user', content: buildPrompt(body, sessions) }],
+      prompt: buildPrompt(body, sessions),
+      schema: SESSIONS_SCHEMA,
     });
+    if (!result.ok) {
+      console.error('[simulate] no result:', result.reason);
+      return Response.json({ error: describeJsonFailure(result.reason, '시뮬레이션 결과를 만들지 못했습니다.') }, { status: 502 });
+    }
 
-    const block = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     type RawSession = Partial<Omit<SimulatedSession, 'content'>> & { content?: string[] | string };
-    const raw = (block?.input as { sessions?: RawSession[] } | undefined)?.sessions;
+    const raw = (result.value as { sessions?: RawSession[] } | null)?.sessions;
     if (!Array.isArray(raw) || raw.length === 0) {
       return Response.json({ error: '시뮬레이션 결과를 만들지 못했습니다.' }, { status: 502 });
     }
 
-    const result: SimulatedSession[] = raw.map((s) => ({
-      subject: String(s.subject ?? ''),
-      title: String(s.title ?? ''),
-      standard: codesOnly(String(s.standard ?? '')),
-      objective: String(s.objective ?? ''),
+    const sessionsOut: SimulatedSession[] = raw.map((s) => ({
+      subject: String(s?.subject ?? ''),
+      title: String(s?.title ?? ''),
+      standard: codesOnly(String(s?.standard ?? '')),
+      objective: String(s?.objective ?? ''),
       // 지도내용은 줄마다 항목 하나 — 배열로 오지 않아도 받아 준다
-      content: (Array.isArray(s.content) ? s.content : String(s.content ?? '').split('\n'))
+      content: (Array.isArray(s?.content) ? s.content : String(s?.content ?? '').split('\n'))
         .map((l) => String(l).replace(/^\s*(?:[-•·*]|\d+[.)])\s*/, '').trim())
         .filter(Boolean)
         .join('\n'),
     }));
-    return Response.json({ sessions: result });
+    return Response.json({ sessions: sessionsOut });
   } catch (err) {
     console.error('[simulate] error:', err);
-    return Response.json({ error: '시뮬레이션 중 오류가 발생했습니다.' }, { status: 500 });
+    return Response.json({ error: describeApiError(err, '시뮬레이션 중 오류가 발생했습니다.') }, { status: 500 });
   }
 }

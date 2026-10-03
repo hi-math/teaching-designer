@@ -375,7 +375,8 @@ export default function SimulationBoard({
                           {s.subject || '과목'}
                         </span>
                         <span className="shrink-0 font-bold text-[#adb2ba]">:</span>
-                        <span className={`min-w-0 flex-1 text-[15px] font-bold leading-snug ${s.title ? 'text-[#2d3339]' : 'text-[#adb2ba]'}`}>
+                        {/* 남은 폭이 좁으면 타이틀을 다음 줄로 내린다 — basis 없이 flex-1 이면 한 글자씩 세로로 쌓인다 */}
+                        <span className={`min-w-0 flex-[1_1_8rem] break-keep text-[15px] font-bold leading-snug [overflow-wrap:anywhere] ${s.title ? 'text-[#2d3339]' : 'text-[#adb2ba]'}`}>
                           {s.title || '수업 타이틀'}
                         </span>
                       </>

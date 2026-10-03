@@ -1545,7 +1545,13 @@ export default function WorkspaceShell({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !Array.isArray(data.sessions)) {
-      throw new Error(data.error ?? "시뮬레이션 중 오류가 발생했습니다.");
+      // 함수 시간 초과(504)는 JSON 없이 끊기므로 이유를 따로 안내한다
+      throw new Error(
+        data.error ??
+          (res.status === 504
+            ? "응답 시간이 초과되었습니다. 차시 수를 줄이거나 채팅관리에서 더 빠른 모델로 바꿔 다시 시도하세요."
+            : "시뮬레이션 중 오류가 발생했습니다."),
+      );
     }
 
     const sessions = (data.sessions as { subject: string; title: string; standard: string; objective: string; content: string }[])

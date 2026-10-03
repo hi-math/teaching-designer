@@ -21,6 +21,7 @@ import { bracketCode, fixDoubleBrackets } from "@/lib/standardCode";
 import { DEFAULT_LLM_MODEL, LLM_MODEL_ROW, resolveLlmModel, type LlmModelId } from "@/lib/llmModels";
 import { newSessionId, standardCodesOnly, contentBullets, type SimSession } from "@/components/workspace/SimulationBoard";
 import WorkModeSwitch, { type WorkMode } from "@/components/workspace/WorkModeSwitch";
+import { localWriteKey, readRemoteContent, stableStringify } from "@/components/workspace/remoteContent";
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
 
 // 아이디어 도출(성취기준 연결 탐색기)은 처음 열 때 코드를 받는다
@@ -1075,32 +1076,55 @@ export default function WorkspaceShell({
         .subscribe();
       workspaceChannelRef.current = workspaceChannel;
 
-      // Realtime: 다른 참여자의 activity_contents 텍스트 변경 실시간 반영
+      // Realtime: 다른 참여자의 activity_contents 변경(카드 입력·완료 상태·선택 항목) 실시간 반영
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const handleContentChange = (payload: any) => {
         const row = payload.new as { lesson_id: string; activity_code: string; content: Record<string, unknown> };
         if (row.lesson_id !== lessonId) return;
-        const { activity_code, content } = row;
-        // 의견 관련 코드는 Broadcast로 처리 → 무시
-        if (activity_code.includes("__opinion")) return;
-        // 소유자가 채팅관리에서 모델을 바꾸면 참여자에게도 반영
-        if (activity_code === LLM_MODEL_ROW) {
-          setLlmModel(resolveLlmModel((content as { model?: string })?.model));
-          return;
+        const { activity_code } = row;
+
+        // 내가 저장한 내용이 되돌아온 경우와 내가 아직 편집 중인 카드는 내용을 덮어쓰지 않는다.
+        // 그대로 반영하면 저장 후에도 계속 타이핑 중일 때 1초 전 내용이 입력칸을 덮어써 방금 친 글자가 날아간다.
+        const change = readRemoteContent(activity_code, row.content, {
+          pending: pendingContent.current[activity_code] !== undefined,
+          lastWrite: lastLocalWriteRef.current[activity_code],
+        });
+
+        switch (change.kind) {
+          case "ignore":
+            return;
+          case "model":
+            // 소유자가 채팅관리에서 모델을 바꾸면 참여자에게도 반영
+            setLlmModel(resolveLlmModel(change.model as string | undefined));
+            return;
+          case "selection": {
+            const items = change.items;
+            if (change.code === "__selected_standards") {
+              selectedStandardsRef.current = items as StandardItem[];
+              setSelectedStandards((prev) => (stableStringify(prev) === stableStringify(items) ? prev : (items as StandardItem[])));
+            } else {
+              selectedIdeasRef.current = items as IdeaItem[];
+              setSelectedIdeas((prev) => (stableStringify(prev) === stableStringify(items) ? prev : (items as IdeaItem[])));
+            }
+            return;
+          }
+          case "card": {
+            const { code, status, text, fields } = change;
+            if (status && activityStatusRef.current[code] !== status) {
+              activityStatusRef.current = { ...activityStatusRef.current, [code]: status };
+              setActivityStatus((prev) => ({ ...prev, [code]: status }));
+            }
+            if (text !== undefined) {
+              setActivityInputs((prev) => (prev[code] === text ? prev : { ...prev, [code]: text }));
+            }
+            if (fields !== undefined) {
+              setStructuredInputs((prev) => (
+                stableStringify(prev[code]) === stableStringify(fields) ? prev : { ...prev, [code]: fields }
+              ));
+            }
+            return;
+          }
         }
-
-        const text = (content as { text?: string })?.text;
-        if (text === undefined) return;
-
-        // 내가 저장한 내용이 되돌아온 경우는 무시한다.
-        // 그대로 반영하면 불필요한 리렌더가 생기고, 저장 후에도 계속 타이핑 중이면
-        // 1초 전 텍스트가 textarea 를 덮어써 방금 친 글자가 날아간다.
-        if (pendingContent.current[activity_code] !== undefined) return; // 로컬 편집이 더 최신
-        if (lastLocalWriteRef.current[activity_code] === text) return;   // 내 저장의 에코
-
-        setActivityInputs((prev) => (
-          prev[activity_code] === text ? prev : { ...prev, [activity_code]: text }
-        ));
       };
 
       rtChannel = supabaseRt
@@ -1122,10 +1146,26 @@ export default function WorkspaceShell({
           { event: "UPDATE", schema: "public", table: "lessons", filter: `id=eq.${lessonId}` } as any,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (payload: any) => {
-            const row = payload.new as { id: string; title?: string; current_phase?: string; permissions?: Permissions };
+            const row = payload.new as {
+              id: string;
+              title?: string;
+              current_phase?: string;
+              permissions?: Permissions;
+              target_grade?: string | null;
+              related_subjects?: string | null;
+              num_classes?: number | null;
+              num_students?: number | null;
+              total_sessions?: number | null;
+            };
             if (row.id !== lessonId) return;
             // 다른 참여자가 변경한 경우만 반영 (소유자 본인은 로컬 업데이트 이미 반영됨)
             if (row.title !== undefined) setProjectTitle((prev) => prev === row.title ? prev : row.title!);
+            // 수업 기본정보 (학년·교과·차시 등)
+            if (row.target_grade !== undefined) setTargetGrade(row.target_grade ?? "");
+            if (row.related_subjects !== undefined) setRelatedSubjects(row.related_subjects ?? "");
+            if (row.num_classes !== undefined) setNumClasses(row.num_classes);
+            if (row.num_students !== undefined) setNumStudents(row.num_students);
+            if (row.total_sessions !== undefined) setTotalSessions(row.total_sessions);
             if (row.current_phase !== undefined) setActivePhase((prev) => prev === row.current_phase ? prev : row.current_phase!);
             if (row.permissions !== undefined) setPermissions((prev) => JSON.stringify(prev) === JSON.stringify(row.permissions) ? prev : row.permissions!);
           }
@@ -1432,15 +1472,17 @@ export default function WorkspaceShell({
   }, [lessonId, loadSnapshots]);
 
   // ── 자동저장 헬퍼 ────────────────────────────────────────────
-  const scheduleSave = useCallback((activityCode: string, content: object) => {
+  const scheduleSave = useCallback((activityCode: string, draft: object) => {
     clearTimeout(saveTimers.current[activityCode]);
     saveTimers.current[activityCode] = setTimeout(() => {
       setTitleSaveStatus("saved");
       hasNewSavesRef.current = true;
       delete pendingContent.current[activityCode];
 
-      const text = (content as { text?: string }).text;
-      if (text !== undefined) lastLocalWriteRef.current[activityCode] = text;
+      // 완료·건너뛰기 상태는 입력하는 동안 바뀌었을 수 있으므로(나 또는 다른 참여자) 저장 시점의 값을 쓴다
+      const content = { ...draft, status: activityStatusRef.current[activityCode] ?? (draft as { status?: string }).status };
+      const writeKey = localWriteKey(content as { text?: string; fields?: unknown });
+      if (writeKey !== undefined) lastLocalWriteRef.current[activityCode] = writeKey;
 
       const supabase = createClient();
       supabase.from("activity_contents").upsert(

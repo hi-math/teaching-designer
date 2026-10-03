@@ -338,9 +338,10 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
       });
 
       // 이 답변을 선택된 카드에 반영할 수 있는지 판정 — 가능할 때만 버튼이 생긴다
+      // 정책: with AI(피드백) 답변은 카드에 반영하지 않는다 — 판정도 하지 않는다
       const cardCode = pageContext?.selectedActivityCode;
       const assistantIdx = newMessages.length;
-      if (onApplyToCard && cardCode && (CARD_SCHEMAS[cardCode]?.fields.length ?? 0) > 0 && accumulated.trim().length >= 60) {
+      if (intent !== 'feedback' && onApplyToCard && cardCode && (CARD_SCHEMAS[cardCode]?.fields.length ?? 0) > 0 && accumulated.trim().length >= 60) {
         fetch('/api/chat/card-apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

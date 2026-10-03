@@ -430,7 +430,6 @@ function ActivityCard({
         />
       ) : act.code === 'A-3' ? (
         <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
-          <p className="text-[13px] text-[#757b82]">교육과정 목록에서 선택한 항목만 카드에 반영됩니다. 항목을 바꾸려면 위 검색 버튼을 누르세요.</p>
           {unlinkedA3Rows > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
             이전 직접 입력 {unlinkedA3Rows}건은 목록의 선택 항목과 일치하지 않아 반영되지 않습니다. 검색에서 해당 항목을 다시 선택해 주세요.
           </p>}

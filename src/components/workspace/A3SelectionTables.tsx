@@ -29,7 +29,6 @@ export default function A3SelectionTables({
     <div className="space-y-4">
       <SelectionTable
         label="핵심 아이디어"
-        count={ideas.length}
         columns={[{ label: '교과', width: 76 }, { label: '영역', width: 120 }, { label: '핵심 아이디어' }]}
         rows={ideas.map((item) => ({
           key: item.id,
@@ -43,7 +42,6 @@ export default function A3SelectionTables({
       />
       <SelectionTable
         label="성취기준"
-        count={standards.length}
         columns={[{ label: '교과', width: 76 }, { label: '코드', width: 116 }, { label: '성취기준' }]}
         rows={standards.map((item) => ({
           key: item.code,
@@ -76,14 +74,12 @@ function SubjectBadge({ subject }: { subject: string }) {
 type Column = { label: string; width?: number };
 type Row = { key: string; cells: ReactNode[]; onRemove?: () => void };
 
-function SelectionTable({ label, count, columns, rows }: { label: string; count: number; columns: Column[]; rows: Row[] }) {
+function SelectionTable({ label, columns, rows }: { label: string; columns: Column[]; rows: Row[] }) {
   // 다른 카드 표와 같은 격자 — 칸 폭을 머리행과 행이 함께 써서 세로줄이 맞는다
   const grid = { display: 'grid', gridTemplateColumns: columns.map((c) => (c.width ? `${c.width}px` : '1fr')).join(' ') + ' 28px' };
   return (
     <div>
-      <p className="mb-1.5 text-[12px] font-semibold text-[#757b82]">
-        {label} <span className="font-normal text-[#adb2ba]">{count}개</span>
-      </p>
+      <p className="mb-1.5 text-[12px] font-semibold text-[#757b82]">{label}</p>
       <div className="overflow-x-auto rounded-lg border border-[#e2e4ea]">
         <div className="border-b border-[#e2e4ea] bg-[#f1f4f9]" style={grid}>
           {columns.map((c) => (

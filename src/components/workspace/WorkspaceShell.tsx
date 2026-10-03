@@ -1662,7 +1662,6 @@ export default function WorkspaceShell({
         cards,
         selectedIdeas: selectedIdeasRef.current,
         selectedStandards: selectedStandardsRef.current,
-        model: llmModel,
         request,
       }),
     });
@@ -1693,7 +1692,7 @@ export default function WorkspaceShell({
     }
     setTotalSessions(next);
     return `추가 요청에 따라 수업 기본정보의 총 차시를 ${totalSessions != null ? `${totalSessions}차시에서 ` : ""}${next}차시로 바꿨습니다.`;
-  }, [lessonId, totalSessions, relatedSubjects, targetGrade, llmModel, handleStructuredChange]);
+  }, [lessonId, totalSessions, relatedSubjects, targetGrade, handleStructuredChange]);
 
   // ── 수업 시뮬레이션 → 설계(Ds-3 학습 활동 · Ds-4 지원 도구) 반영 ──
   // 표는 차시 수만큼 행을 새로 만들어 채운다 — 기존 행 수보다 차시가 많으면 그만큼 늘어난다.
@@ -1733,7 +1732,6 @@ export default function WorkspaceShell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessions: sessions.map(({ subject, title, objective, standard, content }) => ({ subject, title, objective, standard, content })),
-          model: llmModel,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1753,7 +1751,7 @@ export default function WorkspaceShell({
     return toolsFailed
       ? `Ds-3에 ${sessions.length}개 차시를 반영했습니다. 지원 도구 제안에 실패해 Ds-4는 차시 틀만 채웠습니다.`
       : `Ds-3 학습 활동과 Ds-4 지원 도구에 ${sessions.length}개 차시를 반영했습니다.`;
-  }, [llmModel, handleStructuredChange]);
+  }, [handleStructuredChange]);
 
   // ── Minerva AI 답변 → 카드 반영 ─────────────────────────────
   const cardLabels = useMemo(() => {
@@ -2297,6 +2295,14 @@ export default function WorkspaceShell({
           lessonId={lessonId}
           userId={userProfile?.id ?? ""}
           projectTitle={projectTitle}
+          model={llmModel}
+          onModelChange={(model) => {
+            setLlmModel(model);
+            createClient().from("activity_contents").upsert(
+              { lesson_id: lessonId, activity_code: LLM_MODEL_ROW, content: { type: "settings", model }, updated_by: userProfile?.id ?? null },
+              { onConflict: "lesson_id,activity_code" }
+            ).then(({ error }) => { if (error) console.error("[llm model save]", error); });
+          }}
           onClose={() => setActiveModal(null)}
         />
       ) : activeModal ? (

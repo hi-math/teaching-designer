@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { CARD_SCHEMAS, type FieldDef } from '@/components/workspace/cardSchemas';
 import { requestJson } from '@/lib/llmJson';
-import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
+import { TASK_LLM_MODEL } from '@/lib/llmModels';
 import { getCoreIdeas, standardCandidates } from '@/lib/curriculumCatalog';
 import type { StandardItem } from '@/components/workspace/StandardsModal';
 
@@ -71,7 +71,7 @@ async function applyCatalogRecommendations(answer: string, relatedSubjects: stri
     `AI 답변: ${answer.slice(0, 12000)}`,
   ].join('\n\n');
   const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
-    model: DEFAULT_LLM_MODEL, maxTokens: 3000,
+    model: TASK_LLM_MODEL, maxTokens: 3000,
     system: '기존 교육과정 목록에서만 항목을 선택합니다. 답변의 추천과 일치하지 않는 항목은 선택하지 않습니다. 모든 수학 용어는 영어로 표현합니다.',
     prompt, schema: selectionSchema,
   });
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
-      model: DEFAULT_LLM_MODEL,
+      model: TASK_LLM_MODEL,
       maxTokens: 4000,
       system: '답변을 카드 입력에 옮길 수 있는지 판정합니다. 입력된 답변만 근거로 값을 추출하고 모든 수학 용어는 영어로 표현합니다.',
       prompt,

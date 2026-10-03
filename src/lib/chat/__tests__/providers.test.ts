@@ -26,21 +26,28 @@ beforeEach(() => {
 });
 
 describe('chat model', () => {
-  it('uses Luna for legacy model choices and preserves PDF input and streamed text', async () => {
+  it('uses the chat model chosen in 채팅관리 and preserves PDF input and streamed text', async () => {
     const response = await POST(request('gpt-5.6-terra', [{ role: 'user', content: [
       { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'cGRm' } },
       { type: 'text', text: '이 자료를 읽어 주세요' },
     ] }]));
     expect(await response.text()).toBe('Luna 응답');
     expect(mocks.openai).toHaveBeenCalledWith(expect.objectContaining({
-      model: 'gpt-5.6-luna', stream: true,
+      model: 'gpt-5.6-terra', stream: true,
       input: [{ role: 'user', content: [
         { type: 'input_file', filename: 'reference-1.pdf', file_data: 'data:application/pdf;base64,cGRm', detail: 'low' },
         { type: 'input_text', text: '이 자료를 읽어 주세요' },
       ] }],
     }), expect.anything());
+  });
+
+  it('keeps Terra·Sol choices and falls back to Luna for legacy or unknown values', async () => {
+    expect(resolveLlmModel('gpt-5.6-sol')).toBe('gpt-5.6-sol');
+    expect(resolveLlmModel('gpt-5.6-terra')).toBe('gpt-5.6-terra');
     expect(resolveLlmModel('claude-sonnet-5')).toBe('gpt-5.6-luna');
-    expect(resolveLlmModel('gpt-5.6-sol')).toBe('gpt-5.6-luna');
+    expect(resolveLlmModel(undefined)).toBe('gpt-5.6-luna');
+    await POST(request('claude-sonnet-5', [{ role: 'user', content: '안녕하세요' }]));
+    expect(mocks.openai).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-5.6-luna' }), expect.anything());
   });
 
   it('requires the OpenAI key for all requests', async () => {

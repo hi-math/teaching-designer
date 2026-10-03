@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { showAlert } from "@/components/ui/dialog";
-import { LLM_MODELS } from "@/lib/llmModels";
+import { LLM_MODELS, TASK_LLM_MODEL, type LlmModelId } from "@/lib/llmModels";
 
 /**
  * 채팅관리 모달 (소유자 전용)
  *  1. 팀 채팅 기록 다운받기
  *  2. AI 채팅 기록 다운받기 — ai_messages 는 RLS 상 본인 것만 읽을 수 있다
- *  3. 현재 AI 모델 안내
+ *  3. Minerva AI 채팅 모델 설정 — 초안 미리보기·각종 판정은 선택과 무관하게 Luna
  */
 
 function stamp(iso: string) {
@@ -37,11 +37,16 @@ export default function ChatManageModal({
   lessonId,
   userId,
   projectTitle,
+  model,
+  onModelChange,
   onClose,
 }: {
   lessonId: string;
   userId: string;
   projectTitle: string;
+  /** 이 수업의 Minerva AI 채팅 모델 */
+  model: LlmModelId;
+  onModelChange: (model: LlmModelId) => void;
   onClose: () => void;
 }) {
   const [busy, setBusy] = useState<"team" | "ai" | null>(null);
@@ -110,7 +115,7 @@ export default function ChatManageModal({
     }
   };
 
-  const current = LLM_MODELS[0];
+  const taskModel = LLM_MODELS.find((m) => m.id === TASK_LLM_MODEL) ?? LLM_MODELS[0];
 
   const rowBtn =
     "shrink-0 rounded-lg border border-[#dde3eb] bg-white px-3 py-1.5 text-[13px] font-medium text-[#5a6066] transition hover:border-[#D1260F] hover:text-[#D1260F] disabled:opacity-50";
@@ -162,14 +167,24 @@ export default function ChatManageModal({
             </button>
           </div>
 
-          {/* 3. AI 모델 */}
+          {/* 3. AI 모델 — 채팅만 고르고, 초안 미리보기·판정은 Luna 고정 */}
           <div className="py-4">
             <p className="text-[15px] font-semibold text-[#2d3339]">AI 모델</p>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-[#757b82]">
-              Minerva AI 채팅, 초안 미리보기, 주제 생성에 같은 모델을 사용합니다.
+            <p className="mt-0.5 mb-3 text-[13px] leading-relaxed text-[#757b82]">
+              이 수업의 Minerva AI 채팅에 쓰는 모델입니다. 팀원 모두에게 같이 적용됩니다.
             </p>
-            <p className="mt-2 rounded-xl border border-[#dde3eb] bg-[#f7f9fd] px-4 py-2.5 text-[14px] text-[#2d3339]">
-              <span className="font-semibold text-[#D1260F]">{current.label}</span> · {current.feature}
+            <select
+              value={model}
+              onChange={(e) => onModelChange(e.target.value as LlmModelId)}
+              className="w-full cursor-pointer rounded-xl border border-[#dde3eb] bg-white px-4 py-2.5 text-[14px] text-[#2d3339] outline-none focus:border-[#D1260F] focus:ring-2 focus:ring-[#D1260F]/20"
+            >
+              {LLM_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}{m.id === TASK_LLM_MODEL ? ' (기본)' : ''}</option>
+              ))}
+            </select>
+            <p className="mt-2 text-[12px] leading-relaxed text-[#adb2ba]">
+              초안 미리보기와 각종 판정(카드 반영 판정·주제 생성 등)은 선택과 관계없이 항상{' '}
+              <span className="font-semibold text-[#757b82]">{taskModel.label}</span>을 씁니다.
             </p>
           </div>
         </div>

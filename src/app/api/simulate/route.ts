@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { describeApiError, describeJsonFailure, requestJson, type JsonSchema } from '@/lib/llmJson';
-import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
+import { TASK_LLM_MODEL } from '@/lib/llmModels';
 import { bracketCode, extractCodes } from '@/lib/standardCode';
 
 // A-5 초안 미리보기 — 지금까지의 팀 준비·분석 결과로 차시별 흐름 초안을 만든다.
@@ -19,8 +19,6 @@ interface SimulateRequest {
   cards?: Record<string, string>;
   selectedIdeas?: Item[];
   selectedStandards?: Item[];
-  /** 채팅관리에서 고른 모델 */
-  model?: string;
   /** 초안 만들기 창에서 받은 교사 팀의 추가 요청 — 기본 지침보다 우선한다 */
   request?: string;
 }
@@ -143,7 +141,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
-      model: DEFAULT_LLM_MODEL,
+      model: TASK_LLM_MODEL,
       maxTokens: 16000,
       system:
         '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.' +

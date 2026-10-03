@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { loadSystemPrompt, buildPageContextBlock, buildStableContextBlock } from '@/lib/prompts';
 import { selectStandardCandidates } from '@/lib/standards';
-import { DEFAULT_LLM_MODEL } from '@/lib/llmModels';
+import { resolveLlmModel } from '@/lib/llmModels';
 import { CHAT_STREAM_ERROR_MARKER, type ChatStreamError } from '@/lib/chat/streamProtocol';
 import { getCoreIdeas } from '@/lib/curriculumCatalog';
 
@@ -69,7 +69,7 @@ function fallbackStandardsQuery(pageContext: Record<string, unknown> | undefined
 }
 
 export async function POST(req: Request) {
-  const { messages, stage = 'T', pageContext, intent, cardLabels } = await req.json();
+  const { messages, stage = 'T', pageContext, intent, cardLabels, model } = await req.json();
   if (!process.env.CHATGPT_API_KEY) {
     return Response.json({ error: 'AI 서비스 키가 설정되지 않았습니다.' }, { status: 503 });
   }
@@ -104,7 +104,8 @@ export async function POST(req: Request) {
   let stream;
   try {
     stream = await client.responses.create({
-      model: DEFAULT_LLM_MODEL,
+      // 채팅관리에서 고른 모델 (Luna·Terra·Sol). 초안 미리보기·판정 라우트는 TASK_LLM_MODEL 고정
+      model: resolveLlmModel(model),
       instructions: [stable, volatileBlock].filter(Boolean).join('\n\n'),
       input: toOpenAiInput(messages as ChatMessage[]),
       stream: true,

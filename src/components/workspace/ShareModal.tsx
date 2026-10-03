@@ -275,6 +275,9 @@ export default function ShareModal({
             </button>
 
             {linkError && <p className="mt-1.5 text-[12px] text-red-500">{linkError}</p>}
+            {link && (
+              <p className="mt-1.5 text-[12px] text-[#757b82]">이 링크 하나로 여러 명이 참여할 수 있습니다.</p>
+            )}
 
             {link && (
               <div className="mt-3 flex gap-2">

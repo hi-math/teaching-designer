@@ -34,13 +34,18 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       const d = await res.json().catch(() => ({}));
       const msg: Record<number, string> = {
         404: '유효하지 않은 초대 링크입니다.',
-        410: '이미 사용되었거나 만료된 초대 링크입니다.',
+        410: '만료된 초대 링크입니다.',
       };
       setErrorMsg(msg[res.status] ?? d.error ?? '초대 링크 확인 중 오류가 발생했습니다.');
       setStatus('error');
       return;
     }
     const data = await res.json();
+    // 이미 참여한 프로젝트면 확인 화면 없이 바로 이동
+    if (data.alreadyMember) {
+      router.replace(`/workspace/${data.lessonId}`);
+      return;
+    }
     setInfo({ lessonTitle: data.lessonTitle, emailRequired: data.emailRequired });
     setStatus('confirm');
   };
@@ -52,7 +57,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       const d = await res.json().catch(() => ({}));
       const msg: Record<number, string> = {
         403: '이 초대 링크는 다른 이메일 계정용입니다.',
-        410: '이미 사용되었거나 만료된 초대 링크입니다.',
+        410: '만료된 초대 링크입니다.',
       };
       setErrorMsg(msg[res.status] ?? d.error ?? '참여 중 오류가 발생했습니다.');
       setStatus('error');

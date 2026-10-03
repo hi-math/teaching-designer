@@ -1,9 +1,10 @@
 // Minerva AI 채팅은 채팅관리에서 고른 모델(Luna·Terra·Sol)을 쓴다.
 // 초안 미리보기와 각종 판정(카드 반영 판정·주제 생성·지원 도구 등)은 선택과 무관하게 항상 Luna — TASK_LLM_MODEL.
+// 채팅관리 선택 상자에 이 순서·문구 그대로 보인다
 export const LLM_MODELS = [
-  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', feature: '기본 모델 · 초안 미리보기와 각종 판정에도 사용' },
-  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', feature: 'Minerva AI 채팅에만 적용' },
-  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', feature: 'Minerva AI 채팅에만 적용' },
+  { id: 'gpt-5.6-sol', label: 'Sol(최상위 성능)' },
+  { id: 'gpt-5.6-terra', label: 'Terra(기본·균형)' },
+  { id: 'gpt-5.6-luna', label: 'Luna(가볍고 빠름)' },
 ] as const;
 
 export type LlmModelId = (typeof LLM_MODELS)[number]['id'];

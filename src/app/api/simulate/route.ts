@@ -24,7 +24,11 @@ interface SimulateRequest {
   selectedStandards?: Item[];
   /** 채팅관리에서 고른 모델 */
   model?: string;
+  /** 초안 만들기 창에서 받은 교사 팀의 추가 요청 — 기본 지침보다 우선한다 */
+  request?: string;
 }
+
+const REQUEST_MAX = 1000;
 
 export type SimulatedSession = {
   subject: string;
@@ -71,7 +75,7 @@ const LABELS: Record<string, string> = {
   'A-4': '통합 수업 목표',
 };
 
-function buildPrompt(body: SimulateRequest, sessions: number): string {
+function buildPrompt(body: SimulateRequest, sessions: number, request: string): string {
   const lines: string[] = [];
   lines.push('## 수업 기본정보');
   lines.push(`- 수업 제목: ${body.title || '(미입력)'}`);
@@ -96,7 +100,7 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
 
   lines.push(
     '',
-    '## 요청',
+    '## 기본 지침',
     `위 내용을 바탕으로 이 수업을 정확히 ${sessions}개 차시로 시뮬레이션하세요.`,
     '- 차시마다 과목, 수업 타이틀(직접 지음), 학습목표, 성취기준 코드, 지도내용을 제시합니다.',
     '- 성취기준은 코드만 적습니다. 지도내용은 개조식 3~4개 항목으로 씁니다.',
@@ -105,6 +109,20 @@ function buildPrompt(body: SimulateRequest, sessions: number): string {
     '- 한 차시에는 가급적 한 교과만 배정합니다. 차시 수가 관련 교과 수보다 적어 모든 교과를 담기 어려울 때만 한 차시에 두 교과를 함께 넣습니다.',
     '- 관련 교과가 여럿이면 교과별 차시가 고르게 돌아가도록 배열하고, 교과 간 연결은 앞뒤 차시의 흐름으로 드러냅니다.',
   );
+
+  // 추가 요청은 맨 끝에 따로 두고, 위 기본 지침과 어긋나면 요청을 따르게 한다
+  if (request) {
+    lines.push(
+      '',
+      '## 교사 팀의 추가 요청 (최우선 반영)',
+      '<request>',
+      request,
+      '</request>',
+      '- 이 요청을 가장 먼저 반영합니다. 위 기본 지침과 어긋나면 추가 요청을 따릅니다 (차시 수, 교과 배분, 활동 방식 포함).',
+      '- 요청이 다루지 않는 부분만 기본 지침과 설계 내용을 따릅니다.',
+      '- 요청을 반영한 흔적이 해당 차시의 타이틀·학습목표·지도내용에 구체적으로 드러나게 씁니다.',
+    );
+  }
   return lines.join('\n');
 }
 
@@ -122,13 +140,16 @@ export async function POST(req: Request) {
   const body = (await req.json()) as SimulateRequest;
   const requested = Number(body.totalSessions);
   const sessions = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 30) : 6;
+  const request = typeof body.request === 'string' ? body.request.trim().slice(0, REQUEST_MAX) : '';
 
   try {
     const result = await requestJson(client, {
       model: resolveLlmModel(body.model),
       maxTokens: 16000,
-      system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.',
-      prompt: buildPrompt(body, sessions),
+      system:
+        '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.' +
+        (request ? ' 교사 팀이 추가 요청을 주면 그 요청을 기본 지침보다 우선해 반영합니다.' : ''),
+      prompt: buildPrompt(body, sessions, request),
       schema: SESSIONS_SCHEMA,
     });
     if (!result.ok) {

@@ -1520,8 +1520,8 @@ export default function WorkspaceShell({
     scheduleSave(code, content);
   }, [scheduleSave]);
 
-  // ── A-5 수업 시뮬레이션 생성 ─────────────────────────────────
-  const handleSimulate = useCallback(async () => {
+  // ── A-5 초안 미리보기 생성 — request: 교사 팀의 추가 요청 (프롬프트에서 최우선 반영) ──
+  const handleSimulate = useCallback(async (request: string) => {
     const structured = structuredInputsRef.current;
     const texts = activityInputsRef.current;
     const cards: Record<string, string> = {};
@@ -1542,6 +1542,7 @@ export default function WorkspaceShell({
         selectedIdeas: selectedIdeasRef.current,
         selectedStandards: selectedStandardsRef.current,
         model: llmModel,
+        request,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1557,7 +1558,8 @@ export default function WorkspaceShell({
 
     const sessions = (data.sessions as { subject: string; title: string; standard: string; objective: string; content: string }[])
       .map((s) => ({ id: newSessionId(), ...s }));
-    handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions });
+    // 요청도 함께 남겨 팀원이 어떤 요청으로 만든 초안인지 보고, 다음에 다시 만들 때 이어 쓴다
+    handleStructuredChange("A-5", { ...(structuredInputsRef.current["A-5"] ?? {}), sessions, draft_request: request });
   }, [totalSessions, relatedSubjects, targetGrade, llmModel, handleStructuredChange]);
 
   // ── 수업 시뮬레이션 → 설계(Ds-3 학습 활동 · Ds-4 지원 도구) 반영 ──

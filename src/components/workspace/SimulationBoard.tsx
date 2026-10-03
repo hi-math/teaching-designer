@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AutoResizeTextarea, getSubjectBadge } from './CardFields';
-import { showConfirm } from '@/components/ui/dialog';
 import { extractCodes } from '@/lib/standardCode';
 
 /**
@@ -141,6 +141,134 @@ function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () =>
   );
 }
 
+// ─── 초안 만들기 전 추가 요청 받기 ─────────────────────────────────
+
+const REQUEST_MAX = 500;
+const REQUEST_EXAMPLES = [
+  '모든 차시에 모둠 활동을 넣어 주세요',
+  '마지막 차시는 발표와 평가로 구성해 주세요',
+  '교과별 차시 수를 고르게 배분해 주세요',
+  '디지털 도구를 활용하는 활동을 포함해 주세요',
+];
+
+function DraftRequestDialog({
+  initial,
+  replaceCount,
+  onCancel,
+  onSubmit,
+}: {
+  initial: string;
+  /** 지금 있는 차시 카드 수 — 0 보다 크면 새 초안으로 바뀐다는 안내를 보여 준다 */
+  replaceCount: number;
+  onCancel: () => void;
+  onSubmit: (request: string) => void;
+}) {
+  const [text, setText] = useState(initial);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const titleId = useId();
+
+  // 열릴 때 한 번만 입력칸에 커서를 둔다 (실시간 동기화로 다시 그려져도 커서가 튀지 않게)
+  const onEscape = useEffectEvent(() => onCancel());
+  useEffect(() => {
+    const el = ref.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); onEscape(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const addExample = (example: string) =>
+    setText((t) => (t.trim() ? `${t.trimEnd()}\n${example}` : example).slice(0, REQUEST_MAX));
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="w-[520px] max-w-[calc(100vw-32px)] rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
+      >
+        <h3 id={titleId} className="text-[16px] font-bold text-[#2d3339]">초안 만들기</h3>
+        <p className="mt-1 break-keep text-[13px] leading-relaxed text-[#5a6066]">
+          지금까지의 팀 준비·분석 내용으로 차시별 초안을 만듭니다. 바라는 점이 있으면 적어 주세요.
+          적은 내용을 가장 우선해 반영합니다.
+        </p>
+
+        <label className="mt-4 block text-[12px] font-semibold text-[#757b82]">
+          추가 요청 사항 <span className="font-normal text-[#adb2ba]">(선택)</span>
+          <textarea
+            ref={ref}
+            value={text}
+            maxLength={REQUEST_MAX}
+            rows={4}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSubmit(text.trim()); }
+            }}
+            placeholder="예: 3차시에는 지역 문제를 조사하는 현장 활동을 넣어 주세요."
+            className="mt-1.5 w-full resize-none rounded-xl bg-[#f1f4f9] px-4 py-3 text-[14px] font-normal leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20"
+          />
+        </label>
+        <div className="mt-1 flex items-start justify-between gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {REQUEST_EXAMPLES.map((ex) => {
+              // 이미 적힌 예시는 다시 넣지 않는다
+              const added = text.includes(ex);
+              return (
+                <button
+                  key={ex}
+                  type="button"
+                  disabled={added}
+                  onClick={() => addExample(ex)}
+                  className="rounded-full border border-[#e2e4ea] bg-white px-2.5 py-1 text-left text-[12px] text-[#5a6066] transition hover:border-[#F5B8A8] hover:bg-[#FFF8F6] hover:text-[#D1260F] disabled:pointer-events-none disabled:border-transparent disabled:bg-[#f1f4f9] disabled:text-[#adb2ba]"
+                >
+                  {added ? '✓' : '+'} {ex}
+                </button>
+              );
+            })}
+          </div>
+          <span className="shrink-0 pt-1 text-[11px] tabular-nums text-[#adb2ba]">{text.length}/{REQUEST_MAX}</span>
+        </div>
+
+        {replaceCount > 0 && (
+          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800">
+            지금 있는 차시 카드 {replaceCount}개가 새 초안으로 바뀝니다.
+          </p>
+        )}
+
+        <div className="mt-5 flex items-center gap-2">
+          <span className="mr-auto hidden text-[11px] text-[#adb2ba] sm:inline">Ctrl + Enter 로 바로 만들기</span>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="ml-auto shrink-0 whitespace-nowrap rounded-lg border border-gray-200 px-4 py-2 text-[13px] font-medium text-[#757b82] transition hover:bg-gray-50 sm:ml-0"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => onSubmit(text.trim())}
+            className="shrink-0 whitespace-nowrap rounded-lg bg-[#D1260F] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#A81A08]"
+          >
+            {replaceCount > 0 ? '바꾸고 초안 만들기' : '초안 만들기'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function SimulationBoard({
   value,
   onChange,
@@ -151,8 +279,8 @@ export default function SimulationBoard({
   value: Record<string, unknown>;
   onChange: (fields: Record<string, unknown>) => void;
   locked: boolean;
-  /** 지금까지의 설계 내용으로 차시 초안을 새로 만든다 */
-  onSimulate?: () => Promise<void>;
+  /** 지금까지의 설계 내용으로 차시 초안을 새로 만든다. request 는 교사 팀의 추가 요청(우선 반영) */
+  onSimulate?: (request: string) => Promise<void>;
   /** 차시 카드를 Ds-3 학습 활동·Ds-4 지원 도구에 옮긴다. 결과 안내 문구를 돌려준다(취소 시 null). */
   onApplyToDesign?: () => Promise<string | null>;
 }) {
@@ -214,13 +342,17 @@ export default function SimulationBoard({
 
   const resetDrag = () => { setArmedId(null); setDragId(null); setOver(null); };
 
-  const runSimulate = async () => {
+  // 초안 만들기 → 추가 요청 창 → 생성. 마지막 요청은 카드에 남아 팀이 함께 보고 다음에 다시 채워진다.
+  const [requestOpen, setRequestOpen] = useState(false);
+  const lastRequest = typeof value.draft_request === 'string' ? value.draft_request : '';
+
+  const runSimulate = async (request: string) => {
+    setRequestOpen(false);
     if (!onSimulate || loading) return;
-    if (sessions.length > 0 && !(await showConfirm('현재 차시 카드를 새 초안으로 바꿉니다.\n계속할까요?', { title: '', confirmText: '바꾸기' }))) return;
     setLoading(true);
     setError('');
     try {
-      await onSimulate();
+      await onSimulate(request);
     } catch (e) {
       setError(e instanceof Error ? e.message : '초안 미리보기 중 오류가 발생했습니다.');
     } finally {
@@ -256,9 +388,14 @@ export default function SimulationBoard({
     <div onClick={(e) => e.stopPropagation()}>
       {/* 생성 버튼 */}
       {!locked && onSimulate && (
-        <div className="mb-3 flex justify-end">
+        <div className="mb-3 flex items-center justify-end gap-3">
+          {lastRequest && (
+            <p className="min-w-0 truncate text-[12px] text-[#757b82]" title={lastRequest}>
+              <span className="font-semibold">최근 추가 요청</span> · {lastRequest.replace(/\s*\n\s*/g, ' / ')}
+            </p>
+          )}
           <button
-            onClick={runSimulate}
+            onClick={() => setRequestOpen(true)}
             disabled={loading}
             className="flex items-center gap-1.5 rounded-lg bg-[#D1260F] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[#A81A08] disabled:opacity-60"
           >
@@ -276,6 +413,14 @@ export default function SimulationBoard({
             {loading ? '초안 만드는 중…' : sessions.length > 0 ? '초안 다시 만들기' : '초안 만들기'}
           </button>
         </div>
+      )}
+      {requestOpen && (
+        <DraftRequestDialog
+          initial={lastRequest}
+          replaceCount={sessions.length}
+          onCancel={() => setRequestOpen(false)}
+          onSubmit={runSimulate}
+        />
       )}
       {error && <p className="mb-3 text-[13px] text-red-500">{error}</p>}
 

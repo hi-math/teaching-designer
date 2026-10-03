@@ -60,8 +60,8 @@ interface Props {
   onDeleteOpinion: (opinionKey: string) => void;
   onSubmitOpinion: (opinionKey: string, text: string) => void;
 
-  /** A-5 초안 미리보기 생성 */
-  onSimulate?: () => Promise<void>;
+  /** A-5 초안 미리보기 생성 — request 는 교사 팀의 추가 요청 */
+  onSimulate?: (request: string) => Promise<void>;
   /** 초안 미리보기 → Ds-3·Ds-4 반영 */
   onApplyToDesign?: () => Promise<string | null>;
 }

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import MessageBubble, { type Message } from './MessageBubble';
 import { buildChatPayload } from '@/lib/chat/trimPayload';
 import { CARD_SCHEMAS } from '@/components/workspace/cardSchemas';
+import { readChatStream, type ChatStreamError } from '@/lib/chat/streamProtocol';
 
 interface PageContext {
   ideationContext?: string;
@@ -76,6 +77,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [chatError, setChatError] = useState<ChatStreamError | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -204,6 +206,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
 
   const sendMessage = async (text: string, intent?: ChatIntent) => {
     if (!text.trim() || isStreaming) return;
+    setChatError(null);
     // 히스토리 로드 중에 메시지를 보내면 stale 로드가 메시지를 덮어쓰지 않도록 세션 무효화
     loadGenRef.current += 1;
     setIsLoadingHistory(false);
@@ -275,11 +278,22 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
         signal: abortRef.current.signal,
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const error = body?.error;
+        setChatError(error && typeof error === 'object' && typeof error.message === 'string'
+          ? error as ChatStreamError
+          : { message: typeof error === 'string' ? error : '응답을 시작하지 못했습니다. 다시 시도해 주세요.' });
+        setMessages(newMessages);
+        setTimestamps(newTimestamps);
+        return;
+      }
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
+      let rawStream = '';
       let accumulated = '';
+      let terminalError: ChatStreamError | null = null;
 
       // 네트워크 청크마다 setState 하면 초당 수십 번 리렌더가 발생한다.
       // 프레임당 한 번으로 묶어 화면 갱신 속도(60fps)에 맞춘다.
@@ -296,11 +310,20 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
+        rawStream += decoder.decode(value, { stream: true });
+        const parsed = readChatStream(rawStream);
+        accumulated = parsed.text;
+        terminalError = parsed.error;
         if (!frame) frame = requestAnimationFrame(paint);
       }
 
       if (frame) cancelAnimationFrame(frame);
+      if (rawStream.includes('\u001e')) {
+        setMessages(newMessages);
+        setTimestamps(newTimestamps);
+        setChatError(terminalError ?? { message: '응답 중 오류가 발생했습니다. 다시 시도해 주세요.' });
+        return;
+      }
       paint(); // 마지막 청크 반영
 
       // 스트리밍 완료 후 캐시 업데이트
@@ -347,14 +370,9 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
 
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: 'assistant',
-          content: '응답 중 오류가 발생했습니다. 다시 시도해 주세요.',
-        };
-        return updated;
-      });
+      setMessages(newMessages);
+      setTimestamps(newTimestamps);
+      setChatError({ message: '응답 중 오류가 발생했습니다. 다시 시도해 주세요.' });
     } finally {
       setIsStreaming(false);
     }
@@ -462,6 +480,15 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
         })}
         <div ref={bottomRef} />
       </div>
+
+      {chatError && (
+        <div role="alert" className="mx-4 mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+          {chatError.message}
+          {chatError.code === 'credit_balance_exhausted' && (
+            <a href="https://platform.openai.com/settings/organization/billing/" target="_blank" rel="noopener noreferrer" className="ml-1 font-semibold underline">API Billing 열기</a>
+          )}
+        </div>
+      )}
 
       {/* 입력창 */}
       <div className="bg-white px-4 pt-2 pb-5" style={{ borderTop: "1px solid rgba(173,178,186,0.2)" }}>

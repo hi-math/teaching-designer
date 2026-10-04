@@ -5,6 +5,13 @@ import type { CardSchema, FieldDef, BulletsFieldDef, TableFieldDef, TableColumn,
 
 // ─── Auto-resize textarea ─────────────────────────────────────────────
 
+/** 내용 높이에 맞춘다. 숨겨진 동안(display:none)은 잴 수 없으므로 건너뛴다 — 0으로 재면 글자가 잘린다 */
+function fitHeight(el: HTMLTextAreaElement) {
+  if (el.getClientRects().length === 0) return;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
 export function AutoResizeTextarea({
   value, onChange, disabled, placeholder, className,
 }: {
@@ -16,11 +23,21 @@ export function AutoResizeTextarea({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
+    if (ref.current) fitHeight(ref.current);
+  }, [value]);
+  // 숨겨진 화면(예: 아이디어 도출 중의 수업 설계)에서 보이게 되거나 폭이 바뀌면 다시 맞춘다
+  useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
-  }, [value]);
+    let width = el.offsetWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.offsetWidth === width) return;
+      width = el.offsetWidth;
+      fitHeight(el);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
     <textarea
       ref={ref}

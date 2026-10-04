@@ -56,7 +56,7 @@ describe("with AI 추천 (우선순위 큐)", () => {
     const empty = emptyDraft({ subjects: [], grade: "" });
     const res = await recommend(request({ lessonId, focus: "topic", draft: empty }));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("주제 제목을 먼저 입력하세요.");
+    expect((await res.json()).error).toBe("수업주제를 먼저 입력하세요.");
     expect(mock.json).not.toHaveBeenCalled();
   });
 
@@ -230,12 +230,20 @@ describe("진행 저장·반영", () => {
     expect((await res.json()).error).toContain("020_ideation_selected_ideas.sql");
   });
 
-  it("반영은 바뀌는 행만 기대값과 함께 한 번에 넘긴다", async () => {
-    const before = { "A-2": null, "A-3": null, "A-4": null, __selected_standards: null, __selected_ideas: null, __ideation: null };
-    const res = await save(request({ lessonId, action: "apply", draft: draft(), before }));
+  it("반영은 서버가 읽은 현재 값을 기대값으로, 바뀌는 행만 한 번에 넘긴다", async () => {
+    mock.select.mockResolvedValueOnce({ data: [{ activity_code: "A-2", content: { type: "structured", fields: { final_topic: "예전 주제" } } }], error: null });
+    const res = await save(request({ lessonId, action: "apply", draft: draft() }));
     expect(res.status).toBe(200);
     const { p_changes, p_expected } = mock.rpc.mock.calls[0][1];
     expect(Object.keys(p_changes).sort()).toEqual(Object.keys(p_expected).sort());
     expect(Object.keys(p_changes)).toEqual(expect.arrayContaining(["A-2", "A-3", "A-4", "__selected_ideas", "__selected_standards", "__ideation"]));
+    expect(p_expected["A-2"]).not.toBeNull();
+    expect(p_expected.__ideation).toBeNull();
+    // 수업주제 → A-2 최종 선정 주제
+    expect(p_changes["A-2"]).toMatchObject({ type: "structured", fields: { final_topic: "우리 동네 폭염에 어떻게 대응할까?" } });
+  });
+
+  it("미리보기 요청은 더 이상 받지 않는다", async () => {
+    expect((await save(request({ lessonId, action: "preview", draft: draft() }))).status).toBe(400);
   });
 });

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     if (auth.error) return auth.error;
     const draft = readDraft(body.draft);
     if (!draft || !Array.isArray(body.ids)) return Response.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
-    if (!draft.topic.trim()) return Response.json({ error: "주제 제목을 먼저 입력하세요." }, { status: 400 });
+    if (!draft.topic.trim()) return Response.json({ error: "수업주제를 먼저 입력하세요." }, { status: 400 });
 
     const wanted = new Set((body.ids as unknown[]).filter((v): v is string => typeof v === "string").slice(0, MAX_IDS));
     const judge = {

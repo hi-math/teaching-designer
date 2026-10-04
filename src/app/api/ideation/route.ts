@@ -9,9 +9,9 @@ import { FIT_SCALE, ideaSubjectOfStandard, standardInSubject } from "@/lib/ideat
 
 // 아이디어 도출 with AI — 누른 영역(focus)에 포함되면 좋을 항목을 우선순위 순으로 추천하고,
 // 그 영역에 이미 담긴 카드의 적합성을 판단한다. 기준은 인접한 영역만 쓴다.
-//   주제 설계  ← 주제 제목 + 핵심아이디어
-//   핵심아이디어 ← 주제 제목·하위요소 + 성취기준
-//   성취기준  ← 핵심아이디어 (아직 없으면 주제 제목)
+//   주제 설계  ← 수업주제 + 핵심아이디어
+//   핵심아이디어 ← 수업주제·하위요소 + 성취기준
+//   성취기준  ← 핵심아이디어 (아직 없으면 수업주제)
 // 인접 영역에서 선택한 항목(targetId)이 있으면 그 항목을 기준으로 좁힌다.
 // 인접 영역에는 있는데 이 영역에 아직 없는 교과(missingSubjects)는 후보에 꼭 넣고 먼저 탐색해 앞쪽에 둔다.
 // 공식 데이터는 후보 ID 로만 고르게 하고(enum), 돌아온 ID·연결 대상은 데이터와 초안에 다시 대조한다.
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     const targetId = typeof body.targetId === "string" && body.targetId ? body.targetId : null;
     if (!FOCUSES.includes(focus) || !draft) return Response.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
     if (!draft.topic.trim() && !draft.elements.some((e) => e.text.trim()) && !draft.ideas.length && !draft.standards.length) {
-      return Response.json({ error: "주제 제목을 먼저 입력하세요." }, { status: 400 });
+      return Response.json({ error: "수업주제를 먼저 입력하세요." }, { status: 400 });
     }
 
     // 인접 영역에서 선택한 항목 — 없거나 인접하지 않으면 인접 영역 전체
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
       basis = { topic: draft.topic, ideas: ideasOf(draft) };
       own = elementsOf(draft);
       schema = object({ elements: list(object({ text, ideaId: optional(ideaIds), strength: level, reason: text })), ...fitsSchema });
-      guide = "주제 설계 영역입니다. 주제 제목과 핵심아이디어(선택한 항목이 있으면 그 항목)에 비추어, 주제를 이루는 데 빠진 하위요소를 짧은 명사구로 추천하세요(이미 있는 하위요소와 겹치지 않게). ideaId 는 그 하위요소가 이어질 핵심아이디어 ID, 없으면 빈 문자열.";
+      guide = "주제 설계 영역입니다. 수업주제와 핵심아이디어(선택한 항목이 있으면 그 항목)에 비추어, 주제를 이루는 데 빠진 하위요소를 짧은 명사구로 추천하세요(이미 있는 하위요소와 겹치지 않게). ideaId 는 그 하위요소가 이어질 핵심아이디어 ID, 없으면 빈 문자열.";
     } else if (focus === "ideas") {
       const have = new Set(draft.ideas.flatMap((i) => (i.official ? [i.official.catalogId] : [])));
       const allIdeas = getCoreIdeas().filter((i) => !have.has(i.id));
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
       basis = { topic: draft.topic, elements: elementsOf(draft), standards: standardsOf(draft) };
       own = ideasOf(draft);
       schema = object({ ideas: list(object({ ideaId: oneOf(ideaPool.map((i) => i.id)), elementId: optional(elementIds), standardId: optional(standardIds), strength: level, reason: text })), ...fitsSchema });
-      guide = "핵심아이디어 영역입니다. 주제 제목·하위요소와 성취기준(선택한 항목이 있으면 그 항목)에 비추어 candidates.ideas 의 공식 핵심아이디어를 추천하세요. elementId·standardId 는 이어질 하위요소·성취기준 ID, 없으면 빈 문자열.";
+      guide = "핵심아이디어 영역입니다. 수업주제·하위요소와 성취기준(선택한 항목이 있으면 그 항목)에 비추어 candidates.ideas 의 공식 핵심아이디어를 추천하세요. elementId·standardId 는 이어질 하위요소·성취기준 ID, 없으면 빈 문자열.";
     } else {
       const query = [...(draft.ideas.length ? draft.ideas.map(ideaText) : [draft.topic]), target ?? ""].join(" ");
       const haveCodes = new Set(draft.standards.map((s) => s.code));
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
       basis = draft.ideas.length ? { ideas: ideasOf(draft) } : { topic: draft.topic };
       own = standardsOf(draft);
       schema = object({ standards: list(object({ code: oneOf(standardPool.map((s) => s.code)), ideaId: optional(ideaIds), strength: level, reason: text })), ...fitsSchema });
-      guide = "성취기준 영역입니다. 핵심아이디어(선택한 항목이 있으면 그 항목, 핵심아이디어가 없으면 주제 제목)에 비추어 candidates.standards 의 성취기준을 추천하세요. ideaId 는 이어질 핵심아이디어 ID, 없으면 빈 문자열.";
+      guide = "성취기준 영역입니다. 핵심아이디어(선택한 항목이 있으면 그 항목, 핵심아이디어가 없으면 수업주제)에 비추어 candidates.standards 의 성취기준을 추천하세요. ideaId 는 이어질 핵심아이디어 ID, 없으면 빈 문자열.";
     }
 
     const prompt = {

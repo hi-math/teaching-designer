@@ -3,13 +3,12 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import IdeasModal, { type IdeaItem } from "@/components/workspace/IdeasModal";
 import StandardsModal, { type StandardItem } from "@/components/workspace/StandardsModal";
-import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
 import { stableStringify } from "@/components/workspace/remoteContent";
 import type { ContentMap } from "@/lib/ideation/application";
 import type { IdeaRec, RecommendFocus, Recommendations } from "@/app/api/ideation/route";
 import { bracketCode } from "@/lib/standardCode";
 import {
-  LIMITS, addLink, applyFits, clearFits, deletionAdvised, emptyDraft, ideaOrigin, ideaSubject, ideaText, keepItem, newId, readDraft,
+  IDEATION_ROW, LIMITS, addLink, applyFits, clearFits, deletionAdvised, emptyDraft, ideaOrigin, ideaSubject, ideaText, keepItem, newId, readDraft,
   relatedTo, removeItem, setElementText,
   type Fit, type FitResult, type IdeaEntry, type IdeationConditions, type IdeationDraft, type StandardEntry,
 } from "@/lib/ideation/model";
@@ -24,6 +23,7 @@ import IdeationLines from "./IdeationLines";
 // 영역마다 with AI 하나 — 인접한 영역을 기준으로 그 영역에 포함되면 좋을 항목을 우선순위 큐로 추천하고,
 // 그 영역 카드의 적합성을 판단해 오른쪽 위 점(녹색·노란색·빨간색)으로 보여 준다. 낮은 카드는 색을 바꿔 삭제를 추천한다.
 // 판단이 없는 카드(새로 더했거나 문장·주제·조건이 바뀐 카드)는 잠시 뒤 자동으로 판단해 모든 카드에 점이 붙는다.
+// 진행은 변경이 멈추고 잠시 뒤 자동 저장하고, 수업 설계에 반영은 비교 화면 없이 바로 반영한다.
 
 export interface IdeationWorkspaceProps {
   lessonId: string;
@@ -44,20 +44,6 @@ const ADJACENT: Record<RecommendFocus, Kind[]> = { topic: ["idea"], ideas: ["ele
 type Queues = { elements: RecItem[]; ideas: RecItem[]; standards: RecItem[] };
 const FOCUS_QUEUE: Record<RecommendFocus, keyof Queues> = { topic: "elements", ideas: "ideas", standards: "standards" };
 const EMPTY_QUEUES: Queues = { elements: [], ideas: [], standards: [] };
-
-function previewText(code: string, content: ContentMap[string]): string {
-  if (!content) return "작성한 내용 없음";
-  if (content.type !== "structured") return String(content.text ?? "작성한 내용 없음");
-  const values = (content.fields ?? {}) as Record<string, unknown>;
-  return (CARD_SCHEMAS[code]?.fields ?? []).flatMap((f) => {
-    const v = values[f.key];
-    if (v === undefined || v === "" || v === null) return [];
-    const text = f.type === "table" && Array.isArray(v)
-      ? v.map((row) => f.columns.map((c) => `${c.label}: ${(row as Record<string, unknown>)[c.key] ?? ""}`).join(" / ")).join("\n")
-      : Array.isArray(v) ? v.map((item) => `• ${item}`).join("\n") : String(v);
-    return [`${f.label ?? "내용"}\n${text}`];
-  }).join("\n\n") || "작성한 내용 없음";
-}
 
 async function post(url: string, body: unknown, signal?: AbortSignal) {
   const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
@@ -83,10 +69,12 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
 
   const [selection, setSelection] = useState<{ kind: Kind; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"save" | "preview" | "apply" | null>(null);
+  const [busy, setBusy] = useState<"save" | "apply" | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [preview, setPreview] = useState<{ before: ContentMap; changes: ContentMap } | null>(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+  /** 자동 저장에 실패한 초안 — 같은 초안으로는 다시 시도하지 않고, 바뀌면 다시 저장한다 */
+  const autoSaveFailed = useRef<IdeationDraft | null>(null);
   const [modal, setModal] = useState<"ideas" | "standards" | null>(null);
   const [conditionsOpen, setConditionsOpen] = useState(false);
   // with AI — 진행 상태는 누른 영역에, 추천은 종류별 큐로 각 영역에
@@ -101,7 +89,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const enrichTried = useRef(new Set<string>());
   const conditionsRef = useRef<HTMLDivElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
 
   const readonly = !isHost || !!busy;
   const elementById = new Map(draft.elements.map((e) => [e.id, e]));
@@ -117,7 +104,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const change = (next: IdeationDraft) => {
     if (!isHost || busy) return;
     if (!local) setBase(stableStringify(saved));
-    setLocal(next); setMessage(""); setError(""); setPreview(null);
+    setLocal(next); setMessage(""); setError("");
   };
   const remove = (kind: Kind, id: string) => {
     change(removeItem(draft, kind, id));
@@ -258,29 +245,55 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     : !!(item.rec.ideaId && ideaById.has(item.rec.ideaId));
 
   // ── 저장·반영 ─────────────────────────────────────────────────
-  const save = async (next = draft) => {
+  /** 저장 — 저장하는 동안 더 바뀐 내용은 화면에 남겨 다음 자동 저장에 맡긴다 */
+  const persist = async (next: IdeationDraft) => {
     if (conflict) throw new Error("다른 창에서 진행 내용이 바뀌었습니다. 저장된 진행을 먼저 불러오세요.");
     const result = await post("/api/ideation/save", { lessonId, action: "save", draft: next, expectedDraft: props.saved ?? null });
     props.onCommitted(result.changes, false);
-    setLocal(null); setBase(null); setMessage("진행 내용을 저장했습니다.");
+    const stored = readDraft((result.changes[IDEATION_ROW] as { fields?: unknown } | null)?.fields);
+    setLocal((prev) => (prev === next ? null : prev));
+    setBase(stored ? stableStringify(stored) : null);
   };
   const run = async (kind: NonNullable<typeof busy>, action: () => Promise<void>) => {
     setBusy(kind); setError(""); setMessage("");
     try { await action(); } catch (e) { setError(e instanceof Error ? e.message : "처리 중 오류가 발생했습니다."); }
     finally { setBusy(null); }
   };
-  const openPreview = () => run("preview", async () => {
+  const save = () => run("save", async () => {
+    await persist(draft);
+    setMessage("진행 내용을 저장했습니다.");
+  });
+  // 바로 반영 — 저장하지 않은 변경은 먼저 저장해 다른 창의 변경과 겹치는지 확인한다
+  const apply = () => run("apply", async () => {
     if (props.hasPendingCards()) throw new Error("수업 설계 카드가 저장 중입니다. 잠시 후 다시 시도하세요.");
     const current = draft;
-    await save(current);
-    setPreview(await post("/api/ideation/save", { lessonId, action: "preview", draft: current }));
-  });
-  const apply = () => run("apply", async () => {
-    if (props.hasPendingCards()) throw new Error("수업 설계 카드가 저장 중입니다. 저장 후 미리보기를 다시 열어 주세요.");
-    const result = await post("/api/ideation/save", { lessonId, action: "apply", draft, before: preview!.before });
-    setPreview(null); setLocal(null); setBase(null);
+    if (dirty) await persist(current);
+    const result = await post("/api/ideation/save", { lessonId, action: "apply", draft: current });
+    setLocal((prev) => (prev === current ? null : prev)); setBase(null);
     props.onCommitted(result.changes, true);
   });
+
+  // 자동 저장 — 변경이 멈추고 잠시 뒤 조용히. 충돌·다른 작업 중에는 하지 않는다
+  const autoSave = useEffectEvent(async () => {
+    if (!isHost || !local || !dirty || conflict || busy || local === autoSaveFailed.current) return;
+    const next = local;
+    setAutoSaving(true);
+    try {
+      await persist(next);
+      autoSaveFailed.current = null;
+      setError("");
+    } catch (e) {
+      autoSaveFailed.current = next;
+      setError(e instanceof Error ? e.message : "처리 중 오류가 발생했습니다.");
+    } finally {
+      setAutoSaving(false);
+    }
+  });
+  useEffect(() => {
+    if (!dirty || conflict || busy || autoSaving) return;
+    const timer = setTimeout(() => { void autoSave(); }, 1500);
+    return () => clearTimeout(timer);
+  }, [local, dirty, conflict, busy, autoSaving]);
 
   // ── 보조 효과 ─────────────────────────────────────────────────
   useEffect(() => {
@@ -311,13 +324,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [conditionsOpen]);
-  useEffect(() => {
-    if (!preview) return;
-    previewRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) { e.preventDefault(); setPreview(null); } };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [preview, busy]);
 
   // Minerva AI 채팅이 아이디어 도출 맥락을 알 수 있게 — 아직 수업 설계에 반영하지 않은 탐색 내용
   const contextText = useMemo(() => {
@@ -376,7 +382,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
         <span className="text-[12px] text-[#757b82]">{dirty ? "저장하지 않은 변경" : saved ? "저장된 진행" : "새 탐색"}</span>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <div className="relative" ref={conditionsRef}>
-            <button type="button" className={btn} aria-expanded={conditionsOpen} onClick={() => setConditionsOpen((v) => !v)}>조건</button>
+            <button type="button" className={btn} aria-expanded={conditionsOpen} onClick={() => setConditionsOpen((v) => !v)}>수업 기본정보</button>
             {conditionsOpen && (
               <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-xl border border-[#e2e4ea] bg-white p-3 shadow-lg">
                 <p className="mb-1.5 text-[12px] font-semibold text-[#757b82]">교과</p>
@@ -402,8 +408,8 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
           </div>
           {isHost && (
             <>
-              <button type="button" className={btn} disabled={readonly || conflict} onClick={() => run("save", () => save())}>진행 저장</button>
-              <button type="button" className={primaryBtn} disabled={readonly || conflict} onClick={openPreview}>{busy === "preview" ? "변경 내용 확인 중…" : "수업 설계에 반영"}</button>
+              <button type="button" className={btn} disabled={readonly || conflict || autoSaving} onClick={save}>진행 저장</button>
+              <button type="button" className={primaryBtn} disabled={readonly || conflict || autoSaving} onClick={apply}>{busy === "apply" ? "반영 중…" : "수업 설계에 반영"}</button>
             </>
           )}
         </div>
@@ -416,7 +422,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
           {conflict && (
             <p className="text-amber-800">
               다른 창에서 진행이 변경되었습니다.{" "}
-              <button type="button" className="font-semibold underline" disabled={!!busy} onClick={() => { setLocal(null); setBase(null); setPreview(null); }}>내 변경을 버리고 저장된 진행 불러오기</button>
+              <button type="button" className="font-semibold underline" disabled={!!busy} onClick={() => { setLocal(null); setBase(null); }}>내 변경을 버리고 저장된 진행 불러오기</button>
               {" · "}
               <button type="button" className="font-semibold underline" disabled={!!busy} onClick={() => setBase(stableStringify(saved))}>내 변경 유지</button>
             </p>
@@ -433,7 +439,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
           tools={isHost && aiButton("topic")}>
           {recBlock("topic", "elements")}
           <label className="block">
-            <span className="mb-1 block text-[12px] font-semibold text-[#757b82]">주제 제목</span>
+            <span className="mb-1 block text-[12px] font-semibold text-[#757b82]">수업주제</span>
             <input className={field} maxLength={LIMITS.topic} disabled={readonly} value={draft.topic} onChange={(e) => change(clearFits({ ...draft, topic: e.target.value }))} />
           </label>
           <p className="pt-1 text-[12px] font-semibold text-[#757b82]">하위요소</p>
@@ -530,32 +536,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
           selectedStandards={draft.standards.map((s) => ({ code: s.code, subject: s.subject || enrich[s.code]?.subject || "", domain: s.domain || enrich[s.code]?.domain || "", content: standardText(s), keywords: [], explanation: "", grade_group: "" }))}
           onSelectionChange={applyStandardPicks}
         />
-      )}
-
-      {preview && (
-        <div ref={previewRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ideation-preview-title" className="absolute inset-0 z-50 flex flex-col bg-[#f8f9fd] p-5">
-          <h2 id="ideation-preview-title" className="text-lg font-bold">수업 설계에 반영할 내용</h2>
-          <div className="my-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
-            {(["A-2", "A-3", "A-4"] as const).filter((code) => code in preview.changes).map((code) => (
-              <section key={code} className="rounded-xl border border-[#e2e4ea] bg-white p-4">
-                <h3 className="font-bold">{code} · {({ "A-2": "주제 선정", "A-3": "성취기준 분석", "A-4": "교과 간 연계" })[code]}</h3>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  {(["before", "changes"] as const).map((side) => (
-                    <div key={side}>
-                      <h4 className="text-xs font-semibold text-[#757b82]">{side === "before" ? "현재 내용" : "반영 후"}</h4>
-                      <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-xs leading-6">{previewText(code, preview[side][code])}</pre>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-          {error && <p role="alert" className="mb-2 text-sm text-red-700">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <button type="button" className={btn} disabled={!!busy} onClick={() => setPreview(null)}>돌아가기</button>
-            <button type="button" className={primaryBtn} disabled={!!busy} onClick={apply}>{busy === "apply" ? "반영 중…" : "확인하고 수업 설계 시작"}</button>
-          </div>
-        </div>
       )}
     </div>
   );

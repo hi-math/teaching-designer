@@ -69,9 +69,10 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
 
   const [selection, setSelection] = useState<{ kind: Kind; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"save" | "apply" | null>(null);
+  const [busy, setBusy] = useState<"apply" | null>(null);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  /** 자동 저장이 끝난 직후 상단 저장 상태 옆에 잠깐 보이는 안내 */
+  const [savedNotice, setSavedNotice] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
   /** 자동 저장에 실패한 초안 — 같은 초안으로는 다시 시도하지 않고, 바뀌면 다시 저장한다 */
   const autoSaveFailed = useRef<IdeationDraft | null>(null);
@@ -104,7 +105,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const change = (next: IdeationDraft) => {
     if (!isHost || busy) return;
     if (!local) setBase(stableStringify(saved));
-    setLocal(next); setMessage(""); setError("");
+    setLocal(next); setSavedNotice(false); setError("");
   };
   const remove = (kind: Kind, id: string) => {
     change(removeItem(draft, kind, id));
@@ -200,7 +201,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     if (!isHost || !fits.length) return;
     setBase((b) => b ?? stableStringify(saved));
     setLocal((prev) => applyFits(prev ?? saved ?? initial, fits, basis));
-    setMessage("");
   };
 
   const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");
@@ -255,14 +255,10 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     setBase(stored ? stableStringify(stored) : null);
   };
   const run = async (kind: NonNullable<typeof busy>, action: () => Promise<void>) => {
-    setBusy(kind); setError(""); setMessage("");
+    setBusy(kind); setError("");
     try { await action(); } catch (e) { setError(e instanceof Error ? e.message : "처리 중 오류가 발생했습니다."); }
     finally { setBusy(null); }
   };
-  const save = () => run("save", async () => {
-    await persist(draft);
-    setMessage("진행 내용을 저장했습니다.");
-  });
   // 바로 반영 — 저장하지 않은 변경은 먼저 저장해 다른 창의 변경과 겹치는지 확인한다
   const apply = () => run("apply", async () => {
     if (props.hasPendingCards()) throw new Error("수업 설계 카드가 저장 중입니다. 잠시 후 다시 시도하세요.");
@@ -273,7 +269,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     props.onCommitted(result.changes, true);
   });
 
-  // 자동 저장 — 변경이 멈추고 잠시 뒤 조용히. 충돌·다른 작업 중에는 하지 않는다
+  // 자동 저장 — 변경이 멈추고 잠시 뒤. 끝나면 상단 저장 상태 옆에 안내가 잠깐 보인다. 충돌·다른 작업 중에는 하지 않는다
   const autoSave = useEffectEvent(async () => {
     if (!isHost || !local || !dirty || conflict || busy || local === autoSaveFailed.current) return;
     const next = local;
@@ -282,6 +278,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       await persist(next);
       autoSaveFailed.current = null;
       setError("");
+      setSavedNotice(true);
     } catch (e) {
       autoSaveFailed.current = next;
       setError(e instanceof Error ? e.message : "처리 중 오류가 발생했습니다.");
@@ -294,6 +291,11 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     const timer = setTimeout(() => { void autoSave(); }, 1500);
     return () => clearTimeout(timer);
   }, [local, dirty, conflict, busy, autoSaving]);
+  useEffect(() => {
+    if (!savedNotice) return;
+    const timer = setTimeout(() => setSavedNotice(false), 3000);
+    return () => clearTimeout(timer);
+  }, [savedNotice]);
 
   // ── 보조 효과 ─────────────────────────────────────────────────
   useEffect(() => {
@@ -380,6 +382,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e2e4ea] bg-white px-5 py-2.5">
         <h1 className="text-[17px] font-bold">아이디어 도출</h1>
         <span className="text-[12px] text-[#757b82]">{dirty ? "저장하지 않은 변경" : saved ? "저장된 진행" : "새 탐색"}</span>
+        <span aria-live="polite" className="text-[12px] text-emerald-700">{savedNotice && !dirty && "진행 내용을 저장했습니다."}</span>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <div className="relative" ref={conditionsRef}>
             <button type="button" className={btn} aria-expanded={conditionsOpen} onClick={() => setConditionsOpen((v) => !v)}>수업 기본정보</button>
@@ -406,19 +409,13 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
               </div>
             )}
           </div>
-          {isHost && (
-            <>
-              <button type="button" className={btn} disabled={readonly || conflict || autoSaving} onClick={save}>진행 저장</button>
-              <button type="button" className={primaryBtn} disabled={readonly || conflict || autoSaving} onClick={apply}>{busy === "apply" ? "반영 중…" : "수업 설계에 반영"}</button>
-            </>
-          )}
+          {isHost && <button type="button" className={primaryBtn} disabled={readonly || conflict || autoSaving} onClick={apply}>{busy === "apply" ? "반영 중…" : "수업 설계에 반영"}</button>}
         </div>
       </header>
 
-      {(error || message || conflict) && (
+      {(error || conflict) && (
         <div aria-live="polite" className="shrink-0 space-y-1 border-b border-[#e2e4ea] bg-white px-5 py-2 text-[13px]">
           {error && <p role="alert" className="text-red-700">{error}</p>}
-          {message && <p className="text-emerald-700">{message}</p>}
           {conflict && (
             <p className="text-amber-800">
               다른 창에서 진행이 변경되었습니다.{" "}

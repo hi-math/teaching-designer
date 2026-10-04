@@ -14,6 +14,16 @@ export type Via = "manual" | "ai";
 export type LinkStrength = 1 | 2 | 3;
 export const DEFAULT_STRENGTH: LinkStrength = 2;
 
+/** with AI 가 판단한 적합성 — 3 높음 · 2 보통 · 1 낮음(삭제 추천). 근거는 해석·제안 */
+export type FitScore = 1 | 2 | 3;
+export interface Fit {
+  score: FitScore;
+  reason: string;
+  /** 낮음이지만 교사가 남기기로 한 항목 — 삭제 추천을 다시 띄우지 않는다 */
+  kept: boolean;
+}
+export type FitResult = { id: string; score: FitScore; reason: string };
+
 export interface IdeationConditions {
   subjects: string[];
   grade: string;
@@ -23,6 +33,7 @@ export interface TopicElement {
   id: string;
   text: string;
   via: Via;
+  fit?: Fit;
 }
 
 /** 공식 핵심아이디어 원문 참조 — catalogId 는 ideas.json 의 `${교과}__${영역}__${순번}` */
@@ -42,6 +53,7 @@ export interface IdeaEntry {
   /** 직접 작성한 항목의 교과 (공식 항목은 official.subject) */
   subject: string;
   via: Via;
+  fit?: Fit;
 }
 
 export interface StandardEntry {
@@ -55,6 +67,7 @@ export interface StandardEntry {
   /** 교사의 재진술·메모 — 원문과 분리 */
   note: string;
   via: Via;
+  fit?: Fit;
 }
 
 export interface IdeationLink {
@@ -138,6 +151,17 @@ function readLinks(value: unknown, from: Set<string>, to: Set<string>): Ideation
   return out;
 }
 
+function readFit(value: unknown): Fit | undefined {
+  const f = value as Fit | undefined;
+  if (!f || typeof f !== "object" || (f.score !== 1 && f.score !== 2 && f.score !== 3) || !isStr(f.reason, LIMITS.reason)) return undefined;
+  return { score: f.score, reason: f.reason, kept: f.kept === true };
+}
+/** 판단이 없는 항목에는 fit 키를 두지 않는다 (저장값과 화면 초안의 비교가 어긋나지 않게) */
+function withFit<T extends object>(item: T, value: unknown): T & { fit?: Fit } {
+  const fit = readFit(value);
+  return fit ? { ...item, fit } : item;
+}
+
 /** 저장된 `__ideation` → 화면에서 쓸 초안. 예전 형식(schemaVersion 1)은 변환하고, 깨진 값은 null */
 export function readDraft(value: unknown): IdeationDraft | null {
   if (!value || typeof value !== "object") return null;
@@ -164,9 +188,9 @@ export function readDraft(value: unknown): IdeationDraft | null {
     schemaVersion: 2, dataVersion: d.dataVersion,
     conditions: { subjects: [...new Set(d.conditions.subjects)], grade: d.conditions.grade },
     topic: d.topic,
-    elements: d.elements.map((e) => ({ id: e.id, text: e.text, via: e.via })),
-    ideas: d.ideas.map((i) => ({ id: i.id, official: i.official && { catalogId: i.official.catalogId, subject: i.official.subject, domain: i.official.domain, content: i.official.content }, revision: i.revision, subject: i.subject, via: i.via })),
-    standards: d.standards.map((s) => ({ id: s.id, code: s.code, subject: s.subject, domain: s.domain, content: s.content, note: s.note, via: s.via })),
+    elements: d.elements.map((e) => withFit({ id: e.id, text: e.text, via: e.via }, e.fit)),
+    ideas: d.ideas.map((i) => withFit({ id: i.id, official: i.official && { catalogId: i.official.catalogId, subject: i.official.subject, domain: i.official.domain, content: i.official.content }, revision: i.revision, subject: i.subject, via: i.via }, i.fit)),
+    standards: d.standards.map((s) => withFit({ id: s.id, code: s.code, subject: s.subject, domain: s.domain, content: s.content, note: s.note, via: s.via }, s.fit)),
     elementIdeaLinks, ideaStandardLinks,
   };
 }
@@ -273,7 +297,7 @@ export function setElementText(d: IdeationDraft, id: string, text: string): Idea
   const before = d.elements.find((e) => e.id === id);
   const value = text.slice(0, LIMITS.element);
   if (!before || before.text === value) return d;
-  const next = { ...d, elements: d.elements.map((e) => (e.id === id ? { ...e, text: value } : e)) };
+  const next = { ...d, elements: d.elements.map((e) => (e.id === id ? withoutFit({ ...e, text: value }) : e)) };
   return before.text.trim() ? markReview(next, "element", id) : next;
 }
 
@@ -284,8 +308,57 @@ export function setIdeaText(d: IdeationDraft, id: string, text: string): Ideatio
   const value = text.slice(0, LIMITS.revision);
   const revision = before.official && value === before.official.content ? null : value;
   if (revision === before.revision) return d;
-  const next = { ...d, ideas: d.ideas.map((i) => (i.id === id ? { ...i, revision } : i)) };
+  const next = { ...d, ideas: d.ideas.map((i) => (i.id === id ? withoutFit({ ...i, revision }) : i)) };
   return ideaText(before).trim() ? markReview(next, "idea", id) : next;
+}
+
+// ─── 적합성 ───────────────────────────────────────────────────────
+
+function withoutFit<T extends { fit?: Fit }>(item: T): T {
+  return item.fit ? { ...item, fit: undefined } : item;
+}
+
+/** 주제·조건이 바뀌면 모든 판단이 낡으므로 지운다 */
+export function clearFits(d: IdeationDraft): IdeationDraft {
+  if (![...d.elements, ...d.ideas, ...d.standards].some((x) => x.fit)) return d;
+  return { ...d, elements: d.elements.map(withoutFit), ideas: d.ideas.map(withoutFit), standards: d.standards.map(withoutFit) };
+}
+
+/**
+ * with AI 의 적합성 판단을 반영한다. `basis` 는 판단을 요청할 때 보낸 초안 —
+ * 그 뒤에 주제가 바뀌었으면 전부, 문장이 바뀐 항목은 그 판단만 버린다.
+ * 남기기로 한 항목이 다시 낮음이면 남기기를 유지한다.
+ */
+export function applyFits(d: IdeationDraft, fits: FitResult[], basis: IdeationDraft): IdeationDraft {
+  if (!fits.length || d.topic !== basis.topic) return d;
+  const byId = new Map(fits.map((f) => [f.id, f]));
+  const elementText = new Map(basis.elements.map((e) => [e.id, e.text]));
+  const ideaTextOf = new Map(basis.ideas.map((i) => [i.id, ideaText(i)]));
+  const standardIds = new Set(basis.standards.map((s) => s.id));
+  const judged = <T extends { id: string; fit?: Fit }>(item: T, unchanged: boolean): T => {
+    const f = byId.get(item.id);
+    if (!f || !unchanged) return item;
+    return { ...item, fit: { score: f.score, reason: f.reason.slice(0, LIMITS.reason), kept: !!item.fit?.kept && f.score === 1 } };
+  };
+  return {
+    ...d,
+    elements: d.elements.map((e) => judged(e, elementText.get(e.id) === e.text)),
+    ideas: d.ideas.map((i) => judged(i, ideaTextOf.get(i.id) === ideaText(i))),
+    standards: d.standards.map((s) => judged(s, standardIds.has(s.id))),
+  };
+}
+
+/** 삭제 추천을 받은 항목을 남긴다 */
+export function keepItem(d: IdeationDraft, kind: "element" | "idea" | "standard", id: string): IdeationDraft {
+  const keep = <T extends { id: string; fit?: Fit }>(item: T): T => (item.id === id && item.fit ? { ...item, fit: { ...item.fit, kept: true } } : item);
+  if (kind === "element") return { ...d, elements: d.elements.map(keep) };
+  if (kind === "idea") return { ...d, ideas: d.ideas.map(keep) };
+  return { ...d, standards: d.standards.map(keep) };
+}
+
+/** 적합성이 낮아 삭제를 추천하는 항목인지 (남기기로 한 항목 제외) */
+export function deletionAdvised(item: { fit?: Fit }): boolean {
+  return item.fit?.score === 1 && !item.fit.kept;
 }
 
 /** 선택한 항목과 직접 연결된 항목(strong), 한 단계 건너 연결된 항목(soft) */

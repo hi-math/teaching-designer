@@ -9,19 +9,20 @@ import type { ContentMap } from "@/lib/ideation/application";
 import type { IdeaRec, RecommendFocus, Recommendations } from "@/app/api/ideation/route";
 import { bracketCode } from "@/lib/standardCode";
 import {
-  LIMITS, addLink, confirmLink, emptyDraft, ideaOrigin, ideaSubject, ideaText, newId, readDraft, relatedTo,
-  removeItem, removeLink, setElementText, setIdeaText,
-  type IdeaEntry, type IdeationConditions, type IdeationDraft, type StandardEntry,
+  LIMITS, addLink, applyFits, clearFits, deletionAdvised, emptyDraft, ideaOrigin, ideaSubject, ideaText, keepItem, newId, readDraft,
+  relatedTo, removeItem, setElementText,
+  type Fit, type FitResult, type IdeaEntry, type IdeationConditions, type IdeationDraft, type StandardEntry,
 } from "@/lib/ideation/model";
 import {
-  CodeChip, IconBtn, LinkNotes, Pane, PencilIcon, RecError, RecQueue, SourceBadge, SpinnerIcon, SubjectBadge, XIcon,
+  CodeChip, FitAdvice, FitDot, IconBtn, Pane, RecError, RecQueue, SourceBadge, SpinnerIcon, SubjectBadge, XIcon,
   aiBtn, btn, field, primaryBtn, type RecItem,
 } from "./ideationParts";
 import IdeationLines from "./IdeationLines";
 
 // 아이디어 도출 — 주제 설계 ↔ 핵심아이디어 ↔ 성취기준을 한 화면에서 함께 다룬다 (prompt/idea.md)
-// 단계 전환 없이 세 영역이 항상 보이고, 연결은 영역 사이의 곡선(굵기 = 강도)과 카드의 강조·칩으로 보여 준다.
-// 영역마다 with AI 하나 — 지금 초안에 포함되면 좋을 항목을 우선순위 큐로 추천하고, 추천은 종류별로 해당 영역에 보인다.
+// 단계 전환 없이 세 영역이 항상 보이고, 연결은 영역 사이의 곡선(굵기 = 강도, 마우스를 올리면 설명)으로 보여 준다.
+// 영역마다 with AI 하나 — 인접한 영역을 기준으로 그 영역에 포함되면 좋을 항목을 우선순위 큐로 추천하고,
+// 그 영역 카드의 적합성을 판단해 오른쪽 위 점(녹색·노란색·빨간색)으로 보여 준다. 낮은 카드는 색을 바꿔 삭제를 추천한다.
 
 export interface IdeationWorkspaceProps {
   lessonId: string;
@@ -37,9 +38,10 @@ export interface IdeationWorkspaceProps {
 }
 
 type Kind = "element" | "idea" | "standard";
-/** with AI 를 누른 영역 → 그 영역에서 선택한 항목의 종류 */
-const FOCUS_KIND: Record<RecommendFocus, Kind> = { topic: "element", ideas: "idea", standards: "standard" };
+/** with AI 를 누른 영역 → 기준으로 삼는 인접 영역의 항목 종류 (선택한 항목이 이 종류면 그 항목을 기준으로) */
+const ADJACENT: Record<RecommendFocus, Kind[]> = { topic: ["idea"], ideas: ["element", "standard"], standards: ["idea"] };
 type Queues = { elements: RecItem[]; ideas: RecItem[]; standards: RecItem[] };
+const FOCUS_QUEUE: Record<RecommendFocus, keyof Queues> = { topic: "elements", ideas: "ideas", standards: "standards" };
 const EMPTY_QUEUES: Queues = { elements: [], ideas: [], standards: [] };
 
 function previewText(code: string, content: ContentMap[string]): string {
@@ -80,7 +82,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
 
   const [selection, setSelection] = useState<{ kind: Kind; id: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ kind: "idea"; id: string; text: string; subject: string } | null>(null);
   const [busy, setBusy] = useState<"save" | "preview" | "apply" | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -117,31 +118,12 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const remove = (kind: Kind, id: string) => {
     change(removeItem(draft, kind, id));
     if (sel?.id === id) setSelection(null);
-    if (editing?.id === id) setEditing(null);
   };
   const addElement = () => {
     if (draft.elements.length >= LIMITS.elements) return;
     const el = { id: newId("el"), text: "", via: "manual" as const };
     change({ ...draft, elements: [...draft.elements, el] });
     setSelection({ kind: "element", id: el.id }); setFocusId(el.id);
-  };
-  const saveEditing = () => {
-    if (!editing) return;
-    {
-      const idea = ideaById.get(editing.id);
-      if (!idea) { setEditing(null); return; }
-      // 직접 작성한 항목을 비운 채 저장하면 지운다
-      if (!idea.official && !editing.text.trim()) { remove("idea", idea.id); return; }
-      let next = setIdeaText(draft, idea.id, editing.text.trim());
-      if (!idea.official && editing.subject !== idea.subject) next = { ...next, ideas: next.ideas.map((i) => (i.id === idea.id ? { ...i, subject: editing.subject } : i)) };
-      change(next);
-    }
-    setEditing(null);
-  };
-  const cancelEditing = () => {
-    const idea = editing?.kind === "idea" ? ideaById.get(editing.id) : undefined;
-    if (idea && !idea.official && !ideaText(idea).trim()) remove("idea", idea.id);
-    setEditing(null);
   };
 
   // 검색 모달 — 모달에서 고른 결과로 공식 항목을 더하고, 선택을 해제한 항목은 연결과 함께 지운다
@@ -169,20 +151,20 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
 
   // ── with AI ───────────────────────────────────────────────────
   const runRecommend = async (focus: RecommendFocus, targetId?: string | null) => {
-    const kind = FOCUS_KIND[focus];
-    const target = targetId !== undefined ? targetId : sel && sel.kind === kind ? sel.id : null;
+    const target = targetId !== undefined ? targetId : sel && ADJACENT[focus].includes(sel.kind) ? sel.id : null;
+    const basis = draft;
     recController.current?.abort();
     const controller = new AbortController();
     recController.current = controller;
     setRecRun({ focus, targetId: target, status: "loading" });
     try {
-      const rec = await post("/api/ideation", { lessonId, focus, targetId: target, draft }, controller.signal) as Recommendations;
+      const rec = await post("/api/ideation", { lessonId, focus, targetId: target, draft: basis }, controller.signal) as Recommendations;
       const stamp = Date.now();
-      setQueues({
-        elements: rec.elements.map((r, i) => ({ kind: "element", key: `e${stamp}-${i}`, rec: r })),
-        ideas: rec.ideas.map((r, i) => ({ kind: "idea", key: `i${stamp}-${i}`, rec: r })),
-        standards: rec.standards.map((r, i) => ({ kind: "standard", key: `s${stamp}-${i}`, rec: r })),
-      });
+      const items: RecItem[] = focus === "topic" ? rec.elements.map((r, i) => ({ kind: "element", key: `e${stamp}-${i}`, rec: r }))
+        : focus === "ideas" ? rec.ideas.map((r, i) => ({ kind: "idea", key: `i${stamp}-${i}`, rec: r }))
+          : rec.standards.map((r, i) => ({ kind: "standard", key: `s${stamp}-${i}`, rec: r }));
+      setQueues((q) => ({ ...q, [FOCUS_QUEUE[focus]]: items }));
+      applyFitResult(rec.fits ?? [], basis);
       setRecRun(null);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
@@ -190,6 +172,13 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     }
   };
   useEffect(() => () => recController.current?.abort(), []);
+  /** 기다리는 동안 바뀐 내용은 지키고, 요청 뒤 문장이 바뀐 카드의 판단은 버린다 */
+  const applyFitResult = (fits: FitResult[], basis: IdeationDraft) => {
+    if (!isHost || !fits.length) return;
+    setBase((b) => b ?? stableStringify(saved));
+    setLocal((prev) => applyFits(prev ?? saved ?? initial, fits, basis));
+    setMessage("");
+  };
 
   const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");
   const dropRec = (item: RecItem) => setQueues((q) => ({ ...q, [queueKey(item)]: q[queueKey(item)].filter((i) => i.key !== item.key) }));
@@ -311,9 +300,19 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   useEffect(() => { onContext(contextText); }, [contextText, onContext]);
 
   // ── 화면 ──────────────────────────────────────────────────────
-  const tone = (id: string) => (sel?.id === id ? "border-transparent bg-white ring-2 ring-[#D1260F]"
-    : rel.strong.has(id) ? "border-[#F5B8A8] bg-[#FFF8F6]"
-      : rel.soft.has(id) ? "border-[#FBE3DC] bg-[#FFFCFB]" : "border-[#e2e4ea] bg-white");
+  const tone = (item: { id: string; fit?: Fit }) => {
+    const advised = deletionAdvised(item);
+    if (sel?.id === item.id) return `border-transparent ring-2 ring-[#D1260F] ${advised ? "bg-[#f1f2f5]" : "bg-white"}`;
+    if (advised) return "border-dashed border-[#c3c8d0] bg-[#f1f2f5]";
+    return rel.strong.has(item.id) ? "border-[#F5B8A8] bg-[#FFF8F6]"
+      : rel.soft.has(item.id) ? "border-[#FBE3DC] bg-[#FFFCFB]" : "border-[#e2e4ea] bg-white";
+  };
+  /** 적합성이 낮은 카드의 삭제 추천 — 근거, 남기기(✓), 삭제 */
+  const advice = (kind: Kind, item: { id: string; fit?: Fit }) => deletionAdvised(item) && item.fit && (
+    <FitAdvice fit={item.fit}
+      onKeep={readonly ? undefined : () => change(keepItem(draft, kind, item.id))}
+      onDelete={readonly ? undefined : () => remove(kind, item.id)} />
+  );
 
 
   /** with AI 를 누른 영역의 진행 상태 + 그 영역 종류의 추천 큐 */
@@ -350,7 +349,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
                     const on = draft.conditions.subjects.includes(s);
                     return (
                       <button key={s} type="button" aria-pressed={on} disabled={readonly}
-                        onClick={() => change({ ...draft, conditions: { ...draft.conditions, subjects: on ? draft.conditions.subjects.filter((x) => x !== s) : [...draft.conditions.subjects, s] } })}
+                        onClick={() => change(clearFits({ ...draft, conditions: { ...draft.conditions, subjects: on ? draft.conditions.subjects.filter((x) => x !== s) : [...draft.conditions.subjects, s] } }))}
                         className={`rounded-full border px-2.5 py-1 text-[12px] transition disabled:opacity-60 ${on ? "border-[#D1260F] bg-[#FFF1ED] font-semibold text-[#D1260F]" : "border-[#e2e4ea] text-[#5a6066] hover:border-[#F5B8A8]"}`}>
                         {s}
                       </button>
@@ -360,7 +359,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
                 <label className="mt-3 block">
                   <span className="mb-1 block text-[12px] font-semibold text-[#757b82]">학년</span>
                   <input className={field} maxLength={60} disabled={readonly} value={draft.conditions.grade}
-                    onChange={(e) => change({ ...draft, conditions: { ...draft.conditions, grade: e.target.value } })} />
+                    onChange={(e) => change(clearFits({ ...draft, conditions: { ...draft.conditions, grade: e.target.value } }))} />
                 </label>
               </div>
             )}
@@ -393,21 +392,19 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       <div ref={gridRef} className="relative grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)] lg:gap-10 lg:overflow-hidden">
         <IdeationLines container={gridRef} draft={draft} active={activeIds} />
         {/* ── 주제 설계 ── */}
-        <Pane title="주제 설계" tools={isHost && (
-          <>
-            <button type="button" className={btn} disabled={readonly || draft.elements.length >= LIMITS.elements} onClick={addElement}>+ 하위요소 추가</button>
-            {aiButton("topic")}
-          </>
-        )}>
+        <Pane title="주제 설계"
+          actions={isHost && <button type="button" className={btn} disabled={readonly || draft.elements.length >= LIMITS.elements} onClick={addElement}>+ 하위요소 추가</button>}
+          tools={isHost && aiButton("topic")}>
           {recBlock("topic", "elements")}
           <label className="block">
             <span className="mb-1 block text-[12px] font-semibold text-[#757b82]">주제 제목</span>
-            <input className={field} maxLength={LIMITS.topic} disabled={readonly} value={draft.topic} onChange={(e) => change({ ...draft, topic: e.target.value })} />
+            <input className={field} maxLength={LIMITS.topic} disabled={readonly} value={draft.topic} onChange={(e) => change(clearFits({ ...draft, topic: e.target.value }))} />
           </label>
           <p className="pt-1 text-[12px] font-semibold text-[#757b82]">하위요소</p>
           {draft.elements.map((el) => {
             return (
-              <div key={el.id} id={`ideation-${el.id}`} onClick={() => setSelection({ kind: "element", id: el.id })} className={`cursor-pointer rounded-xl border p-2 transition ${tone(el.id)}`}>
+              <div key={el.id} id={`ideation-${el.id}`} onClick={() => setSelection({ kind: "element", id: el.id })} className={`relative cursor-pointer rounded-xl border p-2 transition ${tone(el)}`}>
+                {el.fit && <FitDot fit={el.fit} />}
                 <div className="flex items-center gap-1">
                   <input value={el.text} disabled={readonly} maxLength={LIMITS.element} autoFocus={focusId === el.id}
                     onFocus={() => setSelection({ kind: "element", id: el.id })}
@@ -416,84 +413,56 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
                   {el.via === "ai" && <SourceBadge kind="ai" />}
                   {isHost && <IconBtn label="삭제" danger disabled={readonly} onClick={() => remove("element", el.id)}><XIcon /></IconBtn>}
                 </div>
+                {advice("element", el)}
               </div>
             );
           })}
         </Pane>
 
         {/* ── 핵심아이디어 ── */}
-        <Pane title="핵심아이디어" tools={isHost && (
-          <>
-            <button type="button" className={btn} disabled={readonly} onClick={() => setModal("ideas")}>핵심아이디어 검색</button>
-            {aiButton("ideas")}
-          </>
-        )}>
+        <Pane title="핵심아이디어"
+          actions={isHost && <button type="button" className={btn} disabled={readonly} onClick={() => setModal("ideas")}>핵심아이디어 추가</button>}
+          tools={isHost && aiButton("ideas")}>
           {recBlock("ideas", "ideas")}
           {draft.ideas.map((idea) => {
             const origin = ideaOrigin(idea);
-            const elLinks = draft.elementIdeaLinks.filter((l) => l.to === idea.id);
-            const isEditing = editing?.kind === "idea" && editing.id === idea.id;
             return (
-              <div key={idea.id} id={`ideation-${idea.id}`} onClick={() => setSelection({ kind: "idea", id: idea.id })} className={`cursor-pointer rounded-xl border p-2.5 transition ${tone(idea.id)}`}>
+              <div key={idea.id} id={`ideation-${idea.id}`} onClick={() => setSelection({ kind: "idea", id: idea.id })} className={`relative cursor-pointer rounded-xl border p-2.5 transition ${tone(idea)}`}>
+                {idea.fit && <FitDot fit={idea.fit} />}
                 <div className="flex flex-wrap items-center gap-1.5">
                   <SubjectBadge subject={ideaSubject(idea)} />
                   {idea.official && <span className="text-[11.5px] text-[#757b82]">{idea.official.domain}</span>}
-                  <SourceBadge kind={origin === "official" ? "official" : "teacher"} />
+                  {origin !== "official" && <SourceBadge kind="teacher" />}
                   {idea.via === "ai" && <SourceBadge kind="ai" />}
-                  {isHost && !isEditing && (
+                  {isHost && (
                     <div className="ml-auto flex">
-                      <IconBtn label="수정" disabled={readonly} onClick={() => setEditing({ kind: "idea", id: idea.id, text: ideaText(idea), subject: idea.subject })}><PencilIcon /></IconBtn>
                       <IconBtn label="삭제" danger disabled={readonly} onClick={() => remove("idea", idea.id)}><XIcon /></IconBtn>
                     </div>
                   )}
                 </div>
-                {isEditing ? (
-                  <div className="mt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                    {!idea.official && (
-                      <select className={field} value={editing.subject} onChange={(e) => setEditing({ ...editing, subject: e.target.value })}>
-                        <option value="">—</option>
-                        {[...new Set([...draft.conditions.subjects, ...subjects])].map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    )}
-                    <textarea autoFocus rows={3} maxLength={LIMITS.revision} className={field} value={editing.text}
-                      onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                      onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); cancelEditing(); } }} />
-                    <div className="flex flex-wrap gap-1.5">
-                      <button type="button" className={btn} onClick={saveEditing}>저장</button>
-                      <button type="button" className={btn} onClick={cancelEditing}>취소</button>
-                      {origin === "revised" && <button type="button" className={btn} onClick={() => { change(setIdeaText(draft, idea.id, idea.official!.content)); setEditing(null); }}>원문 복원</button>}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-1.5 text-[13.5px] leading-relaxed">{ideaText(idea) || "—"}</p>
-                )}
-                {origin === "revised" && !isEditing && (
+                <p className="mt-1.5 text-[13.5px] leading-relaxed">{ideaText(idea) || "—"}</p>
+                {origin === "revised" && (
                   <details className="mt-1" onClick={(e) => e.stopPropagation()}>
                     <summary className="cursor-pointer text-[11.5px] text-[#757b82]">공식 원문</summary>
                     <p className="mt-1 text-[12.5px] leading-relaxed text-[#757b82]">{idea.official!.content}</p>
                   </details>
                 )}
-                <LinkNotes links={elLinks}
-                  onConfirm={readonly ? undefined : (l) => change(confirmLink(draft, "elementIdea", l.id))}
-                  onRemove={readonly ? undefined : (l) => change(removeLink(draft, "elementIdea", l.id))} />
+                {advice("idea", idea)}
               </div>
             );
           })}
         </Pane>
 
         {/* ── 성취기준 ── */}
-        <Pane title="성취기준" tools={isHost && (
-          <>
-            <button type="button" className={btn} disabled={readonly} onClick={() => setModal("standards")}>성취기준 검색</button>
-            {aiButton("standards")}
-          </>
-        )}>
+        <Pane title="성취기준"
+          actions={isHost && <button type="button" className={btn} disabled={readonly} onClick={() => setModal("standards")}>성취기준 추가</button>}
+          tools={isHost && aiButton("standards")}>
           {recBlock("standards", "standards")}
           {draft.standards.map((s) => {
-            const links = draft.ideaStandardLinks.filter((l) => l.to === s.id);
             const subject = s.subject || enrich[s.code]?.subject || "";
             return (
-              <div key={s.id} id={`ideation-${s.id}`} onClick={() => setSelection({ kind: "standard", id: s.id })} className={`cursor-pointer rounded-xl border p-2.5 transition ${tone(s.id)}`}>
+              <div key={s.id} id={`ideation-${s.id}`} onClick={() => setSelection({ kind: "standard", id: s.id })} className={`relative cursor-pointer rounded-xl border p-2.5 transition ${tone(s)}`}>
+                {s.fit && <FitDot fit={s.fit} />}
                 <div className="flex flex-wrap items-center gap-1.5">
                   <SubjectBadge subject={subject} />
                   <CodeChip code={s.code} />
@@ -505,9 +474,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
                   )}
                 </div>
                 <p className="mt-1.5 text-[13px] leading-relaxed">{standardText(s)}</p>
-                <LinkNotes links={links}
-                  onConfirm={readonly ? undefined : (l) => change(confirmLink(draft, "ideaStandard", l.id))}
-                  onRemove={readonly ? undefined : (l) => change(removeLink(draft, "ideaStandard", l.id))} />
+                {advice("standard", s)}
               </div>
             );
           })}

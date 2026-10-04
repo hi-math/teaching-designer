@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addLink, emptyDraft, readDraft, relatedTo, removeItem, removeLink, setElementText, setIdeaText,
+  addLink, applyFits, clearFits, deletionAdvised, emptyDraft, keepItem, readDraft, relatedTo, removeItem, removeLink, setElementText, setIdeaText,
   type IdeationDraft,
 } from "../model";
 import { buildApplication, buildNarrative, canonicalize, type IdeationCatalog } from "../application";
@@ -110,6 +110,45 @@ describe("아이디어 도출 초안", () => {
     expect(relatedTo(d, "element", "el_heat")).toEqual({ strong: new Set([i1.id]), soft: new Set(["[9과01-01]"]) });
     expect(relatedTo(d, "idea", i1.id).strong).toEqual(new Set(["el_heat", "[9과01-01]"]));
     expect(relatedTo(d, "standard", "[9과01-01]")).toEqual({ strong: new Set([i1.id]), soft: new Set(["el_heat"]) });
+  });
+});
+
+describe("적합성", () => {
+  it("판단을 반영하고 저장했다가 다시 읽어도 그대로다", () => {
+    const w = workspace();
+    const d = applyFits(w, [{ id: "el_heat", score: 3, reason: "주제의 출발점" }, { id: "[9사05-02]", score: 1, reason: "거리가 멉니다" }], w);
+    expect(d.elements[0].fit).toEqual({ score: 3, reason: "주제의 출발점", kept: false });
+    expect(deletionAdvised(d.standards[1])).toBe(true);
+    expect(deletionAdvised(d.elements[0])).toBe(false);
+    expect(readDraft(JSON.parse(JSON.stringify(d)))).toEqual(d);
+    // 판단이 없는 항목에는 fit 키를 만들지 않는다
+    expect("fit" in readDraft(JSON.parse(JSON.stringify(w)))!.elements[0]).toBe(false);
+    // 깨진 판단은 초안을 거부하지 않고 버린다
+    const broken = { ...d, elements: d.elements.map((e) => ({ ...e, fit: { score: 7, reason: "x" } })) };
+    expect(readDraft(broken)!.elements.every((e) => !e.fit)).toBe(true);
+  });
+
+  it("요청 뒤 주제가 바뀌었으면 전부, 문장이 바뀐 카드는 그 판단만 버린다", () => {
+    const basis = workspace();
+    const fits = [{ id: "el_heat", score: 1 as const, reason: "a" }, { id: "el_plan", score: 2 as const, reason: "b" }];
+    expect(applyFits({ ...basis, topic: "다른 주제" }, fits, basis)).toEqual({ ...basis, topic: "다른 주제" });
+    const edited = setElementText(basis, "el_heat", "폭염이 생기는 까닭");
+    const d = applyFits(edited, fits, basis);
+    expect(d.elements[0].fit).toBeUndefined();
+    expect(d.elements[1].fit?.score).toBe(2);
+  });
+
+  it("남기기로 한 카드는 다시 낮음이어도 삭제를 추천하지 않고, 문장·주제가 바뀌면 판단을 지운다", () => {
+    const w = workspace();
+    const low = [{ id: "el_heat", score: 1 as const, reason: "a" }];
+    const kept = keepItem(applyFits(w, low, w), "element", "el_heat");
+    expect(deletionAdvised(kept.elements[0])).toBe(false);
+    expect(deletionAdvised(applyFits(kept, low, kept).elements[0])).toBe(false);
+    expect(applyFits(kept, [{ id: "el_heat", score: 2, reason: "b" }], kept).elements[0].fit?.kept).toBe(false);
+    expect(setElementText(kept, "el_heat", "새 문장").elements[0].fit).toBeUndefined();
+    expect(setIdeaText(applyFits(w, [{ id: w.ideas[0].id, score: 2, reason: "c" }], w), w.ideas[0].id, "고친 문장").ideas[0].fit).toBeUndefined();
+    expect(clearFits(kept).elements.every((e) => !e.fit)).toBe(true);
+    expect(clearFits(w)).toBe(w);
   });
 });
 

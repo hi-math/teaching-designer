@@ -1,18 +1,23 @@
 "use client";
 
 import { useLayoutEffect, useState, type MouseEvent, type RefObject } from "react";
-import type { IdeationDraft, IdeationLink } from "@/lib/ideation/model";
+import { ideaText, type IdeationDraft, type IdeationLink } from "@/lib/ideation/model";
 import { StrengthBars } from "./ideationParts";
 
 // 세 영역 사이의 연결선 — 하위요소 ↔ 핵심아이디어, 핵심아이디어 ↔ 성취기준을 곡선으로 잇는다.
 // 선은 카드 바깥 여백(영역 사이 간격)으로만 지나가 원문과 편집 버튼을 가리지 않는다.
-// 굵기는 연결 강도(1~3), 선에 마우스를 올리면 어떻게 연결되는지 설명을 보여 준다.
-// 영역이 세로로 쌓이는 좁은 화면에서는 그리지 않는다 (카드의 연결 칩으로 대신한다).
+// 굵기는 연결 강도(1~3), 선에 마우스를 올리면 양끝 항목과 어떻게 연결되는지 설명을 보여 준다.
+// 영역이 세로로 쌓이는 좁은 화면에서는 그리지 않는다.
 
 type LinkKind = "elementIdea" | "ideaStandard";
 type Drawn = { kind: LinkKind; link: IdeationLink; d: string; faded: boolean };
 const WIDTH: Record<1 | 2 | 3, number> = { 1: 1.25, 2: 2.5, 3: 4 };
 const WIDE = "(min-width: 1024px)";
+
+function short(text: string, max = 40): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
 
 export default function IdeationLines({ container, draft, active }: {
   container: RefObject<HTMLDivElement | null>;
@@ -82,6 +87,10 @@ export default function IdeationLines({ container, draft, active }: {
   };
   const hovered = hover ? lines.find((l) => l.link.id === hover.id) : undefined;
   const width = container.current?.clientWidth ?? 0;
+  const ideaName = (id: string) => { const i = draft.ideas.find((x) => x.id === id); return short(i ? ideaText(i) : ""); };
+  const names = !hovered ? null : hovered.kind === "elementIdea"
+    ? { from: short(draft.elements.find((e) => e.id === hovered.link.from)?.text ?? ""), to: ideaName(hovered.link.to) }
+    : { from: ideaName(hovered.link.from), to: draft.standards.find((x) => x.id === hovered.link.to)?.code ?? "" };
 
   return (
     <>
@@ -103,10 +112,11 @@ export default function IdeationLines({ container, draft, active }: {
           );
         })}
       </svg>
-      {hovered && hover && (
+      {hovered && hover && names && (
         <div role="tooltip" className="pointer-events-none absolute z-20 w-72 rounded-xl border border-[#e2e4ea] bg-white p-3 text-[12px] shadow-lg"
           style={{ left: Math.max(8, Math.min(hover.x + 12, width - 296)), top: hover.y + 14 }}>
-          <StrengthBars value={hovered.link.strength} />
+          <p className="font-semibold leading-snug text-[#2d3339]">{names.from || "—"} <span className="text-[#adb2ba]">↔</span> {names.to || "—"}</p>
+          <div className="mt-1.5"><StrengthBars value={hovered.link.strength} /></div>
           {hovered.link.review && <p className="mt-1.5 font-semibold text-amber-700">다시 검토할 연결</p>}
           {hovered.link.reason && (
             <p className="mt-1.5 leading-relaxed text-[#5a6066]">

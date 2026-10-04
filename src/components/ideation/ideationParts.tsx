@@ -3,21 +3,22 @@
 import type { ReactNode } from "react";
 import { getSubjectBadge } from "@/components/workspace/CardFields";
 import type { ElementRec, IdeaRec, StandardRec } from "@/app/api/ideation/route";
-import type { IdeationLink } from "@/lib/ideation/model";
+import type { Fit, FitScore } from "@/lib/ideation/model";
 
-// 아이디어 도출 화면의 작은 부품 — 영역 틀, 출처 배지, 연결 칩, with AI 추천 패널
+// 아이디어 도출 화면의 작은 부품 — 영역 틀, 출처 배지, 적합성 점·삭제 추천, with AI 추천 패널
 
 export const btn = "inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#dde3eb] bg-white px-2.5 py-1 text-[12.5px] font-medium text-[#5a6066] transition hover:border-[#D1260F] hover:text-[#D1260F] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[#dde3eb] disabled:hover:text-[#5a6066]";
 export const primaryBtn = "inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#D1260F] px-3 py-1 text-[13px] font-semibold text-white transition hover:bg-[#A81A08] disabled:cursor-not-allowed disabled:opacity-40";
 export const aiBtn = "inline-flex min-h-8 items-center gap-1 rounded-lg bg-gradient-to-br from-[#D1260F] to-[#F0603C] px-2.5 py-1 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40";
 export const field = "w-full rounded-lg bg-[#f1f4f9] px-3 py-2 text-[14px] text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20 disabled:opacity-60";
 
-export function Pane({ title, tools, children }: { title: string; tools?: ReactNode; children: ReactNode }) {
+export function Pane({ title, actions, tools, children }: { title: string; actions?: ReactNode; tools?: ReactNode; children: ReactNode }) {
   return (
     // 넓은 화면: 세 영역이 나란히, 영역마다 안에서 스크롤 / 좁은 화면: 세로로 쌓고 내용만큼 늘어나 페이지가 스크롤
     <section className="flex min-h-[200px] min-w-0 flex-col rounded-2xl border border-[#e2e4ea] bg-white lg:min-h-0">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#eef0f4] px-4 py-2.5">
         <h2 className="text-[15px] font-bold text-[#2d3339]">{title}</h2>
+        {actions}
         {tools && <div className="ml-auto flex flex-wrap justify-end gap-1.5">{tools}</div>}
       </div>
       <div data-pane-body className="space-y-2 p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">{children}</div>
@@ -36,7 +37,6 @@ export function CodeChip({ code }: { code: string }) {
 }
 
 const SOURCE = {
-  official: { label: "공식 데이터", cls: "bg-[#f1f4f9] text-[#5a6066]" },
   teacher: { label: "교사 작성/수정", cls: "bg-[#FFF1ED] text-[#A81A08]" },
   ai: { label: "AI 추천", cls: "bg-[#FDE8E3] text-[#D1260F]" },
 } as const;
@@ -44,37 +44,32 @@ export function SourceBadge({ kind }: { kind: keyof typeof SOURCE }) {
   return <span className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SOURCE[kind].cls}`}>{SOURCE[kind].label}</span>;
 }
 
-/** 연결이 어떻게 이어졌는지 설명만 — 다시 검토할 연결은 ✓ 로 유지, ×는 연결만 제거 */
-export function LinkNotes({ links, onConfirm, onRemove }: {
-  links: IdeationLink[];
-  onConfirm?: (link: IdeationLink) => void;
-  onRemove?: (link: IdeationLink) => void;
-}) {
-  const shown = links.filter((l) => l.reason || l.review);
-  if (!shown.length) return null;
+const FIT_DOT: Record<FitScore, string> = { 3: "bg-emerald-500", 2: "bg-amber-400", 1: "bg-red-500" };
+
+/** 적합성 — 카드 오른쪽 위의 녹색·노란색·빨간색 점. 마우스를 올리면 판단 근거 (카드는 relative) */
+export function FitDot({ fit }: { fit: Fit }) {
+  return <span role="img" aria-label={`${fit.score}/3`} title={fit.reason} className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ring-2 ring-white ${FIT_DOT[fit.score]}`} />;
+}
+
+/** 적합성이 낮은 카드 — 판단 근거와 함께 삭제를 추천한다. ✓ 는 남기기 */
+export function FitAdvice({ fit, onKeep, onDelete }: { fit: Fit; onKeep?: () => void; onDelete?: () => void }) {
   return (
-    <ul className="mt-1.5 space-y-1">
-      {shown.map((l) => (
-        <li key={l.id} className={`flex items-start gap-1.5 rounded-lg px-2 py-1 text-[12px] leading-relaxed ${l.review ? "bg-amber-50 text-amber-900" : "bg-[#f8f9fd] text-[#5a6066]"}`}>
-          <svg className="mt-[3px] h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-          <span className="min-w-0 flex-1">
-            {l.review && <span className="mr-1 font-semibold">다시 검토할 연결</span>}
-            {l.reason && l.via === "ai" && <span className="mr-1 rounded bg-white px-1 py-0.5 text-[10.5px] font-semibold text-[#5a6066]">AI 해석</span>}
-            {l.reason}
-          </span>
-          {l.review && onConfirm && (
-            <button type="button" aria-label="연결 유지" onClick={(e) => { e.stopPropagation(); onConfirm(l); }} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full hover:bg-amber-100">
-              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-            </button>
-          )}
-          {onRemove && (
-            <button type="button" aria-label="연결 제거" onClick={(e) => { e.stopPropagation(); onRemove(l); }} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#adb2ba] hover:bg-red-50 hover:text-red-500">
-              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          )}
-        </li>
-      ))}
-    </ul>
+    <div className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-white px-2 py-1 text-[12px] leading-relaxed text-[#5a6066]">
+      <svg className="mt-[3px] h-3.5 w-3.5 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <span className="min-w-0 flex-1">
+        {fit.reason && <><span className="mr-1 rounded bg-[#f1f4f9] px-1 py-0.5 text-[10.5px] font-semibold text-[#5a6066]">AI 해석</span>{fit.reason}</>}
+      </span>
+      {onKeep && (
+        <button type="button" aria-label="유지" onClick={(e) => { e.stopPropagation(); onKeep(); }} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#5a6066] hover:bg-[#eef0f4]">
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+        </button>
+      )}
+      {onDelete && (
+        <button type="button" aria-label="삭제" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600">
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -86,7 +81,6 @@ export function IconBtn({ label, onClick, danger, children, disabled }: { label:
     </button>
   );
 }
-export const PencilIcon = () => <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536 8 18l1-4.464z" /></svg>;
 export const XIcon = () => <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>;
 
 // ─── with AI 추천 — 우선순위 큐 ───────────────────────────────────

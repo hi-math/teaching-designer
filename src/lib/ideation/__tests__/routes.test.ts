@@ -15,17 +15,19 @@ vi.mock("@/lib/ideation/server", async () => {
 });
 vi.mock("@/lib/llmJson", () => ({ requestJson: mock.json, describeApiError: (_: unknown, text: string) => text }));
 vi.mock("openai", () => ({ default: class {} }));
-import { POST as suggest } from "@/app/api/ideation/route";
+import { POST as recommend } from "@/app/api/ideation/route";
 import { POST as save } from "@/app/api/ideation/save/route";
 
 const lessonId = "00000000-0000-0000-0000-000000000000";
 const request = (body: unknown) => new Request("http://localhost/api/ideation", { method: "POST", body: JSON.stringify(body) });
 const science = getCoreIdeas().filter((i) => i.subject === "과학");
 const sciStandard = getStandards().find((s) => s.subject === "과학")!;
+type Schema = { properties: Record<string, { items: { properties: Record<string, { enum?: unknown[] }> } }> };
+const enumOf = (call: number, list: string, key: string) => (mock.json.mock.calls[call][1] as { schema: Schema }).schema.properties[list].items.properties[key].enum as string[];
 
 function draft(): IdeationDraft {
   let d = emptyDraft({ subjects: ["과학"], grade: "중2" }, {
-    topic: "폭염 대응",
+    topic: "우리 동네 폭염에 어떻게 대응할까?",
     ideas: [{ catalogId: science[0].id, subject: science[0].subject, domain: science[0].domain, content: science[0].content }],
     standards: [{ code: sciStandard.code, subject: sciStandard.subject, domain: sciStandard.domain, content: sciStandard.content }],
   });
@@ -40,55 +42,56 @@ beforeEach(() => {
   mock.rpc.mockResolvedValue({ error: null });
 });
 
-describe("with AI 추천", () => {
+describe("with AI 추천 (우선순위 큐)", () => {
   it("로그인·소유자 확인을 AI 호출보다 먼저 한다", async () => {
     mock.authorize.mockResolvedValue({ error: Response.json({ error: "로그인 필요" }, { status: 401 }) });
-    expect((await suggest(request({ lessonId, direction: "element-ideas", targetId: "el_a", draft: draft() }))).status).toBe(401);
+    expect((await recommend(request({ lessonId, focus: "topic", draft: draft() }))).status).toBe(401);
     expect(mock.json).not.toHaveBeenCalled();
   });
 
-  it("방향·대상이 잘못되면 AI 를 부르지 않는다", async () => {
-    expect((await suggest(new Request("http://localhost", { method: "POST", body: "{" }))).status).toBe(400);
-    expect((await suggest(request({ lessonId, direction: "invented", targetId: "el_a", draft: draft() }))).status).toBe(400);
-    expect((await suggest(request({ lessonId, direction: "element-ideas", targetId: "el_gone", draft: draft() }))).status).toBe(400);
+  it("영역이 잘못됐거나 초안이 비어 있으면 AI 를 부르지 않는다", async () => {
+    expect((await recommend(new Request("http://localhost", { method: "POST", body: "{" }))).status).toBe(400);
+    expect((await recommend(request({ lessonId, focus: "invented", draft: draft() }))).status).toBe(400);
+    const empty = emptyDraft({ subjects: [], grade: "" });
+    const res = await recommend(request({ lessonId, focus: "topic", draft: empty }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("주제 제목을 먼저 입력하세요.");
     expect(mock.json).not.toHaveBeenCalled();
   });
 
-  it("하위요소 → 핵심아이디어: 후보 목록의 ID 만 받고, 지어낸 ID 는 버리며 원문은 데이터에서 채운다", async () => {
+  it("세 목록을 순서 그대로 돌려주되, 지어낸 ID·없는 연결 대상은 걸러 내고 원문은 데이터에서 채운다", async () => {
+    const d = draft();
     const pick = science[1];
-    mock.json.mockResolvedValue({ ok: true, value: { suggestions: [{ ideaId: pick.id, reason: "원인을 탐구하는 데 바탕" }, { ideaId: "만든__아이디어__0", reason: "x" }] } });
-    const res = await suggest(request({ lessonId, direction: "element-ideas", targetId: "el_a", draft: draft() }));
-    const body = await res.json();
-    expect(body.suggestions).toEqual([{ catalogId: pick.id, subject: pick.subject, domain: pick.domain, content: pick.content, reason: "원인을 탐구하는 데 바탕" }]);
-    const enumIds = mock.json.mock.calls[0][1].schema.properties.suggestions.items.properties.ideaId.enum as string[];
-    // 이미 이 하위요소에 연결된 아이디어는 후보에서 빼고, 조건의 교과로 좁힌다
-    expect(enumIds).not.toContain(science[0].id);
-    expect(enumIds.every((id) => id.startsWith("과학__"))).toBe(true);
-  });
-
-  it("핵심아이디어 → 하위요소: 없는 하위요소를 고치라는 제안은 버리고 새 하위요소는 남긴다", async () => {
-    const d = draft();
-    mock.json.mockResolvedValue({ ok: true, value: { suggestions: [
-      { kind: "revise", elementId: "el_gone", text: "고친 문장", reason: "" },
-      { kind: "revise", elementId: "el_a", text: "폭염이 생기는 까닭", reason: "더 구체적" },
-      { kind: "new", elementId: "", text: "취약한 사람과 공간", reason: "영향을 받는 대상" },
-    ] } });
-    const body = await (await suggest(request({ lessonId, direction: "idea-elements", targetId: d.ideas[0].id, draft: d }))).json();
-    expect(body.suggestions).toEqual([
-      { kind: "revise", elementId: "el_a", text: "폭염이 생기는 까닭", reason: "더 구체적" },
-      { kind: "new", elementId: null, text: "취약한 사람과 공간", reason: "영향을 받는 대상" },
-    ]);
-  });
-
-  it("핵심아이디어 → 성취기준: 데이터에 있는 코드만 돌려준다", async () => {
-    const d = draft();
-    mock.json.mockImplementation(async (_client: unknown, params: { schema: { properties: { suggestions: { items: { properties: { code: { enum: string[] } } } } } } }) => {
-      const first = params.schema.properties.suggestions.items.properties.code.enum[0];
-      return { ok: true, value: { suggestions: [{ code: first, reason: "관련" }, { code: "[9가짜01-01]", reason: "x" }] } };
+    mock.json.mockImplementation(async (_c: unknown, params: { schema: Schema }) => {
+      const code = params.schema.properties.standards.items.properties.code.enum![0] as string;
+      return { ok: true, value: {
+        elements: [
+          { text: "취약한 사람과 공간", ideaId: d.ideas[0].id, strength: 3, reason: "영향을 받는 대상" },
+          { text: "폭염의 원인", ideaId: "", strength: 2, reason: "이미 있는 하위요소" },
+        ],
+        ideas: [
+          { ideaId: pick.id, elementId: "el_a", standardId: "[없는코드]", strength: 3, reason: "원인 탐구의 바탕" },
+          { ideaId: "만든__아이디어__0", elementId: "", standardId: "", strength: 2, reason: "x" },
+        ],
+        standards: [{ code, ideaId: "id_gone", strength: 9, reason: "관련" }, { code: "[9가짜01-01]", ideaId: "", strength: 2, reason: "x" }],
+      } };
     });
-    const body = await (await suggest(request({ lessonId, direction: "idea-standards", targetId: d.ideas[0].id, draft: d }))).json();
-    expect(body.suggestions).toHaveLength(1);
-    expect(getStandards().some((s) => s.code === body.suggestions[0].code && s.content === body.suggestions[0].content)).toBe(true);
+    const res = await recommend(request({ lessonId, focus: "topic", targetId: "el_a", draft: d }));
+    const body = await res.json();
+    expect(body.elements).toEqual([{ text: "취약한 사람과 공간", ideaId: d.ideas[0].id, strength: 3, reason: "영향을 받는 대상" }]);
+    expect(body.ideas).toEqual([{ catalogId: pick.id, subject: pick.subject, domain: pick.domain, content: pick.content, elementId: "el_a", standardId: null, strength: 3, reason: "원인 탐구의 바탕" }]);
+    expect(body.standards).toHaveLength(1);
+    expect(body.standards[0]).toMatchObject({ ideaId: null, strength: 2 });
+    expect(getStandards().some((s) => s.code === body.standards[0].code && s.content === body.standards[0].content)).toBe(true);
+  });
+
+  it("이미 담은 항목은 후보에서 빼고 조건의 교과로 좁힌다", async () => {
+    mock.json.mockResolvedValue({ ok: true, value: { elements: [], ideas: [], standards: [] } });
+    await recommend(request({ lessonId, focus: "ideas", targetId: draft().ideas[0].id, draft: draft() }));
+    const ideaIds = enumOf(0, "ideas", "ideaId");
+    expect(ideaIds).not.toContain(science[0].id);
+    expect(ideaIds.every((id) => id.startsWith("과학__"))).toBe(true);
+    expect(enumOf(0, "standards", "code")).not.toContain(sciStandard.code);
   });
 });
 

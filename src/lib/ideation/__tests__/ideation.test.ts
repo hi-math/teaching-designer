@@ -65,6 +65,14 @@ describe("아이디어 도출 초안", () => {
     expect(readDraft(dangling)!.elementIdeaLinks).toEqual(d.elementIdeaLinks);
   });
 
+  it("연결 강도가 없던 초안은 보통(2)으로 읽고, 범위 밖 강도는 거부한다", () => {
+    const d = workspace();
+    const noStrength = { ...d, elementIdeaLinks: d.elementIdeaLinks.map((l) => { const rest: Partial<typeof l> = { ...l }; delete rest.strength; return rest; }) };
+    expect(readDraft(noStrength)!.elementIdeaLinks.every((l) => l.strength === 2)).toBe(true);
+    expect(readDraft({ ...d, elementIdeaLinks: d.elementIdeaLinks.map((l) => ({ ...l, strength: 5 })) })).toBeNull();
+    expect(addLink(d, "elementIdea", "el_plan", d.ideas[0].id, "ai", "이유", 3).elementIdeaLinks.at(-1)).toMatchObject({ strength: 3, reason: "이유", via: "ai" });
+  });
+
   it("항목을 지우면 연결도 정리되고, 연결만 지우면 양쪽 항목은 남는다", () => {
     const d = workspace();
     const idea = d.ideas[0];
@@ -112,7 +120,7 @@ describe("저장 전 공식 원문 맞추기", () => {
       ...d,
       ideas: d.ideas.map((i) => ({ ...i, official: i.official && { ...i.official, content: "바꿔 친 원문" } })),
       standards: [...d.standards.map((s) => ({ ...s, content: "바꿔 친 원문" })), { id: "[9만들어낸01]", code: "[9만들어낸01]", subject: "과학", domain: "", content: "", note: "", via: "ai" }],
-      ideaStandardLinks: [...d.ideaStandardLinks, { id: "ln_fake", from: d.ideas[0].id, to: "[9만들어낸01]", via: "ai", reason: "", review: false }],
+      ideaStandardLinks: [...d.ideaStandardLinks, { id: "ln_fake", from: d.ideas[0].id, to: "[9만들어낸01]", via: "ai", reason: "", review: false, strength: 2 }],
     };
     const c = canonicalize(tampered, catalog, "v9");
     expect(c.dataVersion).toBe("v9");

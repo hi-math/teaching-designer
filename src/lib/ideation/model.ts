@@ -11,6 +11,8 @@ export const IDEATION_ROW = "__ideation";
 
 /** 항목·연결이 어떻게 들어왔는지 — 교사가 직접 / AI 추천을 채택 */
 export type Via = "manual" | "ai";
+export type LinkStrength = 1 | 2 | 3;
+export const DEFAULT_STRENGTH: LinkStrength = 2;
 
 export interface IdeationConditions {
   subjects: string[];
@@ -62,6 +64,8 @@ export interface IdeationLink {
   via: Via;
   /** AI 가 제시한 관련 이유 — 공식 관계가 아니라 해석·제안 */
   reason: string;
+  /** 연결의 강도 1(보조) · 2(관련) · 3(직결) — 연결선 굵기 */
+  strength: LinkStrength;
   /** 한쪽 항목의 문장이 바뀌어 다시 검토할 연결 */
   review: boolean;
 }
@@ -123,10 +127,13 @@ function readLinks(value: unknown, from: Set<string>, to: Set<string>): Ideation
   for (const raw of value) {
     const l = raw as IdeationLink;
     if (!l || !isId(l.id) || !isId(l.from) || !isId(l.to) || !isVia(l.via) || !isStr(l.reason, LIMITS.reason) || typeof l.review !== "boolean") return null;
+    // 강도가 없던 초안은 보통(2)으로 읽는다
+    const strength = l.strength === undefined ? DEFAULT_STRENGTH : l.strength;
+    if (strength !== 1 && strength !== 2 && strength !== 3) return null;
     // 삭제된 항목에 남은 연결·중복 연결은 조용히 정리한다
     if (!from.has(l.from) || !to.has(l.to) || seen.has(`${l.from}|${l.to}`)) continue;
     seen.add(`${l.from}|${l.to}`);
-    out.push({ id: l.id, from: l.from, to: l.to, via: l.via, reason: l.reason, review: l.review });
+    out.push({ id: l.id, from: l.from, to: l.to, via: l.via, reason: l.reason, review: l.review, strength });
   }
   return out;
 }
@@ -213,14 +220,15 @@ export function hasLink(d: IdeationDraft, kind: LinkKind, from: string, to: stri
   return d[linkKey(kind)].some((l) => l.from === from && l.to === to);
 }
 
-/** 이미 있으면 다시 검토 표시만 지운다 (같은 연결을 두 번 만들지 않는다) */
-export function addLink(d: IdeationDraft, kind: LinkKind, from: string, to: string, via: Via = "manual", reason = ""): IdeationDraft {
+/** 이미 있으면 다시 검토 표시를 지우고, 비어 있던 이유는 채운다 (같은 연결을 두 번 만들지 않는다) */
+export function addLink(d: IdeationDraft, kind: LinkKind, from: string, to: string, via: Via = "manual", reason = "", strength: LinkStrength = DEFAULT_STRENGTH): IdeationDraft {
   const key = linkKey(kind);
+  const text = reason.slice(0, LIMITS.reason);
   if (d[key].some((l) => l.from === from && l.to === to)) {
-    return { ...d, [key]: d[key].map((l) => (l.from === from && l.to === to ? { ...l, review: false } : l)) };
+    return { ...d, [key]: d[key].map((l) => (l.from === from && l.to === to ? { ...l, review: false, reason: l.reason || text } : l)) };
   }
   if (d[key].length >= LIMITS.links) return d;
-  return { ...d, [key]: [...d[key], { id: newId("ln"), from, to, via, reason: reason.slice(0, LIMITS.reason), review: false }] };
+  return { ...d, [key]: [...d[key], { id: newId("ln"), from, to, via, reason: text, review: false, strength }] };
 }
 
 /** 연결만 지운다 — 양쪽 항목은 남는다 */

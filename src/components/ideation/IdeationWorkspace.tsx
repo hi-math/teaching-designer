@@ -6,20 +6,22 @@ import StandardsModal, { type StandardItem } from "@/components/workspace/Standa
 import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
 import { stableStringify } from "@/components/workspace/remoteContent";
 import type { ContentMap } from "@/lib/ideation/application";
-import type { SuggestDirection, IdeaSuggestion } from "@/app/api/ideation/route";
+import type { IdeaRec, RecommendFocus, Recommendations } from "@/app/api/ideation/route";
 import { bracketCode } from "@/lib/standardCode";
 import {
-  LIMITS, addLink, confirmLink, emptyDraft, hasLink, ideaOrigin, ideaSubject, ideaText, newId, readDraft, relatedTo,
+  LIMITS, addLink, confirmLink, emptyDraft, ideaOrigin, ideaSubject, ideaText, newId, readDraft, relatedTo,
   removeItem, removeLink, setElementText, setIdeaText,
   type IdeaEntry, type IdeationConditions, type IdeationDraft, type StandardEntry,
 } from "@/lib/ideation/model";
 import {
-  CodeChip, DIRECTION_LABEL, IconBtn, LinkChip, Pane, PencilIcon, SourceBadge, SubjectBadge, SuggestPanel, XIcon,
-  aiBtn, btn, field, primaryBtn, short, type Suggestion, type SuggestState, type SuggestView,
+  CodeChip, IconBtn, LinkChip, Pane, PencilIcon, RecQueue, RecStatus, SourceBadge, SubjectBadge, XIcon,
+  aiBtn, btn, field, primaryBtn, short, type RecItem,
 } from "./ideationParts";
+import IdeationLines from "./IdeationLines";
 
 // 아이디어 도출 — 주제 설계 ↔ 핵심아이디어 ↔ 성취기준을 한 화면에서 함께 다룬다 (prompt/idea.md)
-// 단계 전환 없이 세 영역이 항상 보이고, 연결은 카드의 강조와 칩으로 보여 준다.
+// 단계 전환 없이 세 영역이 항상 보이고, 연결은 영역 사이의 곡선(굵기 = 강도)과 카드의 강조·칩으로 보여 준다.
+// 영역마다 with AI 하나 — 지금 초안에 포함되면 좋을 항목을 우선순위 큐로 추천하고, 추천은 종류별로 해당 영역에 보인다.
 
 export interface IdeationWorkspaceProps {
   lessonId: string;
@@ -29,17 +31,16 @@ export interface IdeationWorkspaceProps {
   /** 저장된 아이디어 도출이 없을 때 시작점 — A-2 주제와 수업 설계에서 고른 핵심아이디어·성취기준 */
   seed: { topic: string; ideas: IdeaItem[]; standards: StandardItem[] };
   saved: unknown;
-  chatOpen: boolean;
-  onToggleChat: () => void;
   onCommitted: (changes: ContentMap, applied: boolean) => void;
   onContext: (text: string) => void;
   hasPendingCards: () => boolean;
 }
 
 type Kind = "element" | "idea" | "standard";
-type PaneKey = "ideas" | "standards";
-const NEED: Record<SuggestDirection, Kind> = { "element-ideas": "element", "idea-elements": "idea", "idea-standards": "idea", "standard-ideas": "standard" };
-const PICK_FIRST: Record<Kind, string> = { element: "하위요소를 먼저 선택하세요.", idea: "핵심아이디어를 먼저 선택하세요.", standard: "성취기준을 먼저 선택하세요." };
+/** with AI 를 누른 영역 → 그 영역에서 선택한 항목의 종류 */
+const FOCUS_KIND: Record<RecommendFocus, Kind> = { topic: "element", ideas: "idea", standards: "standard" };
+type Queues = { elements: RecItem[]; ideas: RecItem[]; standards: RecItem[] };
+const EMPTY_QUEUES: Queues = { elements: [], ideas: [], standards: [] };
 
 function previewText(code: string, content: ContentMap[string]): string {
   if (!content) return "작성한 내용 없음";
@@ -86,11 +87,13 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const [preview, setPreview] = useState<{ before: ContentMap; changes: ContentMap } | null>(null);
   const [modal, setModal] = useState<"ideas" | "standards" | null>(null);
   const [conditionsOpen, setConditionsOpen] = useState(false);
-  const [suggest, setSuggest] = useState<Record<PaneKey, SuggestState | null>>({ ideas: null, standards: null });
-  const [hint, setHint] = useState<Record<PaneKey, string>>({ ideas: "", standards: "" });
+  // with AI — 진행 상태는 누른 영역에, 추천은 종류별 큐로 각 영역에
+  const [recRun, setRecRun] = useState<{ focus: RecommendFocus; targetId: string | null; status: "loading" | "error"; error?: string } | null>(null);
+  const [queues, setQueues] = useState<Queues>(EMPTY_QUEUES);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [enrich, setEnrich] = useState<Record<string, { subject: string; domain: string; content: string }>>({});
-  const controllers = useRef<Record<PaneKey, AbortController | null>>({ ideas: null, standards: null });
+  const recController = useRef<AbortController | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const enrichTried = useRef(new Set<string>());
   const conditionsRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -106,7 +109,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const elementLabel = (id: string) => short(elementById.get(id)?.text ?? "") || "—";
   const ideaLabel = (id: string) => { const i = ideaById.get(id); return i ? short(ideaText(i)) || "—" : "—"; };
   const standardText = (s: StandardEntry) => s.content || enrich[s.code]?.content || "";
-  const labelOf = (kind: Kind, id: string) => (kind === "element" ? elementLabel(id) : kind === "idea" ? ideaLabel(id) : stdById.get(id)?.code ?? "—");
 
   // ── 변경 ──────────────────────────────────────────────────────
   const change = (next: IdeationDraft) => {
@@ -182,58 +184,37 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   };
 
   // ── with AI ───────────────────────────────────────────────────
-  const runSuggest = async (pane: PaneKey, direction: SuggestDirection, target?: { id: string; label: string }) => {
-    const need = NEED[direction];
-    const t = target ?? (sel && sel.kind === need ? { id: sel.id, label: labelOf(need, sel.id) } : null);
-    if (!t) { setHint((h) => ({ ...h, [pane]: PICK_FIRST[need] })); return; }
-    setHint((h) => ({ ...h, [pane]: "" }));
-    controllers.current[pane]?.abort();
+  const runRecommend = async (focus: RecommendFocus, targetId?: string | null) => {
+    const kind = FOCUS_KIND[focus];
+    const target = targetId !== undefined ? targetId : sel && sel.kind === kind ? sel.id : null;
+    recController.current?.abort();
     const controller = new AbortController();
-    controllers.current[pane] = controller;
-    setSuggest((s) => ({ ...s, [pane]: { direction, targetId: t.id, targetLabel: t.label, status: "loading", items: [] } }));
+    recController.current = controller;
+    setRecRun({ focus, targetId: target, status: "loading" });
     try {
-      const result = await post("/api/ideation", { lessonId, direction, targetId: t.id, draft }, controller.signal);
-      const type = direction === "idea-elements" ? "element" : direction === "idea-standards" ? "standard" : "idea";
-      const items = (result.suggestions as Record<string, unknown>[]).map((s, i) => ({ key: `${Date.now()}-${i}`, s: { type, ...s } as Suggestion, ignored: false }));
-      setSuggest((st) => (st[pane]?.targetId === t.id && st[pane]?.direction === direction ? { ...st, [pane]: { ...st[pane]!, status: "done", items } } : st));
+      const rec = await post("/api/ideation", { lessonId, focus, targetId: target, draft }, controller.signal) as Recommendations;
+      const stamp = Date.now();
+      setQueues({
+        elements: rec.elements.map((r, i) => ({ kind: "element", key: `e${stamp}-${i}`, rec: r })),
+        ideas: rec.ideas.map((r, i) => ({ kind: "idea", key: `i${stamp}-${i}`, rec: r })),
+        standards: rec.standards.map((r, i) => ({ kind: "standard", key: `s${stamp}-${i}`, rec: r })),
+      });
+      setRecRun(null);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
-      setSuggest((st) => (st[pane] ? { ...st, [pane]: { ...st[pane]!, status: "error", error: e instanceof Error ? e.message : "추천 중 오류가 발생했습니다. 다시 시도하세요." } } : st));
+      setRecRun({ focus, targetId: target, status: "error", error: e instanceof Error ? e.message : "추천 중 오류가 발생했습니다. 다시 시도하세요." });
     }
   };
-  const closeSuggest = (pane: PaneKey) => { controllers.current[pane]?.abort(); setSuggest((s) => ({ ...s, [pane]: null })); };
-  useEffect(() => () => { controllers.current.ideas?.abort(); controllers.current.standards?.abort(); }, []);
+  const cancelRecommend = () => { recController.current?.abort(); setRecRun(null); };
+  useEffect(() => () => recController.current?.abort(), []);
 
-  const suggestView = (st: SuggestState) => (s: Suggestion): SuggestView => {
-    const t = st.targetId;
-    if (s.type === "idea") {
-      const targetOk = st.direction === "element-ideas" ? elementById.has(t) : stdById.has(t);
-      if (!targetOk) return { action: null, adopted: false };
-      const existing = draft.ideas.find((i) => i.official?.catalogId === s.catalogId);
-      const linked = !!existing && (st.direction === "element-ideas" ? hasLink(draft, "elementIdea", t, existing.id) : hasLink(draft, "ideaStandard", existing.id, t));
-      return { action: existing ? "연결" : "추가", adopted: linked };
-    }
-    if (!ideaById.has(t)) return { action: null, adopted: false };
-    if (s.type === "standard") {
-      const existing = stdById.get(s.code);
-      return { action: existing ? "연결" : "추가", adopted: !!existing && hasLink(draft, "ideaStandard", t, existing.id) };
-    }
-    if (s.kind === "revise") {
-      const el = s.elementId ? elementById.get(s.elementId) : undefined;
-      if (!el) return { action: null, adopted: false };
-      const done = el.text === s.text && hasLink(draft, "elementIdea", el.id, t);
-      return { action: "문장에 반영", adopted: done, before: done ? undefined : el.text };
-    }
-    return { action: "추가", adopted: draft.elements.some((e) => e.text === s.text && hasLink(draft, "elementIdea", e.id, t)) };
-  };
+  const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");
+  const dropRec = (item: RecItem) => setQueues((q) => ({ ...q, [queueKey(item)]: q[queueKey(item)].filter((i) => i.key !== item.key) }));
 
-  const adopt = (pane: PaneKey, key: string) => {
-    const st = suggest[pane];
-    const s = st?.items.find((i) => i.key === key)?.s;
-    if (!st || !s) return;
-    const t = st.targetId;
+  /** 추천 항목을 더하고, 추천이 가리킨 기존 항목과 강도·이유를 담아 잇는다 (가리킨 항목이 지워졌으면 잇지 않는다) */
+  const addRec = (item: RecItem) => {
     let next = draft;
-    const ensureIdea = (x: IdeaSuggestion): string | null => {
+    const ensureIdea = (x: IdeaRec): string | null => {
       const found = next.ideas.find((i) => i.official?.catalogId === x.catalogId);
       if (found) return found.id;
       if (next.ideas.length >= LIMITS.ideas) return null;
@@ -241,29 +222,38 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       next = { ...next, ideas: [...next.ideas, idea] };
       return idea.id;
     };
-    if (s.type === "idea") {
-      const ideaId = ensureIdea(s);
+    if (item.kind === "element") {
+      if (next.elements.length >= LIMITS.elements) return;
+      const el = { id: newId("el"), text: item.rec.text, via: "ai" as const };
+      next = { ...next, elements: [...next.elements, el] };
+      if (item.rec.ideaId && ideaById.has(item.rec.ideaId)) next = addLink(next, "elementIdea", el.id, item.rec.ideaId, "ai", item.rec.reason, item.rec.strength);
+    } else if (item.kind === "idea") {
+      const ideaId = ensureIdea(item.rec);
       if (!ideaId) return;
-      next = st.direction === "element-ideas" ? addLink(next, "elementIdea", t, ideaId, "ai", s.reason) : addLink(next, "ideaStandard", ideaId, t, "ai", s.reason);
-    } else if (s.type === "standard") {
-      let std = next.standards.find((x) => x.id === s.code);
+      if (item.rec.elementId && elementById.has(item.rec.elementId)) next = addLink(next, "elementIdea", item.rec.elementId, ideaId, "ai", item.rec.reason, item.rec.strength);
+      if (item.rec.standardId && stdById.has(item.rec.standardId)) next = addLink(next, "ideaStandard", ideaId, item.rec.standardId, "ai", item.rec.reason, item.rec.strength);
+    } else {
+      let std = next.standards.find((x) => x.id === item.rec.code);
       if (!std) {
         if (next.standards.length >= LIMITS.standards) return;
-        std = { id: s.code, code: s.code, subject: s.subject, domain: s.domain, content: s.content, note: "", via: "ai" };
+        std = { id: item.rec.code, code: item.rec.code, subject: item.rec.subject, domain: item.rec.domain, content: item.rec.content, note: "", via: "ai" };
         next = { ...next, standards: [...next.standards, std] };
       }
-      next = addLink(next, "ideaStandard", t, std.id, "ai", s.reason);
-    } else if (s.kind === "revise" && s.elementId) {
-      next = addLink(setElementText(next, s.elementId, s.text), "elementIdea", s.elementId, t, "ai", s.reason);
-    } else {
-      if (next.elements.length >= LIMITS.elements) return;
-      const el = { id: newId("el"), text: s.text, via: "ai" as const };
-      next = addLink({ ...next, elements: [...next.elements, el] }, "elementIdea", el.id, t, "ai", s.reason);
+      if (item.rec.ideaId && ideaById.has(item.rec.ideaId)) next = addLink(next, "ideaStandard", item.rec.ideaId, std.id, "ai", item.rec.reason, item.rec.strength);
     }
     change(next);
+    dropRec(item);
   };
-  const ignore = (pane: PaneKey, key: string) =>
-    setSuggest((st) => (st[pane] ? { ...st, [pane]: { ...st[pane]!, items: st[pane]!.items.map((i) => (i.key === key ? { ...i, ignored: true } : i)) } } : st));
+  /** 추천이 이어질 기존 항목 이름 — 큐에서 보여 준다 */
+  const recTargets = (item: RecItem): string[] => {
+    if (item.kind === "idea") {
+      return [
+        ...(item.rec.elementId && elementById.has(item.rec.elementId) ? [elementLabel(item.rec.elementId)] : []),
+        ...(item.rec.standardId && stdById.has(item.rec.standardId) ? [stdById.get(item.rec.standardId)!.code] : []),
+      ];
+    }
+    return item.rec.ideaId && ideaById.has(item.rec.ideaId) ? [ideaLabel(item.rec.ideaId)] : [];
+  };
 
   // ── 저장·반영 ─────────────────────────────────────────────────
   const save = async (next = draft) => {
@@ -357,24 +347,24 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   );
   const reviewLabel = (show: boolean) => show && <p className="w-full text-[11px] font-semibold text-amber-700">다시 검토할 연결</p>;
 
-  const paneHint = (pane: PaneKey) => hint[pane] && <p className="text-[12.5px] text-[#A81A08]">{hint[pane]}</p>;
-  const panePanel = (pane: PaneKey) => suggest[pane] && (
-    <SuggestPanel
-      state={suggest[pane]!}
-      view={suggestView(suggest[pane]!)}
-      readonly={readonly}
-      onAdopt={(key) => adopt(pane, key)}
-      onIgnore={(key) => ignore(pane, key)}
-      onCancel={() => closeSuggest(pane)}
-      onRetry={() => runSuggest(pane, suggest[pane]!.direction, { id: suggest[pane]!.targetId, label: suggest[pane]!.targetLabel })}
-      onClose={() => closeSuggest(pane)}
-    />
+  /** with AI 를 누른 영역의 진행 상태 + 그 영역 종류의 추천 큐 */
+  const recBlock = (focus: RecommendFocus, queue: keyof Queues) => (
+    <>
+      {recRun?.focus === focus && (
+        <RecStatus status={recRun.status} error={recRun.error} onCancel={cancelRecommend} onRetry={() => runRecommend(recRun.focus, recRun.targetId)} />
+      )}
+      <RecQueue items={queues[queue]} linkTo={recTargets} readonly={readonly}
+        onAdd={addRec} onIgnore={dropRec} onClose={() => setQueues((q) => ({ ...q, [queue]: [] }))} />
+    </>
   );
-  const aiButton = (pane: PaneKey, direction: SuggestDirection) => (
-    <button type="button" className={aiBtn} disabled={readonly || suggest[pane]?.status === "loading"} onClick={() => runSuggest(pane, direction)}>
-      with AI · {DIRECTION_LABEL[direction]}
-    </button>
+  const aiButton = (focus: RecommendFocus) => (
+    <button type="button" className={aiBtn} disabled={readonly || recRun?.status === "loading"} onClick={() => runRecommend(focus)}>with AI</button>
   );
+  // 선택한 항목과 그 연결 경로 — 연결선 강조
+  const activeIds = sel ? new Set([sel.id, ...rel.strong, ...rel.soft]) : null;
+  const describeLink = (kind: "elementIdea" | "ideaStandard", link: { from: string; to: string }) => kind === "elementIdea"
+    ? { from: short(elementById.get(link.from)?.text ?? "", 40) || "—", to: short(ideaById.get(link.to) ? ideaText(ideaById.get(link.to)!) : "", 40) || "—" }
+    : { from: short(ideaById.get(link.from) ? ideaText(ideaById.get(link.from)!) : "", 40) || "—", to: stdById.get(link.to)?.code ?? "—" };
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-[#f8f9fd] text-[#2d3339]">
@@ -407,7 +397,6 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
               </div>
             )}
           </div>
-          <button type="button" className={btn} onClick={props.onToggleChat}>{props.chatOpen ? "채팅 접기" : "AI·팀 채팅 열기"}</button>
           {isHost && (
             <>
               <button type="button" className={btn} disabled={readonly || conflict} onClick={() => run("save", () => save())}>진행 저장</button>
@@ -433,9 +422,11 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       )}
 
       {/* 좁은 화면: 행이 내용만큼(auto-rows-max) 늘어나 페이지가 스크롤 / 넓은 화면: 한 행이 높이를 채우고 영역마다 스크롤 */}
-      <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+      <div ref={gridRef} className="relative grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)] lg:gap-10 lg:overflow-hidden">
+        <IdeationLines container={gridRef} draft={draft} active={activeIds} describe={describeLink} />
         {/* ── 주제 설계 ── */}
-        <Pane title="주제 설계">
+        <Pane title="주제 설계" tools={isHost && aiButton("topic")}>
+          {recBlock("topic", "elements")}
           <label className="block">
             <span className="mb-1 block text-[12px] font-semibold text-[#757b82]">주제 제목</span>
             <input className={field} maxLength={LIMITS.topic} disabled={readonly} value={draft.topic} onChange={(e) => change({ ...draft, topic: e.target.value })} />
@@ -477,12 +468,10 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
           <>
             <button type="button" className={btn} disabled={readonly} onClick={() => setModal("ideas")}>핵심아이디어 검색</button>
             <button type="button" className={btn} disabled={readonly || draft.ideas.length >= LIMITS.ideas} onClick={addCustomIdea}>+ 직접 작성</button>
-            {aiButton("ideas", "element-ideas")}
-            {aiButton("ideas", "idea-elements")}
+            {aiButton("ideas")}
           </>
         )}>
-          {paneHint("ideas")}
-          {panePanel("ideas")}
+          {recBlock("ideas", "ideas")}
           {draft.ideas.map((idea) => {
             const origin = ideaOrigin(idea);
             const elLinks = draft.elementIdeaLinks.filter((l) => l.to === idea.id);
@@ -554,12 +543,10 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
         <Pane title="성취기준" tools={isHost && (
           <>
             <button type="button" className={btn} disabled={readonly} onClick={() => setModal("standards")}>성취기준 검색</button>
-            {aiButton("standards", "idea-standards")}
-            {aiButton("standards", "standard-ideas")}
+            {aiButton("standards")}
           </>
         )}>
-          {paneHint("standards")}
-          {panePanel("standards")}
+          {recBlock("standards", "standards")}
           {draft.standards.map((s) => {
             const links = draft.ideaStandardLinks.filter((l) => l.to === s.id);
             const linked = new Set(links.map((l) => l.from));

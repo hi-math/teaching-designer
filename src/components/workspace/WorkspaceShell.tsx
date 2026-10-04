@@ -2924,9 +2924,25 @@ export default function WorkspaceShell({
                 saved={structuredInputs[IDEATION_ROW]}
                 defaults={{ subjects: toArr(relatedSubjects), grade: targetGrade }}
                 seed={{ topic: String(structuredInputs["A-2"]?.final_topic ?? ""), ideas: selectedIdeas, standards: selectedStandards }}
-                chatOpen={ideationChatOpen} onToggleChat={() => setIdeationChatOpen(v => !v)}
                 onCommitted={handleIdeationCommitted} onContext={setIdeationContext} hasPendingCards={hasPendingIdeationCards}
               />
+            </div>
+          )}
+
+          {/* 아이디어 도출에서 채팅을 접으면 왼쪽 사이드바처럼 좁은 막대로 — 누르면 다시 펼친다 */}
+          {workMode === "ideation" && !ideationChatOpen && (
+            <div className="flex w-14 shrink-0 flex-col items-center border-l border-[#adb2ba]/20 bg-white pt-3">
+              <button
+                type="button"
+                title="채팅 펼치기"
+                onClick={() => setIdeationChatOpen(true)}
+                className="flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-[12px] font-semibold text-[#5a6066] transition hover:bg-gray-100 hover:text-[#2d3339]"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+                채팅
+              </button>
             </div>
           )}
 
@@ -2935,6 +2951,18 @@ export default function WorkspaceShell({
 
             {/* 탭 헤더 */}
             <div className="shrink-0 flex bg-white border-b border-[#adb2ba]/20">
+              {workMode === "ideation" && (
+                <button
+                  type="button"
+                  title="채팅 접기"
+                  onClick={() => setIdeationChatOpen(false)}
+                  className="flex w-11 shrink-0 items-center justify-center text-gray-400 transition hover:bg-gray-50 hover:text-gray-600"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => setRightTab("team")}
                 className={`flex-1 py-3.5 text-[15px] font-semibold transition-colors ${

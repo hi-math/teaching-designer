@@ -65,35 +65,50 @@ describe("with AI 추천 (우선순위 큐)", () => {
     const pick = science[1];
     mock.json.mockResolvedValueOnce({ ok: true, value: {
       elements: [
-        { text: "취약한 사람과 공간", ideaId: d.ideas[0].id, strength: 3, reason: "영향을 받는 대상" },
-        { text: "폭염의 원인", ideaId: "", strength: 2, reason: "이미 있는 하위요소" },
+        { text: "취약한 사람과 공간", ideaId: d.ideas[0].id, strength: 3, reason: "영향을 받는 대상", score: 3 },
+        { text: "폭염의 원인", ideaId: "", strength: 2, reason: "이미 있는 하위요소", score: 3 },
       ],
       fits: [],
     } });
     let body = await (await recommend(request({ lessonId, focus: "topic", draft: d }))).json();
-    expect(body.elements).toEqual([{ text: "취약한 사람과 공간", ideaId: d.ideas[0].id, strength: 3, reason: "영향을 받는 대상" }]);
+    expect(body.elements).toEqual([{ text: "취약한 사람과 공간", ideaId: d.ideas[0].id, strength: 3, reason: "영향을 받는 대상", score: 3 }]);
     expect(body.ideas).toEqual([]);
     expect(body.standards).toEqual([]);
 
     mock.json.mockResolvedValueOnce({ ok: true, value: {
       ideas: [
-        { ideaId: pick.id, elementId: "el_a", standardId: "[없는코드]", strength: 3, reason: "원인 탐구의 바탕" },
-        { ideaId: "만든__아이디어__0", elementId: "", standardId: "", strength: 2, reason: "x" },
+        { ideaId: pick.id, elementId: "el_a", standardId: "[없는코드]", strength: 3, reason: "원인 탐구의 바탕", score: 3 },
+        { ideaId: "만든__아이디어__0", elementId: "", standardId: "", strength: 2, reason: "x", score: 3 },
       ],
       fits: [],
     } });
     body = await (await recommend(request({ lessonId, focus: "ideas", draft: d }))).json();
-    expect(body.ideas).toEqual([{ catalogId: pick.id, subject: pick.subject, domain: pick.domain, content: pick.content, elementId: "el_a", standardId: null, strength: 3, reason: "원인 탐구의 바탕" }]);
+    expect(body.ideas).toEqual([{ catalogId: pick.id, subject: pick.subject, domain: pick.domain, content: pick.content, elementId: "el_a", standardId: null, strength: 3, reason: "원인 탐구의 바탕", score: 3 }]);
     expect(body.elements).toEqual([]);
 
     mock.json.mockImplementationOnce(async (_c: unknown, params: { schema: Schema }) => {
       const code = params.schema.properties.standards.items.properties.code.enum![0] as string;
-      return { ok: true, value: { standards: [{ code, ideaId: "id_gone", strength: 9, reason: "관련" }, { code: "[9가짜01-01]", ideaId: "", strength: 2, reason: "x" }], fits: [] } };
+      return { ok: true, value: { standards: [{ code, ideaId: "id_gone", strength: 9, reason: "관련", score: 3 }, { code: "[9가짜01-01]", ideaId: "", strength: 2, reason: "x", score: 3 }], fits: [] } };
     });
     body = await (await recommend(request({ lessonId, focus: "standards", draft: d }))).json();
     expect(body.standards).toHaveLength(1);
     expect(body.standards[0]).toMatchObject({ ideaId: null, strength: 2 });
     expect(getStandards().some((s) => s.code === body.standards[0].code && s.content === body.standards[0].content)).toBe(true);
+  });
+
+  it("적합성이 낮은 후보는 추천하지 않고, 추천의 적합성을 함께 돌려준다", async () => {
+    const d = draft();
+    const [low, mid] = science.slice(1, 3);
+    mock.json.mockResolvedValueOnce({ ok: true, value: { ideas: [
+      { ideaId: low.id, elementId: "", standardId: "", strength: 2, reason: "거리가 멂", score: 1 },
+      { ideaId: mid.id, elementId: "el_a", standardId: "", strength: 2, reason: "보조적으로 관련", score: 2 },
+    ], fits: [] } });
+    const body = await (await recommend(request({ lessonId, focus: "ideas", draft: d }))).json();
+    expect(body.ideas.map((i: { catalogId: string; score: number }) => [i.catalogId, i.score])).toEqual([[mid.id, 2]]);
+    // 추천과 카드 적합성이 같은 기준을 쓴다
+    const prompt = JSON.parse((mock.json.mock.calls[0][1] as { prompt: string }).prompt);
+    expect(prompt.instructions).toContain("score 가 1 인 후보는 추천하지 마세요");
+    expect(prompt.instructions).toContain("인접 영역에 있는 교과도 맞는 것으로");
   });
 
   it("인접한 영역만 기준으로 보낸다", async () => {
@@ -128,6 +143,19 @@ describe("with AI 추천 (우선순위 큐)", () => {
     expect(enumOf(0, "fits", "id")).toEqual([d.ideas[0].id]);
   });
 
+  it("기준이 될 인접 영역이 비어 있으면 AI 를 부르지 않는다", async () => {
+    const d = draft();
+    const noIdeas = { ...d, ideas: [], elementIdeaLinks: [], ideaStandardLinks: [] };
+    let res = await recommend(request({ lessonId, focus: "standards", draft: noIdeas }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("핵심아이디어가 1개 이상 필요합니다.");
+    const noResources = { ...d, elements: [{ id: "el_a", text: "  ", via: "manual" as const }], standards: [], elementIdeaLinks: [], ideaStandardLinks: [] };
+    res = await recommend(request({ lessonId, focus: "ideas", draft: noResources }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("하위요소 또는 성취기준이 1개 이상 필요합니다.");
+    expect(mock.json).not.toHaveBeenCalled();
+  });
+
   it("이미 담은 항목은 후보에서 빼고 조건의 교과로 좁힌다", async () => {
     mock.json.mockResolvedValue({ ok: true, value: { ideas: [], standards: [], fits: [] } });
     await recommend(request({ lessonId, focus: "ideas", draft: draft() }));
@@ -160,7 +188,7 @@ describe("빠진 교과 먼저", () => {
       const codes = params.schema.properties.standards.items.properties.code.enum as string[];
       const sci = codes.find((c) => getStandards().find((s) => s.code === c)?.subject === "과학")!;
       const ko = codes.find((c) => getStandards().find((s) => s.code === c)?.subject === "국어")!;
-      return { ok: true, value: { standards: [{ code: sci, ideaId: "", strength: 2, reason: "a" }, { code: ko, ideaId: "id_ko", strength: 2, reason: "b" }], fits: [] } };
+      return { ok: true, value: { standards: [{ code: sci, ideaId: "", strength: 2, reason: "a", score: 3 }, { code: ko, ideaId: "id_ko", strength: 2, reason: "b", score: 3 }], fits: [] } };
     });
     const body = await (await recommend(request({ lessonId, focus: "standards", draft: withKorean() }))).json();
     expect(body.standards.map((s: { subject: string }) => s.subject)).toEqual(["국어", "과학"]);

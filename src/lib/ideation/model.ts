@@ -361,6 +361,16 @@ export function deletionAdvised(item: { fit?: Fit }): boolean {
   return item.fit?.score === 1 && !item.fit.kept;
 }
 
+/**
+ * with AI 의 기준이 될 인접 영역이 비었으면 그 안내, 누를 수 있으면 null — 화면은 누를 때, 서버는 받을 때 확인한다.
+ * 주제 설계 ← 수업주제·핵심아이디어 / 핵심아이디어 ← 하위요소·성취기준 / 성취기준 ← 핵심아이디어
+ */
+export function recommendBlocker(d: IdeationDraft, focus: "topic" | "ideas" | "standards"): string | null {
+  if (focus === "topic") return !d.topic.trim() && !d.ideas.length ? "수업주제를 먼저 입력하세요." : null;
+  if (focus === "ideas") return !d.elements.some((e) => e.text.trim()) && !d.standards.length ? "하위요소 또는 성취기준이 1개 이상 필요합니다." : null;
+  return !d.ideas.length ? "핵심아이디어가 1개 이상 필요합니다." : null;
+}
+
 /** 선택한 항목과 직접 연결된 항목(strong), 한 단계 건너 연결된 항목(soft) */
 export function relatedTo(d: IdeationDraft, kind: "element" | "idea" | "standard", id: string): { strong: Set<string>; soft: Set<string> } {
   const strong = new Set<string>();

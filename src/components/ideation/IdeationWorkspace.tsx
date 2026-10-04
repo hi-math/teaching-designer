@@ -9,11 +9,11 @@ import type { IdeaRec, RecommendFocus, Recommendations } from "@/app/api/ideatio
 import { bracketCode } from "@/lib/standardCode";
 import {
   IDEATION_ROW, LIMITS, addLink, applyFits, clearFits, deletionAdvised, emptyDraft, ideaOrigin, ideaSubject, ideaText, keepItem, newId, readDraft,
-  relatedTo, removeItem, setElementText,
+  recommendBlocker, relatedTo, removeItem, setElementText,
   type Fit, type FitResult, type IdeaEntry, type IdeationConditions, type IdeationDraft, type StandardEntry,
 } from "@/lib/ideation/model";
 import {
-  CodeChip, FitAdvice, FitDot, IconBtn, Pane, RecError, RecQueue, SourceBadge, SpinnerIcon, SubjectBadge, XIcon,
+  CodeChip, FitAdvice, FitDot, IconBtn, Pane, RecError, RecQueue, SourceBadge, SparklesIcon, SpinnerIcon, SubjectBadge, XIcon,
   aiBtn, btn, field, primaryBtn, type RecItem,
 } from "./ideationParts";
 import IdeationLines from "./IdeationLines";
@@ -79,7 +79,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const [modal, setModal] = useState<"ideas" | "standards" | null>(null);
   const [conditionsOpen, setConditionsOpen] = useState(false);
   // with AI — 진행 상태는 누른 영역에, 추천은 종류별 큐로 각 영역에
-  const [recRun, setRecRun] = useState<{ focus: RecommendFocus; targetId: string | null; status: "loading" | "error"; error?: string } | null>(null);
+  const [recRun, setRecRun] = useState<{ focus: RecommendFocus; targetId: string | null; status: "loading" | "error"; error?: string; blocked?: boolean } | null>(null);
   const [queues, setQueues] = useState<Queues>(EMPTY_QUEUES);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [enrich, setEnrich] = useState<Record<string, { subject: string; domain: string; content: string }>>({});
@@ -106,6 +106,8 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     if (!isHost || busy) return;
     if (!local) setBase(stableStringify(saved));
     setLocal(next); setSavedNotice(false); setError("");
+    // 기준 영역이 비어 막혔던 안내는 내용이 바뀌면 지운다
+    setRecRun((r) => (r?.blocked ? null : r));
   };
   const remove = (kind: Kind, id: string) => {
     change(removeItem(draft, kind, id));
@@ -143,6 +145,9 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
 
   // ── with AI ───────────────────────────────────────────────────
   const runRecommend = async (focus: RecommendFocus, targetId?: string | null) => {
+    // 기준이 될 인접 영역이 비어 있으면 누르는 단계에서 막는다
+    const blocked = recommendBlocker(draft, focus);
+    if (blocked) { setRecRun({ focus, targetId: null, status: "error", error: blocked, blocked: true }); return; }
     const target = targetId !== undefined ? targetId : sel && ADJACENT[focus].includes(sel.kind) ? sel.id : null;
     const basis = draft;
     recController.current?.abort();
@@ -206,20 +211,22 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");
   const dropRec = (item: RecItem) => setQueues((q) => ({ ...q, [queueKey(item)]: q[queueKey(item)].filter((i) => i.key !== item.key) }));
 
-  /** 추천 항목을 더하고, 추천이 가리킨 기존 항목과 강도·이유를 담아 잇는다 (가리킨 항목이 지워졌으면 잇지 않는다) */
+  /** 추천 항목을 더하고, 추천이 가리킨 기존 항목과 강도·이유를 담아 잇는다 (가리킨 항목이 지워졌으면 잇지 않는다).
+   *  새 카드의 적합성은 추천할 때 같은 기준으로 판단한 값을 그대로 쓴다 */
   const addRec = (item: RecItem) => {
     let next = draft;
+    const fit: Fit = { score: item.rec.score, reason: item.rec.reason, kept: false };
     const ensureIdea = (x: IdeaRec): string | null => {
       const found = next.ideas.find((i) => i.official?.catalogId === x.catalogId);
       if (found) return found.id;
       if (next.ideas.length >= LIMITS.ideas) return null;
-      const idea: IdeaEntry = { id: newId("id"), official: { catalogId: x.catalogId, subject: x.subject, domain: x.domain, content: x.content }, revision: null, subject: x.subject, via: "ai" };
+      const idea: IdeaEntry = { id: newId("id"), official: { catalogId: x.catalogId, subject: x.subject, domain: x.domain, content: x.content }, revision: null, subject: x.subject, via: "ai", fit };
       next = { ...next, ideas: [...next.ideas, idea] };
       return idea.id;
     };
     if (item.kind === "element") {
       if (next.elements.length >= LIMITS.elements) return;
-      const el = { id: newId("el"), text: item.rec.text, via: "ai" as const };
+      const el = { id: newId("el"), text: item.rec.text, via: "ai" as const, fit };
       next = { ...next, elements: [...next.elements, el] };
       if (item.rec.ideaId && ideaById.has(item.rec.ideaId)) next = addLink(next, "elementIdea", el.id, item.rec.ideaId, "ai", item.rec.reason, item.rec.strength);
     } else if (item.kind === "idea") {
@@ -231,7 +238,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       let std = next.standards.find((x) => x.id === item.rec.code);
       if (!std) {
         if (next.standards.length >= LIMITS.standards) return;
-        std = { id: item.rec.code, code: item.rec.code, subject: item.rec.subject, domain: item.rec.domain, content: item.rec.content, note: "", via: "ai" };
+        std = { id: item.rec.code, code: item.rec.code, subject: item.rec.subject, domain: item.rec.domain, content: item.rec.content, note: "", via: "ai", fit };
         next = { ...next, standards: [...next.standards, std] };
       }
       if (item.rec.ideaId && ideaById.has(item.rec.ideaId)) next = addLink(next, "ideaStandard", item.rec.ideaId, std.id, "ai", item.rec.reason, item.rec.strength);
@@ -363,7 +370,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const recBlock = (focus: RecommendFocus, queue: keyof Queues) => (
     <>
       {recRun?.focus === focus && recRun.status === "error" && (
-        <RecError error={recRun.error} onRetry={() => runRecommend(recRun.focus, recRun.targetId)} />
+        <RecError error={recRun.error} onRetry={recRun.blocked ? undefined : () => runRecommend(recRun.focus, recRun.targetId)} />
       )}
       <RecQueue items={queues[queue]} linked={recLinked} readonly={readonly}
         onAdd={addRec} onIgnore={dropRec} onClose={() => setQueues((q) => ({ ...q, [queue]: [] }))} />
@@ -371,7 +378,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   );
   const aiButton = (focus: RecommendFocus) => (
     <button type="button" className={aiBtn} disabled={readonly || recRun?.status === "loading"} onClick={() => runRecommend(focus)}>
-      {recRun?.status === "loading" && recRun.focus === focus && <SpinnerIcon />}with AI
+      {recRun?.status === "loading" && recRun.focus === focus ? <SpinnerIcon /> : <SparklesIcon />}with AI
     </button>
   );
   // 선택한 항목과 그 연결 경로 — 연결선 강조

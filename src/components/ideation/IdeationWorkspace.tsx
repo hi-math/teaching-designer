@@ -355,12 +355,14 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   useEffect(() => { onContext(contextText); }, [contextText, onContext]);
 
   // ── 화면 ──────────────────────────────────────────────────────
+  // 선택한 카드는 테두리에 더해 카드 영역을 물들이고 바깥으로 은은한 빛, 직접 연결된 카드는 진한 테두리·배경과 얇은 빛,
+  // 한 단계 건너 연결된 카드는 옅게
   const tone = (item: { id: string; fit?: Fit }) => {
     const advised = deletionAdvised(item);
-    if (sel?.id === item.id) return `border-transparent ring-2 ring-[#D1260F] ${advised ? "bg-[#f1f2f5]" : "bg-white"}`;
+    if (sel?.id === item.id) return `border-transparent ring-2 ring-[#D1260F] shadow-[0_0_0_6px_rgba(209,38,15,0.10),0_6px_18px_rgba(209,38,15,0.14)] ${advised ? "bg-[#f1f2f5]" : "bg-[#FFF1EC]"}`;
     if (advised) return "border-dashed border-[#c3c8d0] bg-[#f1f2f5]";
-    return rel.strong.has(item.id) ? "border-[#F5B8A8] bg-[#FFF8F6]"
-      : rel.soft.has(item.id) ? "border-[#FBE3DC] bg-[#FFFCFB]" : "border-[#e2e4ea] bg-white";
+    return rel.strong.has(item.id) ? "border-[#EC9580] bg-[#FFF3EF] shadow-[0_0_0_3px_rgba(209,38,15,0.07)]"
+      : rel.soft.has(item.id) ? "border-[#F6C3B5] bg-[#FFF8F5]" : "border-[#e2e4ea] bg-white";
   };
   /** 적합성이 낮은 카드의 삭제 추천 — 근거, 남기기(✓), 삭제 */
   const advice = (kind: Kind, item: { id: string; fit?: Fit }) => deletionAdvised(item) && item.fit && (
@@ -459,7 +461,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
                   <input value={el.text} disabled={readonly} maxLength={LIMITS.element} autoFocus={focusId === el.id}
                     onFocus={() => setSelection({ kind: "element", id: el.id })}
                     onChange={(e) => change(setElementText(draft, el.id, e.target.value))}
-                    className="min-w-0 flex-1 rounded-lg bg-transparent px-2 py-1 text-[14px] outline-none focus:bg-[#f1f4f9] disabled:opacity-100" />
+                    className="min-w-0 flex-1 rounded-lg bg-transparent px-2 py-1 text-[14px] outline-none focus:bg-white/80 disabled:opacity-100" />
                   {el.via === "ai" && <SourceBadge kind="ai" />}
                   {isHost && <IconBtn label="삭제" danger disabled={readonly} onClick={() => remove("element", el.id)}><XIcon /></IconBtn>}
                 </div>

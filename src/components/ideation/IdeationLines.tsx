@@ -93,7 +93,7 @@ export default function IdeationLines({ container, draft, active }: {
           const opacity = ln.faded ? 0.25 : active && !on && !isHover ? 0.3 : 1;
           return (
             <g key={ln.link.id}>
-              <path d={ln.d} fill="none" stroke={color} strokeWidth={WIDTH[ln.link.strength] + (isHover ? 1.5 : 0)} strokeLinecap="round"
+              <path d={ln.d} fill="none" stroke={color} strokeWidth={WIDTH[ln.link.strength] + (isHover ? 1.5 : on ? 0.75 : 0)} strokeLinecap="round"
                 strokeDasharray={ln.link.review ? "5 4" : undefined} opacity={opacity} />
               <path d={ln.d} fill="none" stroke="transparent" strokeWidth={14} style={{ pointerEvents: "stroke", cursor: "help" }}
                 onMouseEnter={(e) => setHover({ id: ln.link.id, ...point(e) })}

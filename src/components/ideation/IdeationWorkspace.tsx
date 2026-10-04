@@ -55,6 +55,10 @@ async function post(url: string, body: unknown, signal?: AbortSignal) {
 export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const { isHost, lessonId, onContext } = props;
   const saved = useMemo(() => readDraft(props.saved), [props.saved]);
+  // 응답을 기다리는 사이 자동 저장으로 저장값이 바뀔 수 있다 — 비동기 응답은 렌더 당시가 아닌 지금의 저장값 위에 얹는다
+  // (렌더 당시 값을 쓰면 그 사이 더한 카드가 사라진다)
+  const savedRef = useRef(saved);
+  useEffect(() => { savedRef.current = saved; }, [saved]);
   const [initial] = useState(() => emptyDraft(props.defaults, {
     topic: props.seed.topic,
     ideas: props.seed.ideas.map((i) => ({ catalogId: i.id, subject: i.subject, domain: i.domain, content: i.content })),
@@ -204,8 +208,8 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   /** 기다리는 동안 바뀐 내용은 지키고, 요청 뒤 문장이 바뀐 카드의 판단은 버린다 */
   const applyFitResult = (fits: FitResult[], basis: IdeationDraft) => {
     if (!isHost || !fits.length) return;
-    setBase((b) => b ?? stableStringify(saved));
-    setLocal((prev) => applyFits(prev ?? saved ?? initial, fits, basis));
+    setBase((b) => b ?? stableStringify(savedRef.current));
+    setLocal((prev) => applyFits(prev ?? savedRef.current ?? initial, fits, basis));
   };
 
   const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");

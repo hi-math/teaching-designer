@@ -21,7 +21,8 @@ export function Pane({ title, actions, tools, children }: { title: string; actio
         {actions}
         {tools && <div className="ml-auto flex flex-wrap justify-end gap-1.5">{tools}</div>}
       </div>
-      <div data-pane-body className="space-y-2 p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">{children}</div>
+      {/* 스크롤바 자리를 늘 비워 둔다 — 카드가 줄어 스크롤바가 사라질 때 카드 폭이 바뀌지 않게 */}
+      <div data-pane-body className="space-y-2 p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:[scrollbar-gutter:stable]">{children}</div>
     </section>
   );
 }

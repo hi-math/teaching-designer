@@ -871,6 +871,8 @@ export default function WorkspaceShell({
   const inFlightSaves = useRef(new Map<string, number>());
   // 내가 마지막으로 DB 에 쓴 텍스트 — Realtime 에코를 걸러내는 데 쓴다
   const lastLocalWriteRef = useRef<Record<string, string>>({});
+  // 아이디어 도출은 자동 저장이 잦아 내 이전 저장의 에코가 다음 저장보다 늦게 올 수 있다 — 최근 내 저장값을 몇 개 기억해 걸러낸다
+  const recentIdeationWritesRef = useRef<string[]>([]);
   // 의견 숨기기 핸들러가 현재 질문/상태를 의존성 없이 읽기 위한 ref
   const opinionsRef = useRef<Record<string, { question: string; hidden: boolean; actCode: string }>>({});
   const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1094,6 +1096,7 @@ export default function WorkspaceShell({
         const row = payload.new as { lesson_id: string; activity_code: string; content: Record<string, unknown> };
         if (row.lesson_id !== lessonId) return;
         const { activity_code } = row;
+        if (activity_code === IDEATION_ROW && recentIdeationWritesRef.current.includes(stableStringify((row.content as { fields?: unknown } | null)?.fields))) return;
 
         // 내가 저장한 내용이 되돌아온 경우와 내가 아직 편집 중인 카드는 내용을 덮어쓰지 않는다.
         // 그대로 반영하면 저장 후에도 계속 타이핑 중일 때 1초 전 내용이 입력칸을 덮어써 방금 친 글자가 날아간다.
@@ -1621,6 +1624,7 @@ export default function WorkspaceShell({
         const fields = content.fields as Record<string, unknown>;
         next[code] = fields;
         lastLocalWriteRef.current[code] = stableStringify(fields);
+        if (code === IDEATION_ROW) recentIdeationWritesRef.current = [...recentIdeationWritesRef.current, stableStringify(fields)].slice(-8);
       } else if (code === "__selected_standards" && Array.isArray(content.items)) {
         selectedStandardsRef.current = content.items as StandardItem[];
         setSelectedStandards(content.items as StandardItem[]);

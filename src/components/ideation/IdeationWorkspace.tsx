@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import IdeasModal, { type IdeaItem } from "@/components/workspace/IdeasModal";
 import StandardsModal, { type StandardItem } from "@/components/workspace/StandardsModal";
 import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
@@ -23,6 +23,7 @@ import IdeationLines from "./IdeationLines";
 // 단계 전환 없이 세 영역이 항상 보이고, 연결은 영역 사이의 곡선(굵기 = 강도, 마우스를 올리면 설명)으로 보여 준다.
 // 영역마다 with AI 하나 — 인접한 영역을 기준으로 그 영역에 포함되면 좋을 항목을 우선순위 큐로 추천하고,
 // 그 영역 카드의 적합성을 판단해 오른쪽 위 점(녹색·노란색·빨간색)으로 보여 준다. 낮은 카드는 색을 바꿔 삭제를 추천한다.
+// 판단이 없는 카드(새로 더했거나 문장·주제·조건이 바뀐 카드)는 잠시 뒤 자동으로 판단해 모든 카드에 점이 붙는다.
 
 export interface IdeationWorkspaceProps {
   lessonId: string;
@@ -93,6 +94,9 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   const [queues, setQueues] = useState<Queues>(EMPTY_QUEUES);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [enrich, setEnrich] = useState<Record<string, { subject: string; domain: string; content: string }>>({});
+  const [judging, setJudging] = useState<Set<string>>(() => new Set());
+  /** 자동 판단을 이미 요청한 카드 → 그때의 주제·조건·문장 (같은 상태로 다시 요청하지 않는다) */
+  const fitAttempts = useRef(new Map<string, string>());
   const recController = useRef<AbortController | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const enrichTried = useRef(new Set<string>());
@@ -172,6 +176,38 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     }
   };
   useEffect(() => () => recController.current?.abort(), []);
+  // ── 적합성 자동 판단 ── 입력이 멈추고 잠시 뒤, 판단이 없는 카드만
+  const fitSignature = (text: string) => JSON.stringify([draft.topic, draft.conditions, text]);
+  const unjudged: [string, string][] = !isHost || !draft.topic.trim() ? [] : [
+    ...draft.elements.filter((e) => e.text.trim() && !e.fit).map((e): [string, string] => [e.id, fitSignature(e.text)]),
+    ...draft.ideas.filter((i) => !i.fit).map((i): [string, string] => [i.id, fitSignature(ideaText(i))]),
+    ...draft.standards.filter((s) => !s.fit).map((s): [string, string] => [s.id, fitSignature(s.code)]),
+  ];
+  const unjudgedKey = unjudged.map(([id, sig]) => `${id}${sig}`).join("|");
+  const judgeFits = useEffectEvent(async (signal: AbortSignal) => {
+    const todo = unjudged.filter(([id, sig]) => fitAttempts.current.get(id) !== sig);
+    if (!todo.length) return;
+    todo.forEach(([id, sig]) => fitAttempts.current.set(id, sig));
+    const ids = todo.map(([id]) => id);
+    const basis = draft;
+    setJudging(new Set(ids));
+    try {
+      const result = await post("/api/ideation/fit", { lessonId, draft: basis, ids }, signal) as { fits: FitResult[] };
+      applyFitResult(result.fits ?? [], basis);
+    } catch {
+      // 입력이 이어져 취소된 판단은 다음에 다시 요청한다. 실패는 조용히 넘기고 문장이 바뀌거나 with AI 를 누르면 다시 판단한다
+      if (signal.aborted) todo.forEach(([id, sig]) => { if (fitAttempts.current.get(id) === sig) fitAttempts.current.delete(id); });
+    } finally {
+      setJudging((cur) => new Set([...cur].filter((id) => !ids.includes(id))));
+    }
+  });
+  useEffect(() => {
+    if (!unjudgedKey || busy) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => { void judgeFits(controller.signal); }, 1500);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [unjudgedKey, busy]);
+
   /** 기다리는 동안 바뀐 내용은 지키고, 요청 뒤 문장이 바뀐 카드의 판단은 버린다 */
   const applyFitResult = (fits: FitResult[], basis: IdeationDraft) => {
     if (!isHost || !fits.length) return;
@@ -404,7 +440,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
           {draft.elements.map((el) => {
             return (
               <div key={el.id} id={`ideation-${el.id}`} onClick={() => setSelection({ kind: "element", id: el.id })} className={`relative cursor-pointer rounded-xl border p-2 transition ${tone(el)}`}>
-                {el.fit && <FitDot fit={el.fit} />}
+                <FitDot fit={el.fit} pending={judging.has(el.id)} />
                 <div className="flex items-center gap-1">
                   <input value={el.text} disabled={readonly} maxLength={LIMITS.element} autoFocus={focusId === el.id}
                     onFocus={() => setSelection({ kind: "element", id: el.id })}
@@ -428,7 +464,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
             const origin = ideaOrigin(idea);
             return (
               <div key={idea.id} id={`ideation-${idea.id}`} onClick={() => setSelection({ kind: "idea", id: idea.id })} className={`relative cursor-pointer rounded-xl border p-2.5 transition ${tone(idea)}`}>
-                {idea.fit && <FitDot fit={idea.fit} />}
+                <FitDot fit={idea.fit} pending={judging.has(idea.id)} />
                 <div className="flex flex-wrap items-center gap-1.5">
                   <SubjectBadge subject={ideaSubject(idea)} />
                   {idea.official && <span className="text-[11.5px] text-[#757b82]">{idea.official.domain}</span>}
@@ -462,7 +498,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
             const subject = s.subject || enrich[s.code]?.subject || "";
             return (
               <div key={s.id} id={`ideation-${s.id}`} onClick={() => setSelection({ kind: "standard", id: s.id })} className={`relative cursor-pointer rounded-xl border p-2.5 transition ${tone(s)}`}>
-                {s.fit && <FitDot fit={s.fit} />}
+                <FitDot fit={s.fit} pending={judging.has(s.id)} />
                 <div className="flex flex-wrap items-center gap-1.5">
                   <SubjectBadge subject={subject} />
                   <CodeChip code={s.code} />

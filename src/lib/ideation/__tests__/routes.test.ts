@@ -17,6 +17,7 @@ vi.mock("@/lib/llmJson", () => ({ requestJson: mock.json, describeApiError: (_: 
 vi.mock("openai", () => ({ default: class {} }));
 import { POST as recommend } from "@/app/api/ideation/route";
 import { POST as save } from "@/app/api/ideation/save/route";
+import { POST as judgeFit } from "@/app/api/ideation/fit/route";
 
 const lessonId = "00000000-0000-0000-0000-000000000000";
 const request = (body: unknown) => new Request("http://localhost/api/ideation", { method: "POST", body: JSON.stringify(body) });
@@ -135,6 +136,76 @@ describe("with AI 추천 (우선순위 큐)", () => {
     expect(ideaIds.every((id) => id.startsWith("과학__"))).toBe(true);
     await recommend(request({ lessonId, focus: "standards", draft: draft() }));
     expect(enumOf(1, "standards", "code")).not.toContain(sciStandard.code);
+  });
+});
+
+describe("빠진 교과 먼저", () => {
+  const korean = getCoreIdeas().find((i) => i.subject === "국어")!;
+  const withKorean = (): IdeationDraft => {
+    const d = draft();
+    return { ...d, ideas: [...d.ideas, { id: "id_ko", official: { catalogId: korean.id, subject: korean.subject, domain: korean.domain, content: korean.content }, revision: null, subject: korean.subject, via: "manual" }] };
+  };
+
+  it("핵심아이디어에는 있는데 성취기준에 없는 교과는 조건에 없어도 후보에 넣고 먼저 탐색하게 한다", async () => {
+    mock.json.mockResolvedValue({ ok: true, value: { standards: [], fits: [] } });
+    await recommend(request({ lessonId, focus: "standards", draft: withKorean() }));
+    const prompt = JSON.parse((mock.json.mock.calls[0][1] as { prompt: string }).prompt);
+    expect(prompt.missingSubjects).toEqual(["국어"]);
+    const codes = enumOf(0, "standards", "code");
+    expect(codes.some((c) => getStandards().find((s) => s.code === c)?.subject === "국어")).toBe(true);
+  });
+
+  it("빠진 교과의 추천을 앞으로 올린다", async () => {
+    mock.json.mockImplementation(async (_c: unknown, params: { schema: Schema }) => {
+      const codes = params.schema.properties.standards.items.properties.code.enum as string[];
+      const sci = codes.find((c) => getStandards().find((s) => s.code === c)?.subject === "과학")!;
+      const ko = codes.find((c) => getStandards().find((s) => s.code === c)?.subject === "국어")!;
+      return { ok: true, value: { standards: [{ code: sci, ideaId: "", strength: 2, reason: "a" }, { code: ko, ideaId: "id_ko", strength: 2, reason: "b" }], fits: [] } };
+    });
+    const body = await (await recommend(request({ lessonId, focus: "standards", draft: withKorean() }))).json();
+    expect(body.standards.map((s: { subject: string }) => s.subject)).toEqual(["국어", "과학"]);
+  });
+
+  it("성취기준에는 있는데 핵심아이디어에 없는 교과도 같은 방식으로 찾는다", async () => {
+    mock.json.mockResolvedValue({ ok: true, value: { ideas: [], fits: [] } });
+    const koStandard = getStandards().find((s) => s.subject === "국어")!;
+    const d = draft();
+    const withKoStandard = { ...d, standards: [...d.standards, { id: koStandard.code, code: koStandard.code, subject: "국어", domain: koStandard.domain, content: koStandard.content, note: "", via: "manual" as const }] };
+    await recommend(request({ lessonId, focus: "ideas", draft: withKoStandard }));
+    const prompt = JSON.parse((mock.json.mock.calls[0][1] as { prompt: string }).prompt);
+    expect(prompt.missingSubjects).toEqual(["국어"]);
+    expect(enumOf(0, "ideas", "ideaId").some((id) => id.startsWith("국어__"))).toBe(true);
+  });
+});
+
+describe("적합성 자동 판단", () => {
+  const fitRequest = (body: unknown) => new Request("http://localhost/api/ideation/fit", { method: "POST", body: JSON.stringify(body) });
+
+  it("로그인·소유자 확인을 먼저 하고, 주제가 없으면 AI 를 부르지 않는다", async () => {
+    mock.authorize.mockResolvedValueOnce({ error: Response.json({ error: "로그인 필요" }, { status: 401 }) });
+    expect((await judgeFit(fitRequest({ lessonId, draft: draft(), ids: ["el_a"] }))).status).toBe(401);
+    const noTopic = { ...draft(), topic: "" };
+    expect((await judgeFit(fitRequest({ lessonId, draft: noTopic, ids: ["el_a"] }))).status).toBe(400);
+    expect(mock.json).not.toHaveBeenCalled();
+  });
+
+  it("요청한 카드만 판단하고, 없는 카드·범위 밖 점수·중복은 버린다", async () => {
+    const d = draft();
+    mock.json.mockResolvedValueOnce({ ok: true, value: { fits: [
+      { id: "el_a", score: 2, reason: "주제의 한 갈래" },
+      { id: "el_a", score: 1, reason: "중복" },
+      { id: d.ideas[0].id, score: 5, reason: "범위 밖" },
+      { id: sciStandard.code, score: 3, reason: "요청하지 않은 카드" },
+    ] } });
+    const res = await judgeFit(fitRequest({ lessonId, draft: d, ids: ["el_a", d.ideas[0].id, "el_gone"] }));
+    expect((await res.json()).fits).toEqual([{ id: "el_a", score: 2, reason: "주제의 한 갈래" }]);
+    expect(enumOf(0, "fits", "id")).toEqual(["el_a", d.ideas[0].id]);
+  });
+
+  it("판단할 카드가 없으면 AI 를 부르지 않는다", async () => {
+    const res = await judgeFit(fitRequest({ lessonId, draft: draft(), ids: ["el_gone"] }));
+    expect((await res.json()).fits).toEqual([]);
+    expect(mock.json).not.toHaveBeenCalled();
   });
 });
 

@@ -46,8 +46,10 @@ export function SourceBadge({ kind }: { kind: keyof typeof SOURCE }) {
 
 const FIT_DOT: Record<FitScore, string> = { 3: "bg-emerald-500", 2: "bg-amber-400", 1: "bg-red-500" };
 
-/** 적합성 — 카드 오른쪽 위의 녹색·노란색·빨간색 점. 마우스를 올리면 판단 근거 (카드는 relative) */
-export function FitDot({ fit }: { fit: Fit }) {
+/** 적합성 — 카드 오른쪽 위의 녹색·노란색·빨간색 점. 마우스를 올리면 판단 근거, 판단 중이면 회색 점 (카드는 relative) */
+export function FitDot({ fit, pending }: { fit?: Fit; pending?: boolean }) {
+  if (pending) return <span aria-hidden className="absolute right-1 top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-[#d4d8de] ring-2 ring-white" />;
+  if (!fit) return null;
   return <span role="img" aria-label={`${fit.score}/3`} title={fit.reason} className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ring-2 ring-white ${FIT_DOT[fit.score]}`} />;
 }
 
@@ -92,11 +94,14 @@ export type RecItem =
 
 const QUEUE_VISIBLE = 3;
 
+/** 연결 강도 색 — 약함(회색) → 강함(녹색). 연결선과 강도 막대가 함께 쓴다 */
+export const STRENGTH_COLOR: Record<1 | 2 | 3, string> = { 1: "#c4cad3", 2: "#6db68e", 3: "#16a34a" };
+
 /** 연결 강도 1~3 을 막대로 */
-export function StrengthBars({ value }: { value: number }) {
+export function StrengthBars({ value }: { value: 1 | 2 | 3 }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-0.5" aria-label={`${value}/3`}>
-      {[1, 2, 3].map((n) => <span key={n} className={`h-1.5 w-3 rounded-full ${n <= value ? "bg-[#D1260F]" : "bg-[#eef0f4]"}`} />)}
+    <span className="inline-flex shrink-0 items-center gap-0.5" role="img" aria-label={`${value}/3`}>
+      {[1, 2, 3].map((n) => <span key={n} className="h-1.5 w-3 rounded-full" style={{ backgroundColor: n <= value ? STRENGTH_COLOR[value] : "#eef0f4" }} />)}
     </span>
   );
 }

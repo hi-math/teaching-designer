@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { getSubjectBadge } from "@/components/workspace/CardFields";
 import type { ElementRec, IdeaRec, StandardRec } from "@/app/api/ideation/route";
+import type { IdeationLink } from "@/lib/ideation/model";
 
 // 아이디어 도출 화면의 작은 부품 — 영역 틀, 출처 배지, 연결 칩, with AI 추천 패널
 
@@ -15,9 +16,9 @@ export function Pane({ title, tools, children }: { title: string; tools?: ReactN
   return (
     // 넓은 화면: 세 영역이 나란히, 영역마다 안에서 스크롤 / 좁은 화면: 세로로 쌓고 내용만큼 늘어나 페이지가 스크롤
     <section className="flex min-h-[200px] min-w-0 flex-col rounded-2xl border border-[#e2e4ea] bg-white lg:min-h-0">
-      <div className="shrink-0 border-b border-[#eef0f4] px-4 py-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#eef0f4] px-4 py-2.5">
         <h2 className="text-[15px] font-bold text-[#2d3339]">{title}</h2>
-        {tools && <div className="mt-2 flex flex-wrap gap-1.5">{tools}</div>}
+        {tools && <div className="ml-auto flex flex-wrap justify-end gap-1.5">{tools}</div>}
       </div>
       <div data-pane-body className="space-y-2 p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">{children}</div>
     </section>
@@ -43,25 +44,37 @@ export function SourceBadge({ kind }: { kind: keyof typeof SOURCE }) {
   return <span className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SOURCE[kind].cls}`}>{SOURCE[kind].label}</span>;
 }
 
-/** 연결 대상을 짧게 보여 주는 칩 — 누르면 그 항목으로 이동, ×는 연결만 제거, 다시 검토할 연결은 ✓ 로 유지 */
-export function LinkChip({ label, title, review, onOpen, onRemove, onConfirm }: {
-  label: ReactNode; title?: string; review: boolean;
-  onOpen: () => void; onRemove?: () => void; onConfirm?: () => void;
+/** 연결이 어떻게 이어졌는지 설명만 — 다시 검토할 연결은 ✓ 로 유지, ×는 연결만 제거 */
+export function LinkNotes({ links, onConfirm, onRemove }: {
+  links: IdeationLink[];
+  onConfirm?: (link: IdeationLink) => void;
+  onRemove?: (link: IdeationLink) => void;
 }) {
+  const shown = links.filter((l) => l.reason || l.review);
+  if (!shown.length) return null;
   return (
-    <span className={`inline-flex max-w-full items-center rounded-full border text-[11.5px] ${review ? "border-amber-300 bg-amber-50 text-amber-900" : "border-[#e2e4ea] bg-white text-[#5a6066]"}`}>
-      <button type="button" title={title} onClick={(e) => { e.stopPropagation(); onOpen(); }} className="min-w-0 truncate py-0.5 pl-2 pr-1 hover:underline">{label}</button>
-      {review && onConfirm && (
-        <button type="button" aria-label="연결 유지" onClick={(e) => { e.stopPropagation(); onConfirm(); }} className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-amber-100">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-        </button>
-      )}
-      {onRemove && (
-        <button type="button" aria-label="연결 제거" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="mr-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[#adb2ba] hover:bg-red-50 hover:text-red-500">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
-      )}
-    </span>
+    <ul className="mt-1.5 space-y-1">
+      {shown.map((l) => (
+        <li key={l.id} className={`flex items-start gap-1.5 rounded-lg px-2 py-1 text-[12px] leading-relaxed ${l.review ? "bg-amber-50 text-amber-900" : "bg-[#f8f9fd] text-[#5a6066]"}`}>
+          <svg className="mt-[3px] h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+          <span className="min-w-0 flex-1">
+            {l.review && <span className="mr-1 font-semibold">다시 검토할 연결</span>}
+            {l.reason && l.via === "ai" && <span className="mr-1 rounded bg-white px-1 py-0.5 text-[10.5px] font-semibold text-[#5a6066]">AI 해석</span>}
+            {l.reason}
+          </span>
+          {l.review && onConfirm && (
+            <button type="button" aria-label="연결 유지" onClick={(e) => { e.stopPropagation(); onConfirm(l); }} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full hover:bg-amber-100">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+            </button>
+          )}
+          {onRemove && (
+            <button type="button" aria-label="연결 제거" onClick={(e) => { e.stopPropagation(); onRemove(l); }} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#adb2ba] hover:bg-red-50 hover:text-red-500">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -95,10 +108,10 @@ export function StrengthBars({ value }: { value: number }) {
 }
 
 /** 추천을 우선순위 순으로 — 위에서부터 보이고, 추가·무시하면 다음 항목이 올라온다 */
-export function RecQueue({ items, linkTo, readonly, onAdd, onIgnore, onClose }: {
+export function RecQueue({ items, linked, readonly, onAdd, onIgnore, onClose }: {
   items: RecItem[];
-  /** 추가하면 이어질 기존 항목의 이름 */
-  linkTo: (item: RecItem) => string[];
+  /** 추가하면 기존 항목과 이어지는지 */
+  linked: (item: RecItem) => boolean;
   readonly: boolean;
   onAdd: (item: RecItem) => void;
   onIgnore: (item: RecItem) => void;
@@ -113,7 +126,7 @@ export function RecQueue({ items, linkTo, readonly, onAdd, onIgnore, onClose }: 
       </div>
       <ol className="space-y-1.5">
         {items.slice(0, QUEUE_VISIBLE).map((item, rank) => {
-          const targets = linkTo(item);
+          const isLinked = linked(item);
           return (
             <li key={item.key} className="flex gap-2 rounded-lg border border-[#FBE3DC] bg-white p-2.5">
               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#D1260F] text-[11px] font-bold text-white">{rank + 1}</span>
@@ -121,19 +134,9 @@ export function RecQueue({ items, linkTo, readonly, onAdd, onIgnore, onClose }: 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {item.kind === "idea" && <><SubjectBadge subject={item.rec.subject} /><span className="text-[11.5px] text-[#757b82]">{item.rec.domain}</span></>}
                   {item.kind === "standard" && <><SubjectBadge subject={item.rec.subject} /><CodeChip code={item.rec.code} /></>}
-                  {targets.length > 0 && <StrengthBars value={item.rec.strength} />}
+                  {isLinked && <StrengthBars value={item.rec.strength} />}
                 </div>
                 <p className="mt-1 text-[13px] leading-relaxed text-[#2d3339]">{item.kind === "element" ? item.rec.text : item.rec.content}</p>
-                {targets.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {targets.map((t) => (
-                      <span key={t} className="inline-flex max-w-full items-center gap-1 rounded-full border border-[#e2e4ea] px-2 py-0.5 text-[11px] text-[#5a6066]">
-                        <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                        <span className="truncate">{t}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
                 {item.rec.reason && <p className="mt-1.5 text-[12px] leading-relaxed text-[#757b82]"><span className="mr-1 rounded bg-[#f1f4f9] px-1 py-0.5 text-[10.5px] font-semibold text-[#5a6066]">AI 해석</span>{item.rec.reason}</p>}
                 {!readonly && (
                   <div className="mt-2 flex gap-1.5">
@@ -150,14 +153,9 @@ export function RecQueue({ items, linkTo, readonly, onAdd, onIgnore, onClose }: 
   );
 }
 
-/** with AI 를 누른 영역의 진행 상태 */
-export function RecStatus({ status, error, onCancel, onRetry }: { status: "loading" | "error"; error?: string; onCancel: () => void; onRetry: () => void }) {
-  return status === "loading" ? (
-    <div className="flex items-center gap-2 rounded-xl border border-[#F5B8A8] bg-[#FFF8F6] px-3 py-2 text-[13px] text-[#5a6066]">
-      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#F5B8A8] border-t-[#D1260F]" />추천 중…
-      <button type="button" className={`${btn} ml-auto`} onClick={onCancel}>취소</button>
-    </div>
-  ) : (
+/** with AI 실패 — 생성 중 표시는 버튼 안의 스피너 */
+export function RecError({ error, onRetry }: { error?: string; onRetry: () => void }) {
+  return (
     <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
       <span className="min-w-0 flex-1">{error}</span>
       <button type="button" className={btn} onClick={onRetry}>다시 시도</button>
@@ -165,8 +163,6 @@ export function RecStatus({ status, error, onCancel, onRetry }: { status: "loadi
   );
 }
 
-/** 문장을 짧게 — 연결 칩·선택 표시용 */
-export function short(text: string, max = 18): string {
-  const t = text.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max)}…` : t;
+export function SpinnerIcon() {
+  return <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />;
 }

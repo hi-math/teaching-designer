@@ -37,3 +37,28 @@ describe('카드 반영 판정 맥락', () => {
     expect(prompt).not.toContain('교사의 요청:');
   });
 });
+
+describe('T-2 수업설계 방향 반영', () => {
+  it('유목화는 분류마다 한 행(보기 순서, 빠진 분류는 빈 행), 확정안은 5개까지', async () => {
+    mocks.json.mockResolvedValue({ ok: true, value: { applicable: true, fields: {
+      direction_groups: [
+        { category: '평가 방식', idea: '과정 중심 평가' },
+        { category: '교수 방법', idea: '학생 질문에서 출발' },
+        { category: '교수 방법', idea: ' 모둠 협력 해결 ' },
+      ],
+      directions: ['질문 출발', '삶 연결', '협력 실행', '과정 평가', '데이터 활용', '여섯째'],
+    } } });
+    const res = await post({ code: 'T-2', label: '수업설계 방향', answer: '…', question: '수업설계 방향을 만들어 줘' });
+    const { fields } = await res.json();
+    expect(fields.direction_groups).toEqual([
+      { category: '교수 방법', idea: '학생 질문에서 출발\n모둠 협력 해결' },
+      { category: '평가 방식', idea: '과정 중심 평가' },
+      { category: '테크놀로지 활용', idea: '' },
+      { category: '기타', idea: '' },
+    ]);
+    expect(fields.directions).toHaveLength(5);
+    const prompt = promptSent();
+    expect(prompt).toContain('분류마다 한 행');
+    expect(prompt).toContain('유목화를 종합한 확정안(핵심 원칙)만 3~5개');
+  });
+});

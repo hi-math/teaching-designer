@@ -46,6 +46,32 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
   return { type: 'string', description };
 }
 
+/** 카드별 추출 규칙 — 칸 사이의 관계처럼 스키마만으로는 알 수 없는 것 */
+const CARD_RULES: Record<string, string[]> = {
+  'T-2': [
+    '- direction_groups(수업설계 방향 유목화): 답변의 유목화에서 분류마다 한 행. 분류는 교수 방법·평가 방식·테크놀로지 활용·기타 중 하나, 아이디어는 그 분류에 속한 아이디어를 모두 줄바꿈으로 이어 쓴다.',
+    '- directions(수업설계 방향 확정안): 답변에서 유목화를 종합한 확정안(핵심 원칙)만 3~5개. 유목화 아이디어를 그대로 옮기지 않는다. 답변에 확정안이 없으면 null.',
+  ],
+};
+
+/**
+ * 분류(고르기 칸)를 미리 채워 두는 표(T-2 유목화) — 분류마다 한 행으로 모으고 보기 순서대로, 빠진 분류는 빈 행으로.
+ * 같은 분류가 여러 행으로 오거나 순서가 섞여 표 모양이 흐트러지지 않게 한다.
+ */
+function byCategory(f: FieldDef, rows: unknown): unknown {
+  if (f.type !== 'table' || !f.defaultRows || !Array.isArray(rows)) return rows;
+  const select = f.columns.find((c) => c.type === 'select' && c.options);
+  if (!select?.options) return rows;
+  const others = f.columns.filter((c) => c !== select);
+  return select.options.map((option) => {
+    const same = (rows as Record<string, unknown>[]).filter((r) => r?.[select.key] === option);
+    return {
+      [select.key]: option,
+      ...Object.fromEntries(others.map((c) => [c.key, same.map((r) => String(r[c.key] ?? '').trim()).filter(Boolean).join('\n')])),
+    };
+  });
+}
+
 /** 판정에 함께 주는 맥락 — question: 교사의 질문, picked: 교사가 답변에서 체크박스로 직접 고른 항목만 보냈는지 */
 type JudgeContext = { question?: string; picked?: boolean };
 
@@ -175,8 +201,10 @@ export async function POST(req: Request) {
         '- 답변에 없는 내용을 지어내지 않는다. 답변의 표현을 최대한 그대로 쓴다.',
       ];
 
+  const cardRules = code ? CARD_RULES[code] : undefined;
   const prompt = [
     ...rules,
+    ...(cardRules ? ['', '이 카드의 칸 규칙:', ...cardRules] : []),
     '',
     '현재 카드에 이미 들어 있는 값(참고용):',
     JSON.stringify(current ?? {}, null, 2).slice(0, 4000),
@@ -206,6 +234,9 @@ export async function POST(req: Request) {
       if (f.type === 'choice') {
         v = Array.isArray(v) ? v.filter((o) => f.options.includes(String(o))) : f.options.includes(String(v)) ? v : undefined;
       }
+      v = byCategory(f, v);
+      // 확정안처럼 3~5개로 정리하는 목록은 5개까지
+      if (code === 'T-2' && f.key === 'directions' && Array.isArray(v)) v = v.slice(0, 5);
       if (typeof v === 'string' && v.trim()) fields[f.key] = v.trim();
       else if (Array.isArray(v) && v.length > 0) fields[f.key] = v;
     }

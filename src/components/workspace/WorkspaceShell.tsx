@@ -14,7 +14,7 @@ import StandardsModal, { type StandardItem } from "@/components/workspace/Standa
 import IdeasModal, { type IdeaItem } from "@/components/workspace/IdeasModal";
 import ShareModal from "@/components/workspace/ShareModal";
 import ActivityCard, { type OpinionEntry } from "@/components/workspace/ActivityCard";
-import { CARD_SCHEMAS, serializeStructuredForAI } from "@/components/workspace/cardSchemas";
+import { CARD_SCHEMAS, fieldHasContent, serializeCardForAI } from "@/components/workspace/cardSchemas";
 import { showAlert, showConfirm } from "@/components/ui/dialog";
 import ChatManageModal from "@/components/workspace/ChatManageModal";
 import { bracketCode, fixDoubleBrackets } from "@/lib/standardCode";
@@ -1710,8 +1710,8 @@ export default function WorkspaceShell({
     const cards: Record<string, string> = {};
     for (const code of ["T-1", "T-2", "A-1", "A-2", "A-3", "A-4"]) {
       const text = code === 'A-3'
-        ? serializeStructuredForAI(a3SelectionFields(selectedIdeasRef.current, selectedStandardsRef.current))
-        : structured[code] ? serializeStructuredForAI(structured[code]) : texts[code];
+        ? serializeCardForAI('A-3', a3SelectionFields(selectedIdeasRef.current, selectedStandardsRef.current))
+        : structured[code] ? serializeCardForAI(code, structured[code]) : texts[code];
       if (text?.trim()) cards[code] = text;
     }
     const visionText = personalVisionsText(visionsRef.current, (uid) => memberNamesRef.current[uid] ?? uid);
@@ -1848,14 +1848,10 @@ export default function WorkspaceShell({
       return `기존 목록의 핵심 아이디어 ${selections.ideas.length}개와 성취기준 ${selections.standards.length}개를 선택했습니다.`;
     }
     const existing = structuredInputsRef.current[code] ?? {};
-    const filled = (v: unknown) =>
-      Array.isArray(v)
-        ? v.some((x) => (typeof x === "string" ? x.trim() : Object.values(x as Record<string, unknown>).some((c) => String(c ?? "").trim())))
-        : typeof v === "string" && v.trim() !== "";
-    // 이미 내용이 있는 칸을 덮어쓰게 되면 먼저 묻는다
-    const overwritten = Object.keys(fields)
-      .filter((k) => filled(existing[k]))
-      .map((k) => CARD_SCHEMAS[code]?.fields.find((f) => f.key === k)?.label ?? k);
+    // 이미 내용이 있는 칸을 덮어쓰게 되면 먼저 묻는다 (분류만 미리 채워 둔 표 행은 내용으로 보지 않는다)
+    const overwritten = (CARD_SCHEMAS[code]?.fields ?? [])
+      .filter((f) => f.key in fields && fieldHasContent(f, existing[f.key]))
+      .map((f) => f.label ?? f.key);
     if (overwritten.length > 0 && !(await showConfirm(
       `${code} 카드의 기존 내용(${overwritten.join(", ")})을 AI 답변 내용으로 바꿉니다.\n계속할까요?`,
       { title: "", confirmText: "바꾸기" },
@@ -3095,11 +3091,11 @@ export default function WorkspaceShell({
                     ...activityInputs,
                     ...Object.fromEntries(
                       Object.entries(structuredInputs).filter(([code]) => code !== IDEATION_ROW).map(([code, fields]) => [
-                        code, serializeStructuredForAI(fields),
+                        code, serializeCardForAI(code, fields),
                       ])
                     ),
                   };
-                  mergedInputs['A-3'] = serializeStructuredForAI(a3SelectionFields(selectedIdeas, selectedStandards));
+                  mergedInputs['A-3'] = serializeCardForAI('A-3', a3SelectionFields(selectedIdeas, selectedStandards));
                   const visionText = personalVisionsText(visions, (uid) => allMembers.find((m) => m.id === uid)?.name ?? memberNames[uid] ?? uid);
                   if (visionText) mergedInputs['T-1'] = [visionText, mergedInputs['T-1'] ?? ''].filter(Boolean).join('\n');
                   return {

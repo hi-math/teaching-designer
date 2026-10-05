@@ -30,10 +30,9 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
         properties: Object.fromEntries(
           f.columns.map((c) => [
             c.key,
-            {
-              type: 'string',
-              description: c.options ? `${c.label} — 다음 중 하나: ${c.options.join(', ')}` : c.label,
-            },
+            c.type === 'select' && c.options
+              ? { type: 'string', description: `${c.label} — 다음 중 하나`, enum: c.options }
+              : { type: 'string', description: c.options ? `${c.label} — 다음 중 하나: ${c.options.join(', ')}` : c.label },
           ]),
         ),
         required: f.columns.map((c) => c.key),

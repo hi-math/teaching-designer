@@ -304,6 +304,41 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
   },
 };
 
+// ─── 내용 판정 · AI 맥락 ───────────────────────────────────────────
+
+/** 표에서 실제로 쓴 행 — 고르기 칸(분류 등)만 채워진 행은 뺀다 (T-2 유목화처럼 분류를 미리 채워 두는 표) */
+function writtenRows(field: TableFieldDef, rows: unknown): Record<string, string>[] {
+  if (!Array.isArray(rows)) return [];
+  const textCols = field.columns.filter(c => c.type !== 'select');
+  const cols = textCols.length ? textCols : field.columns;
+  return (rows as Record<string, string>[]).filter(r => r && cols.some(c => String(r[c.key] ?? '').trim()));
+}
+
+/** 카드의 한 칸에 실제로 쓴 내용이 있는지 */
+export function fieldHasContent(field: FieldDef, value: unknown): boolean {
+  if (field.type === 'table') return writtenRows(field, value).length > 0;
+  if (Array.isArray(value)) return value.some(v => typeof v === 'string' && v.trim() !== '');
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/** 카드에 쓴 내용이 있는지 — 지금 카드에 있는 칸만 본다 (지운 칸의 예전 값은 무시) */
+export function cardHasContent(code: string, fields: Record<string, unknown>): boolean {
+  return (CARD_SCHEMAS[code]?.fields ?? []).some(f => fieldHasContent(f, fields[f.key]));
+}
+
+/** 카드 내용 → AI 맥락 텍스트 — 지금 카드에 있는 칸만, 화면에 보이는 이름으로, 표는 실제로 쓴 행만 */
+export function serializeCardForAI(code: string, fields: Record<string, unknown>): string {
+  const schema = CARD_SCHEMAS[code];
+  if (!schema || schema.fields.length === 0) return serializeStructuredForAI(fields);
+  const picked: Record<string, unknown> = {};
+  for (const f of schema.fields) {
+    const v = fields[f.key];
+    if (!fieldHasContent(f, v)) continue;
+    picked[f.label ?? f.key] = f.type === 'table' ? writtenRows(f, v) : v;
+  }
+  return serializeStructuredForAI(picked);
+}
+
 // ─── 구조화 데이터를 AI 컨텍스트용 텍스트로 직렬화 ──────────────────
 export function serializeStructuredForAI(fields: Record<string, unknown>): string {
   const lines: string[] = [];

@@ -2,7 +2,7 @@
 
 import { memo, useState } from "react";
 import CardFieldRenderer from "@/components/workspace/CardFields";
-import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
+import { CARD_SCHEMAS, cardHasContent } from "@/components/workspace/cardSchemas";
 import SimulationBoard from "@/components/workspace/SimulationBoard";
 import A3SelectionTables from "@/components/workspace/A3SelectionTables";
 import VisionBoard from "@/components/workspace/VisionBoard";
@@ -311,7 +311,10 @@ function ActivityCard({
   const hasVisions = !!visions && Object.values(visions).some((items) => items.some((e) => e.text.trim()));
   const filled = act.code === 'A-3'
     ? selectedIdeas.length + selectedStandards.length > 0
-    : CARD_SCHEMAS[act.code] ? hasContent(structuredValue) || hasVisions : textValue.trim() !== "";
+    : CARD_SCHEMAS[act.code]
+      // 칸이 정해진 카드는 지금 카드에 있는 칸만 본다 (지운 칸·분류만 채운 표 행은 내용이 아니다). 초안 미리보기처럼 칸이 없는 카드는 값 전체를
+      ? (CARD_SCHEMAS[act.code].fields.length ? cardHasContent(act.code, structuredValue) : hasContent(structuredValue)) || hasVisions
+      : textValue.trim() !== "";
   const oldIdeaRows = Array.isArray(structuredValue.core_ideas) ? structuredValue.core_ideas as { subject?: string; core_idea?: string }[] : [];
   const oldStandardRows = Array.isArray(structuredValue.achievement_standards) ? structuredValue.achievement_standards as { subject?: string; standard?: string }[] : [];
   const unlinkedA3Rows = act.code === 'A-3'

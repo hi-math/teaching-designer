@@ -5,6 +5,8 @@ import CardFieldRenderer from "@/components/workspace/CardFields";
 import { CARD_SCHEMAS } from "@/components/workspace/cardSchemas";
 import SimulationBoard from "@/components/workspace/SimulationBoard";
 import A3SelectionTables from "@/components/workspace/A3SelectionTables";
+import VisionBoard from "@/components/workspace/VisionBoard";
+import type { VisionEntry, VisionMap } from "@/lib/vision";
 import type { IdeaItem } from '@/components/workspace/IdeasModal';
 import type { StandardItem } from '@/components/workspace/StandardsModal';
 
@@ -82,6 +84,43 @@ interface Props {
   onSimulate?: (request: string) => Promise<string | null>;
   /** 초안 미리보기 → Ds-3·Ds-4 반영 */
   onApplyToDesign?: () => Promise<string | null>;
+
+  /** T-1 개인별 교육비전 (userId → 항목) — T-1 카드에만 */
+  visions?: VisionMap;
+  /** 내 개인별 교육비전 바꾸기 */
+  onVisionsChange?: (items: VisionEntry[]) => void;
+  /** 비전 키워드 생성 — 실패하면 안내 문장 */
+  onGenerateKeywords?: () => Promise<string | null>;
+}
+
+/** T-1 비전 키워드 이름 오른쪽의 작은 키워드 생성 버튼 — 생성 중에는 버튼 안 스피너, 실패하면 왼쪽에 안내 */
+function KeywordGenerateButton({ disabled, onGenerate }: { disabled: boolean; onGenerate: () => Promise<string | null> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {error && <span role="alert" className="truncate text-[11.5px] text-red-600">{error}</span>}
+      <button
+        type="button"
+        disabled={disabled || busy}
+        onClick={async (e) => {
+          e.stopPropagation();
+          setBusy(true); setError(null);
+          try { setError(await onGenerate()); } finally { setBusy(false); }
+        }}
+        className="flex shrink-0 items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11.5px] font-medium text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {busy ? (
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-orange-300 border-t-orange-600" />
+        ) : (
+          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+          </svg>
+        )}
+        키워드 생성
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -260,15 +299,19 @@ function ActivityCard({
   onSubmitOpinion,
   onSimulate,
   onApplyToDesign,
+  visions,
+  onVisionsChange,
+  onGenerateKeywords,
 }: Props) {
   // 초안 미리보기 카드는 코드·with AI·반영하기·건너뛰기·의견묻기 없이 보여 준다
   const isSim = act.code === "A-5";
   const locked = !isSim && (st === "completed" || st === "skipped");
   const getName = (uid: string) => memberNames[uid] ?? uid;
   // 비어 있는 카드는 피드백할 내용이 없다
+  const hasVisions = !!visions && Object.values(visions).some((items) => items.some((e) => e.text.trim()));
   const filled = act.code === 'A-3'
     ? selectedIdeas.length + selectedStandards.length > 0
-    : CARD_SCHEMAS[act.code] ? hasContent(structuredValue) : textValue.trim() !== "";
+    : CARD_SCHEMAS[act.code] ? hasContent(structuredValue) || hasVisions : textValue.trim() !== "";
   const oldIdeaRows = Array.isArray(structuredValue.core_ideas) ? structuredValue.core_ideas as { subject?: string; core_idea?: string }[] : [];
   const oldStandardRows = Array.isArray(structuredValue.achievement_standards) ? structuredValue.achievement_standards as { subject?: string; standard?: string }[] : [];
   const unlinkedA3Rows = act.code === 'A-3'
@@ -445,12 +488,24 @@ function ActivityCard({
           />
         </div>
       ) : CARD_SCHEMAS[act.code] ? (
-        <CardFieldRenderer
-          schema={CARD_SCHEMAS[act.code]}
-          value={structuredValue}
-          onChange={(fields) => onStructuredChange(act.code, fields)}
-          locked={locked}
-        />
+        <div className="space-y-4">
+          {/* T-1 개인별 교육비전 — 참가자마다 따로 저장해 카드 필드(비전 키워드·팀 공동 비전) 위에 둔다 */}
+          {act.code === "T-1" && visions && onVisionsChange && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <p className="mb-1.5 text-[12px] font-semibold text-[#757b82]">개인별 교육비전</p>
+              <VisionBoard visions={visions} memberNames={memberNames} myUserId={myUserId} locked={locked} onChange={onVisionsChange} />
+            </div>
+          )}
+          <CardFieldRenderer
+            schema={CARD_SCHEMAS[act.code]}
+            value={structuredValue}
+            onChange={(fields) => onStructuredChange(act.code, fields)}
+            locked={locked}
+            fieldActions={act.code === "T-1" && onGenerateKeywords
+              ? { vision_keywords: <KeywordGenerateButton disabled={locked || !hasVisions} onGenerate={onGenerateKeywords} /> }
+              : undefined}
+          />
+        </div>
       ) : (
         <textarea
           value={textValue}

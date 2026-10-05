@@ -25,6 +25,7 @@ import { localWriteKey, readRemoteContent, stableStringify } from "@/components/
 import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/workspace/cardUndo";
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
 import { IDEATION_ROW } from "@/lib/ideation/model";
+import { readVisionRow, visionCode, visionContent, type VisionEntry, type VisionMap } from "@/lib/vision";
 import type { ContentMap } from "@/lib/ideation/application";
 import { a3SelectionFields, mergeCatalogItems } from '@/lib/a3Selection';
 
@@ -816,7 +817,12 @@ export default function WorkspaceShell({
   const [chatTrigger, setChatTrigger] = useState<ChatTrigger | undefined>(undefined);
   const notifHeaderRef = useRef<HTMLDivElement>(null);
   const [structuredInputs, setStructuredInputs] = useState<Record<string, Record<string, unknown>>>({});
+  // T-1 개인별 교육비전 — 참가자마다 자기 행에 저장 (userId → 항목)
+  const [visions, setVisions] = useState<VisionMap>({});
+  const visionsRef = useRef<VisionMap>({});
   const [aiReady, setAiReady] = useState(false);
+  /** 첫 접속 안내 — 계정에 본 기록이 있으면 done (기기·브라우저·주소가 바뀌어도 다시 보이지 않게 계정에 남긴다) */
+  const [onboarding, setOnboarding] = useState<"unknown" | "show" | "done">("unknown");
   const [activityInputs, setActivityInputs] = useState<Record<string, string>>({});
   const [activityStatus, setActivityStatus] = useState<Record<string, "active" | "completed" | "skipped">>({});
   const [selectedActivityCode, setSelectedActivityCode] = useState<string | null>(null);
@@ -937,10 +943,16 @@ export default function WorkspaceShell({
         const loadedOpinions: Record<string, { question: string; hidden: boolean; actCode: string }> = {};
         const loadedOpinionResponses: Record<string, Record<string, string>> = {};
         const loadedStructured: Record<string, Record<string, unknown>> = {};
+        const loadedVisions: VisionMap = {};
         for (const row of contentsRes.data) {
           const code = row.activity_code as string;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const c = row.content as any;
+          const vision = readVisionRow(code, c);
+          if (vision) {
+            loadedVisions[vision.userId] = vision.items;
+            continue;
+          }
           if (code.endsWith("__opinion")) {
             if (c?.active !== false && c?.question) {
               const opinionKey = code.slice(0, -"__opinion".length);
@@ -998,6 +1010,8 @@ export default function WorkspaceShell({
           setStructuredInputs(loadedStructured);
           structuredInputsRef.current = loadedStructured;
         }
+        visionsRef.current = loadedVisions;
+        setVisions(loadedVisions);
       }
 
       // 최근 접근 시간 갱신
@@ -1008,6 +1022,7 @@ export default function WorkspaceShell({
       // 레슨 멤버 로드 + 현재 유저 역할 확인
       const { data: { user } } = await supabase.auth.getUser();
       const currentUserId = user?.id;
+      if (user) setOnboarding(user.user_metadata?.minerva_onboarded ? "done" : "show");
       const membersRes = await supabase
         .from("lesson_members")
         .select("user_id, role")
@@ -1096,6 +1111,14 @@ export default function WorkspaceShell({
         const row = payload.new as { lesson_id: string; activity_code: string; content: Record<string, unknown> };
         if (row.lesson_id !== lessonId) return;
         const { activity_code } = row;
+        const vision = readVisionRow(activity_code, row.content);
+        if (vision) {
+          if (vision.userId !== userProfileRef.current?.id) {
+            visionsRef.current = { ...visionsRef.current, [vision.userId]: vision.items };
+            setVisions(visionsRef.current);
+          }
+          return;
+        }
         if (activity_code === IDEATION_ROW && recentIdeationWritesRef.current.includes(stableStringify((row.content as { fields?: unknown } | null)?.fields))) return;
 
         // 내가 저장한 내용이 되돌아온 경우와 내가 아직 편집 중인 카드는 내용을 덮어쓰지 않는다.
@@ -1594,6 +1617,39 @@ export default function WorkspaceShell({
     writeStructured(code, fields);
   }, [rememberForUndo, writeStructured]);
 
+  /** 내 개인별 교육비전 — 내 행에만 저장한다 */
+  const handleVisionsChange = useCallback((items: VisionEntry[]) => {
+    const uid = userProfileRef.current?.id;
+    if (!uid) return;
+    visionsRef.current = { ...visionsRef.current, [uid]: items };
+    setVisions(visionsRef.current);
+    const code = visionCode(uid);
+    const content = visionContent(items);
+    pendingContent.current[code] = content;
+    setTitleSaveStatus("idle");
+    scheduleSave(code, content);
+  }, [scheduleSave]);
+
+  /** 비전 키워드 생성 — 개인별 교육비전을 유목화한 키워드로 T-1 비전 키워드를 채운다. 실패하면 안내 문장 */
+  const handleGenerateVisionKeywords = useCallback(async (): Promise<string | null> => {
+    if (!Object.values(visionsRef.current).flat().some((e) => e.text.trim())) return "개인별 교육비전을 먼저 입력하세요.";
+    const uid = userProfileRef.current?.id;
+    try {
+      const res = await fetch("/api/vision-keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // 내 비전은 아직 저장 전일 수 있어 함께 보낸다
+        body: JSON.stringify({ lessonId, mine: uid ? visionsRef.current[uid] ?? [] : undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(data.keywords)) return data.error ?? "키워드를 만들지 못했습니다. 다시 시도하세요.";
+      handleStructuredChange("T-1", { ...(structuredInputsRef.current["T-1"] ?? {}), vision_keywords: data.keywords }, "step");
+      return null;
+    } catch {
+      return "키워드를 만들지 못했습니다. 다시 시도하세요.";
+    }
+  }, [lessonId, handleStructuredChange]);
+
   const updateA3Selections = useCallback((ideas: IdeaItem[], standards: StandardItem[]) => {
     selectedIdeasRef.current = ideas;
     selectedStandardsRef.current = standards;
@@ -2070,14 +2126,19 @@ export default function WorkspaceShell({
     setProfileModalOpen(true);
   };
 
-  // ── 프로젝트 온보딩 (첫 방문 + AI 준비 완료 후 안내) ─────────
+  // ── 온보딩 — 계정으로 처음 접속했을 때 한 번만 (AI 준비 완료 후 안내) ─────────
+  // 예전에는 브라우저 저장소(수업마다)에만 남겨, 다른 기기·브라우저·배포 주소로 들어오거나 새 수업을 열 때마다 다시 나왔다.
+  // 기록·안내는 모두 타이머 안에서 — 효과가 다시 돌며 타이머가 취소돼도 다음 실행이 같은 일을 한 번만 한다
   useEffect(() => {
-    if (!lessonId || !aiReady) return;
-    const key = `minerva_onboarded_${lessonId}`;
-    if (localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
-    setRightTab('ai');
+    if (!lessonId || !aiReady || onboarding !== "show") return;
+    // 이 브라우저에서 이미 본 사람은 계정에만 기록하고 다시 띄우지 않는다
+    const seenHere = Object.keys(localStorage).some((k) => k.startsWith("minerva_onboarded_"));
     const t = setTimeout(() => {
+      setOnboarding("done");
+      void createClient().auth.updateUser({ data: { minerva_onboarded: true } });
+      localStorage.setItem(`minerva_onboarded_${lessonId}`, '1');
+      if (seenHere) return;
+      setRightTab('ai');
       setChatTrigger({
         text: `안녕하세요! 수업 설계 프로젝트를 시작하신 것을 환영합니다. Minerva의 간단한 사용법과 첫 번째 단계(팀 준비)에서 무엇을 해야 하는지 안내해 주세요.`,
         nonce: Date.now(),
@@ -2086,7 +2147,7 @@ export default function WorkspaceShell({
     }, 400);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonId, aiReady]);
+  }, [lessonId, aiReady, onboarding]);
 
 
   // projectTitle을 ref에 동기화 (beforeunload 클로저용)
@@ -2911,6 +2972,9 @@ export default function WorkspaceShell({
                       onToggleOpinionHidden={handleToggleOpinionHidden}
                       onDeleteOpinion={handleDeleteOpinion}
                       onSubmitOpinion={handleSubmitOpinion}
+                      visions={act.code === "T-1" ? visions : undefined}
+                      onVisionsChange={act.code === "T-1" ? handleVisionsChange : undefined}
+                      onGenerateKeywords={act.code === "T-1" ? handleGenerateVisionKeywords : undefined}
                       onSimulate={act.code === "A-5" ? handleSimulate : undefined}
                       onApplyToDesign={act.code === "A-5" ? handleApplyToDesign : undefined}
                     />
@@ -3032,6 +3096,10 @@ export default function WorkspaceShell({
                     ),
                   };
                   mergedInputs['A-3'] = serializeStructuredForAI(a3SelectionFields(selectedIdeas, selectedStandards));
+                  const visionLines = Object.entries(visions).flatMap(([uid, items]) => items
+                    .filter((e) => e.text.trim())
+                    .map((e) => `• ${allMembers.find((m) => m.id === uid)?.name ?? memberNames[uid] ?? uid}: ${e.text.trim()}`));
+                  if (visionLines.length) mergedInputs['T-1'] = ['[personal_visions]', ...visionLines, mergedInputs['T-1'] ?? ''].filter(Boolean).join('\n');
                   return {
                     projectTitle,
                     activePhase,

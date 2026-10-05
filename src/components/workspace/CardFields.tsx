@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, type ReactNode } from 'react';
 import type { CardSchema, FieldDef, BulletsFieldDef, TableFieldDef, TableColumn, ChoiceFieldDef } from './cardSchemas';
 
 // ─── Auto-resize textarea ─────────────────────────────────────────────
@@ -13,13 +13,14 @@ function fitHeight(el: HTMLTextAreaElement) {
 }
 
 export function AutoResizeTextarea({
-  value, onChange, disabled, placeholder, className,
+  value, onChange, disabled, placeholder, className, autoFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -45,6 +46,7 @@ export function AutoResizeTextarea({
       onChange={e => onChange(e.target.value)}
       disabled={disabled}
       placeholder={placeholder}
+      autoFocus={autoFocus}
       rows={1}
       className={className}
       style={{ resize: 'none', overflow: 'hidden' }}
@@ -270,7 +272,9 @@ function TableInput({
 
   const rows: Record<string, string>[] = Array.isArray(value) && value.length > 0
     ? (value as Record<string, string>[])
-    : Array(field.minRows ?? 3).fill(null).map(emptyRow);
+    : field.defaultRows
+      ? field.defaultRows.map(row => ({ ...emptyRow(), ...row }))
+      : Array(field.minRows ?? 3).fill(null).map(emptyRow);
 
   const updateCell = (rowIdx: number, key: string, val: string) => {
     const next = rows.map((row, i) =>
@@ -448,16 +452,23 @@ function ChoiceInput({
 // ─── Single field renderer ─────────────────────────────────────────────
 
 function FieldRenderer({
-  field, value, onChange, locked,
+  field, value, onChange, locked, action,
 }: {
   field: FieldDef;
   value: unknown;
   onChange: (v: unknown) => void;
   locked: boolean;
+  /** 이름 오른쪽에 작게 붙는 버튼 (예: T-1 비전 키워드의 키워드 생성) */
+  action?: ReactNode;
 }) {
-  const labelEl = field.label && (
+  const labelEl = field.label && (action ? (
+    <div className="mb-1.5 flex items-center justify-between gap-2">
+      <p className="text-[12px] font-semibold text-[#757b82]">{field.label}</p>
+      {action}
+    </div>
+  ) : (
     <p className="mb-1.5 text-[12px] font-semibold text-[#757b82]">{field.label}</p>
-  );
+  ));
 
   if (field.type === 'bullets') {
     return (
@@ -547,12 +558,14 @@ function FieldRenderer({
 // ─── Main: CardFieldRenderer ──────────────────────────────────────────
 
 export default function CardFieldRenderer({
-  schema, value, onChange, locked,
+  schema, value, onChange, locked, fieldActions,
 }: {
   schema: CardSchema;
   value: Record<string, unknown>;
   onChange: (fields: Record<string, unknown>) => void;
   locked: boolean;
+  /** 필드 key → 이름 오른쪽 버튼 */
+  fieldActions?: Record<string, ReactNode>;
 }) {
   const handleFieldChange = (key: string, val: unknown) => {
     onChange({ ...value, [key]: val });
@@ -567,6 +580,7 @@ export default function CardFieldRenderer({
           value={value[field.key]}
           onChange={v => handleFieldChange(field.key, v)}
           locked={locked}
+          action={fieldActions?.[field.key]}
         />
       ))}
     </div>

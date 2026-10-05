@@ -33,6 +33,8 @@ export interface TableFieldDef extends BaseField {
   columns: TableColumn[];
   minRows?: number;
   noAddRow?: boolean;
+  /** 비어 있을 때 미리 채워 둘 행 (예: T-2 유목화의 분류) — 나머지 칸은 빈칸 */
+  defaultRows?: Record<string, string>[];
 }
 
 /** 정해진 보기 중에서 고르는 칸 — multiple 이면 여러 개(값: string[]), 아니면 하나(값: string) */
@@ -73,15 +75,23 @@ const ch = (key: string, label: string, options: string[], multiple = false): Ch
 export const CARD_SCHEMAS: Record<string, CardSchema> = {
 
   // ── 1단계: 팀 준비 ──────────────────────────────────────────────
+  // 개인별 교육비전은 참가자마다 따로 저장해(T-1__vision_<userId>) ActivityCard 가 이 필드들 위에 그린다
   'T-1': {
     fields: [
+      bl('vision_keywords', '비전 키워드', 1),
       rt('vision', '팀 공동 비전'),
-      ta('vision_note', '배경 및 맥락 (선택)', '비전의 배경과 맥락을 설명하세요…'),
     ],
   },
   'T-2': {
     fields: [
-      bl('directions'),
+      {
+        ...tb('direction_groups', '수업설계 방향 유목화', [
+          { key: 'category', label: '분류',     type: 'select', options: ['교수 방법', '평가 방식', '테크놀로지 활용', '기타'], width: 150, align: 'center' },
+          { key: 'idea',     label: '아이디어', type: 'textarea', flex: 4 },
+        ], 4),
+        defaultRows: [{ category: '교수 방법' }, { category: '평가 방식' }, { category: '테크놀로지 활용' }, { category: '기타' }],
+      },
+      bl('directions', '수업설계 방향 확정안'),
     ],
   },
   'T-3': {

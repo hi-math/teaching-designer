@@ -42,7 +42,7 @@ export default function VisionBoard({ visions, memberNames, myUserId, locked, on
         const isMine = uid === myUserId;
         const name = memberNames[uid] ?? "";
         return (
-          <div key={`${uid}-${entry.id}`} className={`flex min-h-[132px] w-72 shrink-0 snap-start flex-col rounded-xl border p-3 ${isMine ? "border-[#F5B8A8] bg-[#FFF8F6]" : "border-[#e2e4ea] bg-white"}`}>
+          <div key={`${uid}-${entry.id}`} className="flex min-h-[132px] w-72 shrink-0 snap-start flex-col rounded-xl border border-[#e2e4ea] bg-white p-3">
             <div className="mb-2 flex items-center gap-2">
               <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${isMine ? "bg-[#D1260F] text-white" : "bg-[#eef0f4] text-[#5a6066]"}`}>{name.slice(0, 1) || "?"}</span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#2d3339]">{name}</span>
@@ -53,12 +53,16 @@ export default function VisionBoard({ visions, memberNames, myUserId, locked, on
                 </button>
               )}
             </div>
-            {isMine && canEdit ? (
-              <AutoResizeTextarea value={entry.text} onChange={(text) => update(entry.id, text)} placeholder="내용을 입력하세요…" autoFocus={entry.id === focusId}
-                className="w-full flex-1 rounded-lg bg-white/80 px-3 py-2 text-[14px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none focus:ring-2 focus:ring-[#D1260F]/20" />
-            ) : (
-              <p className="whitespace-pre-wrap px-1 text-[14px] leading-relaxed text-[#2d3339]">{entry.text}</p>
-            )}
+            {/* 따로 색칠한 입력칸 없이 같은 카드 안에 불릿 + 밑줄 */}
+            <div className="flex items-start gap-2">
+              <span className="shrink-0 pt-1 text-[15px] font-bold leading-none text-[#D1260F]">•</span>
+              {isMine && canEdit ? (
+                <AutoResizeTextarea value={entry.text} onChange={(text) => update(entry.id, text)} placeholder="내용을 입력하세요…" autoFocus={entry.id === focusId}
+                  className="min-w-0 flex-1 border-b border-[#d4d8de] bg-transparent pb-1 text-[14px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none transition-colors focus:border-[#D1260F]" />
+              ) : (
+                <p className="min-w-0 flex-1 whitespace-pre-wrap border-b border-[#e2e4ea] pb-1 text-[14px] leading-relaxed text-[#2d3339]">{entry.text}</p>
+              )}
+            </div>
           </div>
         );
       })}

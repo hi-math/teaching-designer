@@ -13,7 +13,7 @@ export interface TableColumn {
   width?: number; // 고정 폭(px). 지정하면 flex 대신 쓴다
 }
 
-export type FieldType = 'text' | 'textarea' | 'bullets' | 'table' | 'richtext' | 'choice';
+export type FieldType = 'text' | 'textarea' | 'bullets' | 'chips' | 'table' | 'richtext' | 'choice';
 
 interface BaseField {
   key: string;
@@ -27,6 +27,10 @@ export interface SimpleField extends BaseField {
 export interface BulletsFieldDef extends BaseField {
   type: 'bullets';
   minRows?: number;
+}
+/** 단어 몇 개를 작은 버블로 — 값은 string[] (예: T-1 비전 키워드) */
+export interface ChipsFieldDef extends BaseField {
+  type: 'chips';
 }
 export interface TableFieldDef extends BaseField {
   type: 'table';
@@ -44,7 +48,7 @@ export interface ChoiceFieldDef extends BaseField {
   multiple?: boolean;
 }
 
-export type FieldDef = SimpleField | BulletsFieldDef | TableFieldDef | ChoiceFieldDef;
+export type FieldDef = SimpleField | BulletsFieldDef | ChipsFieldDef | TableFieldDef | ChoiceFieldDef;
 
 export interface CardSchema {
   fields: FieldDef[];
@@ -64,6 +68,9 @@ const rt = (key: string, label?: string): SimpleField =>
 const bl = (key: string, label?: string, minRows = 3): BulletsFieldDef =>
   ({ type: 'bullets', key, label, minRows });
 
+const cp = (key: string, label?: string): ChipsFieldDef =>
+  ({ type: 'chips', key, label });
+
 const tb = (key: string, label: string | undefined, columns: TableColumn[], minRows = 3): TableFieldDef =>
   ({ type: 'table', key, label, columns, minRows });
 
@@ -78,7 +85,7 @@ export const CARD_SCHEMAS: Record<string, CardSchema> = {
   // 개인별 교육비전은 참가자마다 따로 저장해(T-1__vision_<userId>) ActivityCard 가 이 필드들 위에 그린다
   'T-1': {
     fields: [
-      bl('vision_keywords', '비전 키워드', 1),
+      cp('vision_keywords', '비전 키워드'),
       rt('vision', '팀 공동 비전'),
     ],
   },

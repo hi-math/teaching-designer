@@ -16,6 +16,9 @@ function fieldSchema(f: FieldDef): Record<string, unknown> {
   if (f.type === 'bullets') {
     return { type: 'array', description, items: { type: 'string' } };
   }
+  if (f.type === 'chips') {
+    return { type: 'array', description: `${description} — 짧은 단어·명사구`, items: { type: 'string' } };
+  }
   if (f.type === 'choice') {
     return f.multiple
       ? { type: 'array', description: `${description} — 해당하는 것 모두`, items: { type: 'string', enum: f.options } }

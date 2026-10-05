@@ -119,6 +119,58 @@ function BulletsInput({
   );
 }
 
+// ─── Chips field — 단어를 작은 버블로 ────────────────────────────────
+
+function ChipsInput({
+  value, onChange, locked,
+}: {
+  value: unknown;
+  onChange: (v: string[]) => void;
+  locked: boolean;
+}) {
+  const items = (Array.isArray(value) ? value : []).filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const word = draft.trim();
+    setDraft('');
+    if (word && !items.includes(word)) onChange([...items, word]);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      {items.map(word => (
+        <span key={word} className="inline-flex items-center gap-1 rounded-full border border-[#F5B8A8] bg-[#FFF1ED] py-1 pl-3 pr-1.5 text-[13px] font-medium text-[#A81A08]">
+          {word}
+          {!locked && (
+            <button
+              type="button"
+              aria-label="삭제"
+              onClick={() => onChange(items.filter(w => w !== word))}
+              className="flex h-4 w-4 items-center justify-center rounded-full text-[#D1260F]/60 hover:bg-[#FDE4DD] hover:text-[#D1260F]"
+            >
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </span>
+      ))}
+      {!locked && (
+        <input
+          type="text"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          // 한글 조합 중의 Enter 는 글자 확정이라 넘긴다
+          onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }}
+          onBlur={add}
+          placeholder="항목 추가"
+          className="min-w-[96px] flex-1 rounded-full px-2 py-1 text-[13px] text-[#2d3339] placeholder-[#adb2ba] outline-none"
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Badge color per option value ─────────────────────────────────────
 
 const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -480,6 +532,15 @@ function FieldRenderer({
           onChange={onChange}
           locked={locked}
         />
+      </div>
+    );
+  }
+
+  if (field.type === 'chips') {
+    return (
+      <div>
+        {labelEl}
+        <ChipsInput value={value} onChange={onChange} locked={locked} />
       </div>
     );
   }

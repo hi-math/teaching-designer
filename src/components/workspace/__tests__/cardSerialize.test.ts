@@ -20,5 +20,8 @@ describe("AI 맥락 — 지금 카드에 맞게", () => {
     expect(personalVisionsText({ u1: [{ id: "a", text: " 스스로 묻는 학생 " }, { id: "b", text: "" }] }, () => "안교사"))
       .toBe("[개인별 교육비전]\n• 안교사: 스스로 묻는 학생");
     expect(personalVisionsText({}, () => "")).toBe("");
+    // 카드 안의 불릿(줄)마다 하나씩
+    expect(personalVisionsText({ u1: [{ id: "a", text: "삶과 연결\n\n 스스로 묻기 " }] }, () => "안교사"))
+      .toBe("[개인별 교육비전]\n• 안교사: 삶과 연결\n• 안교사: 스스로 묻기");
   });
 });

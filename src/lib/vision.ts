@@ -33,10 +33,15 @@ export function readVisionRow(code: string, content: unknown): { userId: string;
 
 export const visionContent = (items: VisionEntry[]) => ({ type: "visions", items });
 
+/** 카드 한 장의 불릿들 — 줄마다 하나, 빈 줄은 뺀다 */
+export function visionLines(text: string): string[] {
+  return text.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
 /** AI 맥락·초안 미리보기용 — 카드에 보이는 이름 "[개인별 교육비전]" 아래 "• 이름: 비전" 줄 (비전이 없으면 빈 문자열) */
 export function personalVisionsText(visions: VisionMap, nameOf: (userId: string) => string): string {
   const lines = Object.entries(visions).flatMap(([uid, items]) => items
-    .filter((e) => e.text.trim())
-    .map((e) => `• ${nameOf(uid)}: ${e.text.trim()}`));
+    .flatMap((e) => visionLines(e.text))
+    .map((line) => `• ${nameOf(uid)}: ${line}`));
   return lines.length ? ["[개인별 교육비전]", ...lines].join("\n") : "";
 }

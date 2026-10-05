@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, type ReactNode } from 'react';
+import { useRef, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { CardSchema, FieldDef, BulletsFieldDef, TableFieldDef, TableColumn, ChoiceFieldDef } from './cardSchemas';
 
 // ─── Auto-resize textarea ─────────────────────────────────────────────
@@ -13,7 +13,7 @@ function fitHeight(el: HTMLTextAreaElement) {
 }
 
 export function AutoResizeTextarea({
-  value, onChange, disabled, placeholder, className, autoFocus,
+  value, onChange, disabled, placeholder, className, autoFocus, onKeyDown, lineKey,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -21,6 +21,9 @@ export function AutoResizeTextarea({
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+  onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  /** 바깥에서 이 칸을 찾아 포커스할 때 쓰는 표시 (data-line) */
+  lineKey?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -47,6 +50,8 @@ export function AutoResizeTextarea({
       disabled={disabled}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      onKeyDown={onKeyDown}
+      data-line={lineKey}
       rows={1}
       className={className}
       style={{ resize: 'none', overflow: 'hidden' }}

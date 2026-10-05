@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { requestJson, describeApiError, type JsonSchema } from "@/lib/llmJson";
 import { TASK_LLM_MODEL } from "@/lib/llmModels";
 import { createClient } from "@/lib/supabase/server";
-import { VISION_PREFIX, readVisionRow, type VisionEntry } from "@/lib/vision";
+import { VISION_PREFIX, readVisionRow, visionLines, type VisionEntry } from "@/lib/vision";
 
 // T-1 비전 키워드 — 참가자들의 개인별 교육비전을 비슷한 지향끼리 묶어(유목화) 묶음마다 대표 키워드를 만든다.
 // 다른 참가자의 비전은 DB 에서 읽고(RLS: 수업 참여자만), 누른 사람의 비전은 아직 저장 전일 수 있어 요청에 실린 값을 쓴다.
@@ -34,7 +34,8 @@ export async function POST(req: Request) {
     }
     const mine = readVisionRow(`${VISION_PREFIX}${user.id}`, { items: body.mine });
     if (mine && Array.isArray(body.mine)) byUser.set(user.id, mine.items);
-    const visions = [...byUser.values()].flat().map((e) => e.text.trim()).filter(Boolean).slice(0, 60);
+    // 카드의 불릿 하나하나를 비전 하나로
+    const visions = [...byUser.values()].flat().flatMap((e) => visionLines(e.text)).slice(0, 80);
     if (!visions.length) return Response.json({ error: "개인별 교육비전을 먼저 입력하세요." }, { status: 400 });
 
     const schema: JsonSchema = {

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { bracketCode, extractCodes, fixDoubleBrackets } from "@/lib/standardCode";
-import { readVisionRow, type VisionEntry } from "@/lib/vision";
+import { readVisionRow, visionLines, type VisionEntry } from "@/lib/vision";
 import chromium from "@sparticuz/chromium-min";
 import { chromium as playwrightChromium } from "playwright-core";
 import { existsSync } from "fs";
@@ -1056,7 +1056,12 @@ export async function GET(req: Request) {
     const memberOrder = (id: string) => { const i = memberIds.indexOf(id); return i === -1 ? memberIds.length : i; };
     const visions = [...visionRows]
       .sort((a, b) => memberOrder(a.userId) - memberOrder(b.userId))
-      .flatMap((v) => v.items.filter((e) => e.text.trim()).map((e) => ({ name: nameById[v.userId] ?? "알 수 없음", text: e.text.trim() })));
+      .flatMap((v) => v.items.flatMap((e) => {
+        // 카드 한 장 = 한 행, 불릿이 여럿이면 줄마다 •
+        const lines = visionLines(e.text);
+        if (!lines.length) return [];
+        return [{ name: nameById[v.userId] ?? "알 수 없음", text: lines.length > 1 ? lines.map((l) => `• ${l}`).join("\n") : lines[0] }];
+      }));
     const opinions = Object.entries(opinionsMap).map(([key, val]) => ({
       question: val.question,
       responses: Object.entries(opinionResMap[key] ?? {}).map(([uid, response]) => ({

@@ -1,16 +1,43 @@
 "use client";
 
 import { useState } from "react";
-import { AutoResizeTextarea } from "@/components/workspace/CardFields";
+import { AutoResizeTextarea, getSubjectBadge } from "@/components/workspace/CardFields";
 import { VISION_MAX_TEXT, newVisionId, type VisionEntry, type VisionMap } from "@/lib/vision";
 
+type Tone = { bg: string; text: string };
+/** 교과 배지와 같은 색들 (국어·외국어 / 수학 / 과학·정보 / 사회 / 예체능 / 그 밖) */
+const PALETTE: Tone[] = ["국어", "수학", "과학", "사회", "음악", ""].map(getSubjectBadge);
+
 /**
- * T-1 개인별 교육비전 — 참가자마다 가로 카드로 쓴다.
+ * 사람마다 다른 카드 색 — 가능하면 그 사람 교과의 색, 이미 다른 사람이 쓰거나 교과가 없으면 남은 색.
+ * 아이디 순서로 정해 누가 보든, 누가 카드를 더하든 색이 바뀌지 않는다.
+ */
+export function personTones(userIds: string[], subjectOf: (userId: string) => string | undefined): Record<string, Tone> {
+  const out: Record<string, Tone> = {};
+  const used = new Set<string>();
+  const pending: string[] = [];
+  for (const uid of [...new Set(userIds)].sort()) {
+    const subject = subjectOf(uid);
+    const tone = subject ? getSubjectBadge(subject) : null;
+    if (tone && !used.has(tone.bg)) { out[uid] = tone; used.add(tone.bg); } else pending.push(uid);
+  }
+  pending.forEach((uid, i) => {
+    const tone = PALETTE.find((t) => !used.has(t.bg)) ?? PALETTE[i % PALETTE.length];
+    out[uid] = tone;
+    used.add(tone.bg);
+  });
+  return out;
+}
+
+/**
+ * T-1 개인별 교육비전 — 참가자마다 가로 카드로 쓴다. 카드는 사람마다 다른 교과 색 음영.
  * 내 카드만 고치고 지울 수 있고, 다른 참가자의 카드는 읽기만 한다. 카드는 가로로 이어지고 넘치면 옆으로 스크롤한다.
  */
-export default function VisionBoard({ visions, memberNames, myUserId, locked, onChange }: {
+export default function VisionBoard({ visions, memberNames, memberSubjects, myUserId, locked, onChange }: {
   visions: VisionMap;
   memberNames: Record<string, string>;
+  /** userId → 교과 */
+  memberSubjects: Record<string, string>;
   myUserId: string;
   locked: boolean;
   /** 내 항목 전체 */
@@ -27,6 +54,7 @@ export default function VisionBoard({ visions, memberNames, myUserId, locked, on
     ...others.flatMap((uid) => visions[uid].map((entry) => ({ uid, entry }))),
   ];
   const canEdit = !locked && !!myUserId;
+  const tones = personTones([...Object.keys(memberNames), ...Object.keys(visions)], (uid) => memberSubjects[uid]);
   // 방금 더한 카드는 바로 입력할 수 있게 입력칸에 포커스 (버튼에 포커스가 남으면 스페이스가 카드를 또 더한다)
   const [focusId, setFocusId] = useState<string | null>(null);
   const add = () => {
@@ -41,10 +69,11 @@ export default function VisionBoard({ visions, memberNames, myUserId, locked, on
       {cards.map(({ uid, entry }) => {
         const isMine = uid === myUserId;
         const name = memberNames[uid] ?? "";
+        const tone = tones[uid] ?? PALETTE[PALETTE.length - 1];
         return (
-          <div key={`${uid}-${entry.id}`} className="flex min-h-[132px] w-72 shrink-0 snap-start flex-col rounded-xl border border-[#e2e4ea] bg-white p-3">
+          <div key={`${uid}-${entry.id}`} className="flex min-h-[132px] w-72 shrink-0 snap-start flex-col rounded-xl p-3" style={{ backgroundColor: tone.bg }}>
             <div className="mb-2 flex items-center gap-2">
-              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${isMine ? "bg-[#D1260F] text-white" : "bg-[#eef0f4] text-[#5a6066]"}`}>{name.slice(0, 1) || "?"}</span>
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${isMine ? "bg-[#D1260F] text-white" : "bg-white"}`} style={isMine ? undefined : { color: tone.text }}>{name.slice(0, 1) || "?"}</span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#2d3339]">{name}</span>
               {isMine && canEdit && (
                 <button type="button" aria-label="삭제" title="삭제" onClick={() => onChange(mine.filter((e) => e.id !== entry.id))}
@@ -55,12 +84,12 @@ export default function VisionBoard({ visions, memberNames, myUserId, locked, on
             </div>
             {/* 따로 색칠한 입력칸 없이 같은 카드 안에 불릿 + 밑줄 */}
             <div className="flex items-start gap-2">
-              <span className="shrink-0 pt-1 text-[15px] font-bold leading-none text-[#D1260F]">•</span>
+              <span className="shrink-0 pt-1 text-[15px] font-bold leading-none" style={{ color: tone.text }}>•</span>
               {isMine && canEdit ? (
                 <AutoResizeTextarea value={entry.text} onChange={(text) => update(entry.id, text)} placeholder="내용을 입력하세요…" autoFocus={entry.id === focusId}
-                  className="min-w-0 flex-1 border-b border-[#d4d8de] bg-transparent pb-1 text-[14px] leading-relaxed text-[#2d3339] placeholder-[#adb2ba] outline-none transition-colors focus:border-[#D1260F]" />
+                  className="min-w-0 flex-1 border-b border-black/15 bg-transparent pb-1 text-[14px] leading-relaxed text-[#2d3339] placeholder-[#8a9099] outline-none transition-colors focus:border-[#D1260F]" />
               ) : (
-                <p className="min-w-0 flex-1 whitespace-pre-wrap border-b border-[#e2e4ea] pb-1 text-[14px] leading-relaxed text-[#2d3339]">{entry.text}</p>
+                <p className="min-w-0 flex-1 whitespace-pre-wrap border-b border-black/10 pb-1 text-[14px] leading-relaxed text-[#2d3339]">{entry.text}</p>
               )}
             </div>
           </div>

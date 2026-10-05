@@ -830,7 +830,7 @@ export default function WorkspaceShell({
   const activityStatusRef = useRef<Record<string, "active" | "completed" | "skipped">>({});
 
   // ── 의견묻기 ─────────────────────────────────────────────────
-  type Member = { id: string; name: string; email: string; avatarUrl: string | null };
+  type Member = { id: string; name: string; email: string; avatarUrl: string | null; subject?: string | null };
   // opinions: opinionKey(actCode__timestamp) → { question, hidden, actCode }
   // opinionResponses: opinionKey → { userId → response }
   const [lessonMembers, setLessonMembers] = useState<Member[]>([]);
@@ -1034,15 +1034,16 @@ export default function WorkspaceShell({
         const ids = membersRes.data.map((m: { user_id: string }) => m.user_id);
         const profilesRes = await supabase
           .from("profiles")
-          .select("id, display_name, email, avatar_url")
+          .select("id, display_name, email, avatar_url, subject")
           .in("id", ids);
         if (profilesRes.data) {
           setLessonMembers(
-            profilesRes.data.map((p: { id: string; display_name: string | null; email: string | null; avatar_url: string | null }) => ({
+            profilesRes.data.map((p: { id: string; display_name: string | null; email: string | null; avatar_url: string | null; subject: string | null }) => ({
               id: p.id,
               name: p.display_name ?? p.email ?? "알 수 없음",
               email: p.email ?? "",
               avatarUrl: p.avatar_url ?? null,
+              subject: p.subject ?? null,
             }))
           );
         }
@@ -1245,7 +1246,7 @@ export default function WorkspaceShell({
             const missing = joinedIds.filter((id) => !existingIds.has(id) && id !== me?.id);
             if (missing.length === 0) return prev;
             supabaseRt.from("profiles")
-              .select("id, display_name, email, avatar_url")
+              .select("id, display_name, email, avatar_url, subject")
               .in("id", missing)
               .then(({ data }) => {
                 if (!data) return;
@@ -1253,11 +1254,12 @@ export default function WorkspaceShell({
                   const curIds = new Set(cur.map((m) => m.id));
                   const toAdd = data
                     .filter((p: { id: string }) => !curIds.has(p.id))
-                    .map((p: { id: string; display_name: string | null; email: string | null; avatar_url: string | null }) => ({
+                    .map((p: { id: string; display_name: string | null; email: string | null; avatar_url: string | null; subject: string | null }) => ({
                       id: p.id,
                       name: p.display_name ?? p.email ?? "알 수 없음",
                       email: p.email ?? "",
                       avatarUrl: p.avatar_url ?? null,
+                      subject: p.subject ?? null,
                     }));
                   return toAdd.length > 0 ? [...cur, ...toAdd] : cur;
                 });
@@ -1298,13 +1300,13 @@ export default function WorkspaceShell({
           const newUserId = (payload.new as { user_id: string }).user_id;
           const { data } = await supabase
             .from("profiles")
-            .select("id, display_name, email, avatar_url")
+            .select("id, display_name, email, avatar_url, subject")
             .eq("id", newUserId)
             .single();
           if (data) {
             setLessonMembers((prev) => {
               if (prev.some((m) => m.id === data.id)) return prev;
-              return [...prev, { id: data.id, name: data.display_name ?? data.email ?? "알 수 없음", email: data.email ?? "", avatarUrl: data.avatar_url ?? null }];
+              return [...prev, { id: data.id, name: data.display_name ?? data.email ?? "알 수 없음", email: data.email ?? "", avatarUrl: data.avatar_url ?? null, subject: data.subject ?? null }];
             });
           }
         }
@@ -1953,6 +1955,13 @@ export default function WorkspaceShell({
     return names;
   }, [lessonMembers, userProfile]);
   useEffect(() => { memberNamesRef.current = memberNames; }, [memberNames]);
+  // 참여자 교과 — 개인별 교육비전 카드 색
+  const memberSubjects = useMemo(() => {
+    const subjects: Record<string, string> = {};
+    for (const m of lessonMembers) if (m.subject) subjects[m.id] = m.subject;
+    if (userProfile?.subject) subjects[userProfile.id] = userProfile.subject;
+    return subjects;
+  }, [lessonMembers, userProfile]);
 
   const handleSelectActivity = useCallback((code: string) => {
     setSelectedActivityCode(code);
@@ -2973,6 +2982,7 @@ export default function WorkspaceShell({
                       onDeleteOpinion={handleDeleteOpinion}
                       onSubmitOpinion={handleSubmitOpinion}
                       visions={act.code === "T-1" ? visions : undefined}
+                      memberSubjects={act.code === "T-1" ? memberSubjects : undefined}
                       onVisionsChange={act.code === "T-1" ? handleVisionsChange : undefined}
                       onGenerateKeywords={act.code === "T-1" ? handleGenerateVisionKeywords : undefined}
                       onSimulate={act.code === "A-5" ? handleSimulate : undefined}

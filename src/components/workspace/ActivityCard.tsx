@@ -87,6 +87,8 @@ interface Props {
 
   /** T-1 개인별 교육비전 (userId → 항목) — T-1 카드에만 */
   visions?: VisionMap;
+  /** userId → 교과 — 개인별 교육비전 카드 색 */
+  memberSubjects?: Record<string, string>;
   /** 내 개인별 교육비전 바꾸기 */
   onVisionsChange?: (items: VisionEntry[]) => void;
   /** 비전 키워드 생성 — 실패하면 안내 문장 */
@@ -300,6 +302,7 @@ function ActivityCard({
   onSimulate,
   onApplyToDesign,
   visions,
+  memberSubjects,
   onVisionsChange,
   onGenerateKeywords,
 }: Props) {
@@ -496,7 +499,7 @@ function ActivityCard({
           {act.code === "T-1" && visions && onVisionsChange && (
             <div onClick={(e) => e.stopPropagation()}>
               <p className="mb-1.5 text-[12px] font-semibold text-[#757b82]">개인별 교육비전</p>
-              <VisionBoard visions={visions} memberNames={memberNames} myUserId={myUserId} locked={locked} onChange={onVisionsChange} />
+              <VisionBoard visions={visions} memberNames={memberNames} memberSubjects={memberSubjects ?? {}} myUserId={myUserId} locked={locked} onChange={onVisionsChange} />
             </div>
           )}
           <CardFieldRenderer

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { bracketCode, extractCodes, fixDoubleBrackets } from "@/lib/standardCode";
+import { readVisionRow, type VisionEntry } from "@/lib/vision";
 import chromium from "@sparticuz/chromium-min";
 import { chromium as playwrightChromium } from "playwright-core";
 import { existsSync } from "fs";
@@ -41,8 +42,9 @@ type CardContent = {
   active?: boolean;
   response?: string;
   // 구조화 필드
-  vision?: string; vision_note?: string;
+  vision?: string; vision_keywords?: string[];
   directions?: string[];
+  direction_groups?: Array<{ category: string; idea: string }>;
   roles?: Array<{ name: string; subject: string; core_role: string; area: string }>;
   rows?: Array<{ name: string; role?: string }>;
   rules?: string[];
@@ -93,6 +95,8 @@ type RenderData = {
   standards: { code: string; subject: string; domain: string; content: string }[];
   ideas: { subject: string; domain: string; content: string }[];
   opinions: { question: string; responses: { name: string; response: string }[] }[];
+  /** T-1 개인별 교육비전 — 참가자마다 따로 저장된 행에서 */
+  visions: { name: string; text: string }[];
   generatedAt: string;
   writtenDate: string | null; // 수업 기본정보의 작성일(created_date), 없으면 생성일로 대체
 };
@@ -280,6 +284,7 @@ table.data td.c,table.data th.c{text-align:center;}
   padding:8px 10px;color:var(--purple-dark);margin:3mm 0;
 }
 .emphasis-box .label{font-weight:700;margin-right:6pt;}
+p.part{font-weight:700;color:var(--purple);margin:4mm 0 1.5mm;font-size:9.5pt;}
 
 .two-col{display:flex;gap:6mm;align-items:flex-start;margin:3mm 0;}
 .two-col .text{flex:100 0 0;}
@@ -423,21 +428,31 @@ function renderChapterT(d: RenderData): string {
   try {
     const c = d.contents;
 
-    // 1.1 공동 비전
+    // 1.1 공동 비전 — 개인별 교육비전 → 비전 키워드 → 팀 공동 비전 (카드와 같은 순서)
     const T11 = c["T-1"];
     let s11 = sub("1.1 팀 공동 비전 (T-1)");
-    if (hasField(T11, "vision", "vision_note")) {
-      if (T11!.vision) s11 += emphasisBox("공동 비전", T11!.vision);
-      if (T11!.vision_note) s11 += `<p>${nl2br(T11!.vision_note)}</p>`;
+    const keywords = (T11?.vision_keywords ?? []).map((k) => String(k ?? "").trim()).filter(Boolean);
+    if (d.visions.length || keywords.length || T11?.vision?.trim()) {
+      if (d.visions.length) s11 += table(["이름", "개인별 교육비전"], d.visions.map((v) => [v.name, v.text]), { colWidthsMm: [30, 140], centerCols: [0] });
+      if (keywords.length) s11 += emphasisBox("비전 키워드", keywords.join(" · "));
+      if (T11?.vision?.trim()) s11 += emphasisBox("공동 비전", T11.vision);
     } else {
       s11 += textFallback(T11);
     }
 
-    // 1.2 수업설계 방향
+    // 1.2 수업설계 방향 — 유목화 표(아이디어를 쓴 행만) → 확정안
     const T12 = c["T-2"];
     let s12 = sub("1.2 수업설계 방향 (T-2)");
-    if (hasField(T12, "directions")) {
-      s12 += bullets(T12!.directions ?? []);
+    const groups = (T12?.direction_groups ?? []).filter((r) => String(r?.idea ?? "").trim());
+    if (groups.length || hasField(T12, "directions")) {
+      if (groups.length) {
+        s12 += `<p class="part">수업설계 방향 유목화</p>`;
+        s12 += table(["분류", "아이디어"], groups.map((r) => [r.category ?? "", r.idea]), { colWidthsMm: [35, 135], centerCols: [0] });
+      }
+      if (hasField(T12, "directions")) {
+        if (groups.length) s12 += `<p class="part">수업설계 방향 확정안</p>`;
+        s12 += bullets(T12!.directions ?? []);
+      }
     } else {
       s12 += textFallback(T12);
     }
@@ -981,10 +996,16 @@ export async function GET(req: Request) {
     let ideas: { subject: string; domain: string; content: string }[] = [];
     const opinionsMap: Record<string, { question: string; responses: { userId: string; response: string }[] }> = {};
     const opinionResMap: Record<string, Record<string, string>> = {};
+    const visionRows: { userId: string; items: VisionEntry[] }[] = [];
 
     for (const row of contentRows ?? []) {
       const code = row.activity_code as string;
       const c = row.content as CardContent;
+      const vision = readVisionRow(code, c);
+      if (vision) {
+        visionRows.push(vision);
+        continue;
+      }
 
       if (code === "__selected_standards") {
         standards = (c.items ?? []) as typeof standards;
@@ -1018,8 +1039,8 @@ export async function GET(req: Request) {
       }
     }
 
-    // 의견묻기 응답자 이름 매핑
-    const allResUids = Object.values(opinionResMap).flatMap((m) => Object.keys(m));
+    // 의견묻기 응답자·개인별 교육비전 작성자 이름 매핑
+    const allResUids = [...Object.values(opinionResMap).flatMap((m) => Object.keys(m)), ...visionRows.map((v) => v.userId)];
     const uniqueUids = [...new Set(allResUids)];
     const { data: resProfiles } = uniqueUids.length > 0
       ? await supabase.from("profiles").select("id, display_name, email").in("id", uniqueUids)
@@ -1031,6 +1052,11 @@ export async function GET(req: Request) {
         (p as { id: string; display_name: string | null; email: string | null }).email ??
         "알 수 없음";
     }
+    // 참여자 순서대로 (목록에 없는 작성자는 뒤에)
+    const memberOrder = (id: string) => { const i = memberIds.indexOf(id); return i === -1 ? memberIds.length : i; };
+    const visions = [...visionRows]
+      .sort((a, b) => memberOrder(a.userId) - memberOrder(b.userId))
+      .flatMap((v) => v.items.filter((e) => e.text.trim()).map((e) => ({ name: nameById[v.userId] ?? "알 수 없음", text: e.text.trim() })));
     const opinions = Object.entries(opinionsMap).map(([key, val]) => ({
       question: val.question,
       responses: Object.entries(opinionResMap[key] ?? {}).map(([uid, response]) => ({
@@ -1053,6 +1079,7 @@ export async function GET(req: Request) {
       standards,
       ideas,
       opinions,
+      visions,
       generatedAt,
       writtenDate: lesson.created_date ?? null,
     };

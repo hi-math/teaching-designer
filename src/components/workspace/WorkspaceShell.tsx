@@ -25,7 +25,7 @@ import { localWriteKey, readRemoteContent, stableStringify } from "@/components/
 import { CardUndoHistory, type CardValue, type UndoMode } from "@/components/workspace/cardUndo";
 import { URL_KEYS as EXPLORER_URL_KEYS } from "@/lib/standards-graph/url-state";
 import { IDEATION_ROW } from "@/lib/ideation/model";
-import { readVisionRow, visionCode, visionContent, type VisionEntry, type VisionMap } from "@/lib/vision";
+import { personalVisionsText, readVisionRow, visionCode, visionContent, type VisionEntry, type VisionMap } from "@/lib/vision";
 import type { ContentMap } from "@/lib/ideation/application";
 import { a3SelectionFields, mergeCatalogItems } from '@/lib/a3Selection';
 
@@ -820,6 +820,7 @@ export default function WorkspaceShell({
   // T-1 개인별 교육비전 — 참가자마다 자기 행에 저장 (userId → 항목)
   const [visions, setVisions] = useState<VisionMap>({});
   const visionsRef = useRef<VisionMap>({});
+  const memberNamesRef = useRef<Record<string, string>>({});
   const [aiReady, setAiReady] = useState(false);
   /** 첫 접속 안내 — 계정에 본 기록이 있으면 done (기기·브라우저·주소가 바뀌어도 다시 보이지 않게 계정에 남긴다) */
   const [onboarding, setOnboarding] = useState<"unknown" | "show" | "done">("unknown");
@@ -1713,6 +1714,8 @@ export default function WorkspaceShell({
         : structured[code] ? serializeStructuredForAI(structured[code]) : texts[code];
       if (text?.trim()) cards[code] = text;
     }
+    const visionText = personalVisionsText(visionsRef.current, (uid) => memberNamesRef.current[uid] ?? uid);
+    if (visionText) cards["T-1"] = [visionText, cards["T-1"] ?? ""].filter(Boolean).join("\n");
 
     const res = await fetch("/api/simulate", {
       method: "POST",
@@ -1953,6 +1956,7 @@ export default function WorkspaceShell({
     }
     return names;
   }, [lessonMembers, userProfile]);
+  useEffect(() => { memberNamesRef.current = memberNames; }, [memberNames]);
 
   const handleSelectActivity = useCallback((code: string) => {
     setSelectedActivityCode(code);
@@ -3096,10 +3100,8 @@ export default function WorkspaceShell({
                     ),
                   };
                   mergedInputs['A-3'] = serializeStructuredForAI(a3SelectionFields(selectedIdeas, selectedStandards));
-                  const visionLines = Object.entries(visions).flatMap(([uid, items]) => items
-                    .filter((e) => e.text.trim())
-                    .map((e) => `• ${allMembers.find((m) => m.id === uid)?.name ?? memberNames[uid] ?? uid}: ${e.text.trim()}`));
-                  if (visionLines.length) mergedInputs['T-1'] = ['[personal_visions]', ...visionLines, mergedInputs['T-1'] ?? ''].filter(Boolean).join('\n');
+                  const visionText = personalVisionsText(visions, (uid) => allMembers.find((m) => m.id === uid)?.name ?? memberNames[uid] ?? uid);
+                  if (visionText) mergedInputs['T-1'] = [visionText, mergedInputs['T-1'] ?? ''].filter(Boolean).join('\n');
                   return {
                     projectTitle,
                     activePhase,

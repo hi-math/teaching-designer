@@ -91,7 +91,8 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
   /** 자동 판단을 이미 요청한 카드 → 그때의 주제·조건·문장 (같은 상태로 다시 요청하지 않는다) */
   const fitAttempts = useRef(new Map<string, string>());
   const recController = useRef<AbortController | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
+  // 연결선이 격자 요소를 붙은 뒤에 받도록 상태로 (ref 객체는 붙어도 다시 그리지 않는다)
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
   const enrichTried = useRef(new Set<string>());
   const conditionsRef = useRef<HTMLDivElement>(null);
 
@@ -441,8 +442,8 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
       )}
 
       {/* 좁은 화면: 행이 내용만큼(auto-rows-max) 늘어나 페이지가 스크롤 / 넓은 화면: 한 행이 높이를 채우고 영역마다 스크롤 */}
-      <div ref={gridRef} className="relative grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)] lg:gap-10 lg:overflow-hidden">
-        <IdeationLines container={gridRef} draft={draft} active={activeIds} />
+      <div ref={setGridEl} className="relative grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)] lg:gap-10 lg:overflow-hidden">
+        <IdeationLines container={gridEl} draft={draft} active={activeIds} />
         {/* ── 주제 설계 ── */}
         <Pane title="주제 설계"
           actions={isHost && <button type="button" className={btn} disabled={readonly || draft.elements.length >= LIMITS.elements} onClick={addElement}>+ 하위요소 추가</button>}

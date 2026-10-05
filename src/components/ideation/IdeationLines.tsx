@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState, type MouseEvent, type RefObject } from "react";
+import { useLayoutEffect, useState, type MouseEvent } from "react";
 import type { IdeationDraft, IdeationLink } from "@/lib/ideation/model";
 import { STRENGTH_COLOR, StrengthBars } from "./ideationParts";
 
@@ -15,7 +15,9 @@ const WIDTH: Record<1 | 2 | 3, number> = { 1: 1.5, 2: 2.75, 3: 4.5 };
 const WIDE = "(min-width: 1024px)";
 
 export default function IdeationLines({ container, draft, active }: {
-  container: RefObject<HTMLDivElement | null>;
+  /** 세 영역을 담은 격자 — ref 객체가 아니라 요소로 받는다. 이 컴포넌트는 격자 안에 있어 처음 그릴 때(레이아웃 효과)는
+   *  부모의 ref 가 아직 비어 있다 → ref 로 받으면 첫 화면에 선이 안 그려지고 내용이 바뀌어야 나타났다 */
+  container: HTMLDivElement | null;
   draft: IdeationDraft;
   /** 선택한 항목과 그 연결 경로의 항목 ID — 양끝이 모두 들어 있는 선을 강조한다. 선택이 없으면 null */
   active: Set<string> | null;
@@ -24,7 +26,7 @@ export default function IdeationLines({ container, draft, active }: {
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
 
   useLayoutEffect(() => {
-    const root = container.current;
+    const root = container;
     if (!root) return;
     const wide = window.matchMedia(WIDE);
     let frame = 0;
@@ -74,14 +76,14 @@ export default function IdeationLines({ container, draft, active }: {
   }, [container, draft]);
 
   const point = (e: MouseEvent) => {
-    const root = container.current;
+    const root = container;
     if (!root) return { x: 0, y: 0 };
     const base = root.getBoundingClientRect();
     const scale = base.width / (root.offsetWidth || base.width) || 1;
     return { x: (e.clientX - base.left) / scale, y: (e.clientY - base.top) / scale };
   };
   const hovered = hover ? lines.find((l) => l.link.id === hover.id) : undefined;
-  const width = container.current?.clientWidth ?? 0;
+  const width = container?.clientWidth ?? 0;
 
   return (
     <>

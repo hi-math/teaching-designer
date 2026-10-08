@@ -196,23 +196,45 @@ function textFallback(c: CardContent | undefined): string {
 }
 
 // ─── SVG 다이어그램 (2.2 교과별 핵심 아이디어) ────────────────────
+/** 가운데 라벨 — 글자 폭을 어림해 상자를 글에 맞추고, 그림 폭(150)을 넘으면 말줄임 (한글 10, 그 밖 6 단위, 글자 크기 10 기준) */
+const LABEL_MAX = 150;
+function fitLabel(text: string): { text: string; width: number } {
+  const unit = (ch: string) => (/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF\u4E00-\u9FFF]/.test(ch) ? 10 : 6);
+  const chars = [...text.trim()];
+  const room = LABEL_MAX - 16;
+  const total = chars.reduce((sum, ch) => sum + unit(ch), 0);
+  if (total <= room) return { text: chars.join(""), width: Math.max(60, total + 16) };
+  let out = "";
+  let w = 0;
+  for (const ch of chars) {
+    if (w + unit(ch) + 6 > room) break;
+    out += ch;
+    w += unit(ch);
+  }
+  return { text: `${out.trimEnd()}…`, width: LABEL_MAX };
+}
+
 function renderCoreIdeasSvg(
   core: Array<{ subject: string }>,
   centerText: string
 ): string {
   const subjects = core.slice(0, 3).map((c) => c.subject);
   while (subjects.length < 3) subjects.push("");
+  const label = fitLabel(centerText);
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg">
     <circle cx="80"  cy="80"  r="55" fill="#D1260F" fill-opacity="0.42"/>
     <circle cx="120" cy="80"  r="55" fill="#9FE1CB" fill-opacity="0.55"/>
     <circle cx="100" cy="120" r="55" fill="#F59E0B" fill-opacity="0.42"/>
-    <text x="55"  y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#3E368A">${esc(subjects[0])}</text>
+    <text x="55"  y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#9A3412">${esc(subjects[0])}</text>
     <text x="145" y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">${esc(subjects[1])}</text>
     <text x="100" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#92400E">${esc(subjects[2])}</text>
-    <rect x="62" y="92" rx="6" ry="6" width="76" height="22" fill="#3E368A"/>
-    <text x="100" y="107" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">${esc(centerText)}</text>
+    <rect x="${100 - label.width / 2}" y="92" rx="6" ry="6" width="${label.width}" height="22" fill="#374151"/>
+    <text x="100" y="107" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">${esc(label.text)}</text>
   </svg>`;
 }
+
+// 체크리스트의 체크 표시 — 글꼴에 ✓ 가 없을 수 있어 그림으로
+const CHECK_MARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#1F2937" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 // ─── CSS ──────────────────────────────────────────────────────────
 function buildCss(lessonTitle: string): string {
@@ -220,9 +242,9 @@ function buildCss(lessonTitle: string): string {
   return `
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
 :root{
-  --purple:#D1260F;--purple-dark:#3E368A;--mint:#9FE1CB;
-  --dark:#1F2937;--gray:#6B7280;--light:#F3F4F6;
-  --soft-purple:#FFF5F2;--border:#D1D5DB;
+  --accent:#C2412D;--accent-soft:#EFC9C0;
+  --dark:#1F2937;--ink-2:#374151;--gray:#6B7280;--light:#F3F4F6;--line:#E5E7EB;
+  --border:#D1D5DB;
 }
 *{box-sizing:border-box}
 html,body{padding:0;margin:0;color:var(--dark);
@@ -250,41 +272,42 @@ body{font-size:9.6pt;line-height:1.48;-webkit-print-color-adjust:exact;print-col
 }
 .cover{page:cover;}
 
-.chapter,.toc-overview{border-top:0.8pt solid var(--purple);padding-top:6mm;}
 .cover{page-break-after:always;}
 .toc-overview{page-break-after:always;}
-.chapter{page-break-before:always;}
-.page-break{page-break-after:always;}
+/* 장은 새 페이지로 넘기지 않고 앞 장에 이어 붙인다 — 위에 여백만 둔다 */
+.chapter + .chapter{margin-top:14mm;}
 
-h1.title{font-size:26pt;color:var(--purple);text-align:center;margin:0 0 4mm;font-weight:700;}
+h1.title{font-size:26pt;color:var(--dark);text-align:center;margin:0 0 4mm;font-weight:700;}
 p.subtitle{font-size:12pt;color:var(--gray);text-align:center;margin:0;}
-h2.section{font-size:11.5pt;color:var(--purple-dark);margin:8mm 0 2mm;font-weight:700;}
-h3.sub{font-size:10.3pt;color:var(--dark);margin:5mm 0 1.5mm;font-weight:700;}
+h2.section{font-size:11.5pt;color:var(--dark);margin:8mm 0 2mm;font-weight:700;}
+h3.sub{font-size:10.3pt;color:var(--dark);margin:5mm 0 1.5mm;font-weight:700;break-after:avoid;page-break-after:avoid;}
 p,li{font-size:9.6pt;line-height:1.48;margin:0 0 3pt;}
 ul.bullets{margin:0 0 3mm 5mm;padding:0;}
 ul.bullets li{list-style:disc;margin-bottom:1.5pt;}
 
+/* 장 제목 — 색칠한 띠 대신 짙은 글씨 + 강조색 가는 밑줄. 페이지 맨 아래에 제목만 남지 않게 */
 .chapter-header{
-  background:var(--purple);color:#fff;
-  padding:10px 12px;border-bottom:2pt solid var(--mint);
-  font-weight:700;font-size:16pt;margin-bottom:5mm;
+  color:var(--dark);font-weight:700;font-size:15pt;
+  padding:0 0 2.5mm;border-bottom:1.2pt solid var(--accent);margin-bottom:4mm;
+  break-after:avoid;page-break-after:avoid;
 }
 
-table.data{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8pt;}
+table.data{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8pt;margin-bottom:2.5mm;}
 table.data th,table.data td{
   border:0.3pt solid var(--border);padding:5px 6px;vertical-align:middle;
   word-break:keep-all;overflow-wrap:anywhere;
 }
-table.data thead th{background:var(--purple);color:#fff;font-weight:700;text-align:center;font-size:9.2pt;}
+table.data thead th{background:var(--light);color:var(--dark);font-weight:700;text-align:center;font-size:9.2pt;border-bottom:0.8pt solid var(--border);}
+table.data tr{break-inside:avoid;page-break-inside:avoid;}
 table.data tbody tr:nth-child(even) td{background:#F9FAFB;}
 table.data td.c,table.data th.c{text-align:center;}
 
 .emphasis-box{
-  background:var(--soft-purple);border:0.8pt solid var(--purple);
-  padding:8px 10px;color:var(--purple-dark);margin:3mm 0;
+  background:#FAFAFA;border:0.4pt solid var(--line);border-left:2.4pt solid var(--accent-soft);
+  padding:8px 10px;color:var(--dark);margin:3mm 0;
 }
-.emphasis-box .label{font-weight:700;margin-right:6pt;}
-p.part{font-weight:700;color:var(--purple);margin:4mm 0 1.5mm;font-size:9.5pt;}
+.emphasis-box .label{font-weight:700;margin-right:6pt;color:var(--accent);}
+p.part{font-weight:700;color:var(--ink-2);margin:4mm 0 1.5mm;font-size:9.5pt;}
 
 .two-col{display:flex;gap:6mm;align-items:flex-start;margin:3mm 0;}
 .two-col .text{flex:100 0 0;}
@@ -292,17 +315,18 @@ p.part{font-weight:700;color:var(--purple);margin:4mm 0 1.5mm;font-size:9.5pt;}
 .two-col svg{width:100%;max-width:70mm;height:auto;}
 
 .cover{position:relative;height:297mm;padding:55mm 20mm 20mm;}
-.cover::before{content:"";position:absolute;left:0;top:0;width:8mm;height:60mm;background:var(--mint);}
-.cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--purple);}
-.cover .meta{margin-top:28mm;border:0.6pt solid var(--purple);width:100%;border-collapse:collapse;}
-.cover .meta th,.cover .meta td{padding:9px 10px;font-size:10pt;border:0.3pt solid #E5E7EB;}
-.cover .meta th{background:var(--light);color:var(--purple);text-align:left;font-weight:700;width:35mm;}
+.cover::before{content:"";position:absolute;left:0;top:0;width:8mm;height:60mm;background:var(--accent);}
+.cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--light);}
+.cover .meta{margin-top:28mm;border:0.6pt solid var(--border);width:100%;border-collapse:collapse;}
+.cover .meta th,.cover .meta td{padding:9px 10px;font-size:10pt;border:0.3pt solid var(--line);}
+.cover .meta th{background:var(--light);color:var(--ink-2);text-align:left;font-weight:700;width:35mm;}
 
 ol.toc{list-style:none;padding:0;margin:0 0 6mm;}
 ol.toc li{display:flex;justify-content:space-between;border-bottom:0.3pt solid #E5E7EB;padding:5pt 0;font-size:10pt;}
 
-.check-cell{text-align:center;width:6mm;font-size:9pt;}
-.check-cell.on{background:var(--purple);color:#fff;}
+/* 체크리스트 — 칸을 칠하지 않고 고른 점수 칸에 체크 표시 */
+.check-cell{text-align:center;width:6mm;}
+.check-cell svg{width:9pt;height:9pt;vertical-align:middle;}
 
 p.empty{color:var(--gray);font-style:italic;}
 `;
@@ -352,7 +376,7 @@ function renderTocOverview(d: RenderData): string {
           const text = s.code
             ? `<strong>${esc(bracketCode(s.code))}</strong> ${esc(s.statement)}`
             : esc(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? "")));
-          return `<li>• ${text}</li>`;
+          return `<li>${text}</li>`;
         }).join("")}</ul>`
       : "(미입력)";
 
@@ -393,13 +417,13 @@ function renderTocOverview(d: RenderData): string {
     return `<section class="toc-overview">
   <h2 class="section">목차</h2>
   <ol class="toc">
-    <li><span>수업 개요</span><span>2</span></li>
-    <li><span>팀 구성</span><span>2</span></li>
-    <li><span>1. 팀 준비 (T)</span><span>3</span></li>
-    <li><span>2. 분석 (A)</span><span>4</span></li>
-    <li><span>3. 설계 (Ds)</span><span>5</span></li>
-    <li><span>4. 개발·실행 (DI)</span><span>7</span></li>
-    <li><span>5. 평가·성찰 (E)</span><span>8</span></li>
+    <li><span>수업 개요</span></li>
+    <li><span>팀 구성</span></li>
+    <li><span>1. 팀 준비 (T)</span></li>
+    <li><span>2. 분석 (A)</span></li>
+    <li><span>3. 설계 (Ds)</span></li>
+    <li><span>4. 개발·실행 (DI)</span></li>
+    <li><span>5. 평가·성찰 (E)</span></li>
   </ol>
 
   <h2 class="section">수업 개요</h2>
@@ -546,7 +570,7 @@ function renderChapterA(d: RenderData): string {
       const textPart = `<div class="text">${coreList
         .map((i) => `<p><strong>${esc(i.subject)}</strong><br>${nl2br(i.core_idea)}</p>`)
         .join("")}</div>`;
-      const centerText = d.title.slice(0, 10);
+      const centerText = d.title;
       const svgPart = `<div class="figure">${renderCoreIdeasSvg(coreList, centerText)}</div>`;
       s22 += `<div class="two-col">${textPart}${svgPart}</div>`;
     } else {
@@ -588,9 +612,9 @@ function renderChapterA(d: RenderData): string {
       s24 += textFallback(A22);
     }
 
-    // 2.5 초안 미리보기
+    // 2.5 수업 배정(안) — 카드의 초안 미리보기
     const A5 = c["A-5"];
-    let s25 = sub("2.5 초안 미리보기 (A-5)");
+    let s25 = sub("2.5 수업 배정(안) (A-5)");
     if (hasField(A5, "sessions")) {
       s25 += table(
         ["차시", "과목", "수업 타이틀", "학습목표", "성취기준", "지도내용"],
@@ -747,7 +771,7 @@ function renderChapterDs(d: RenderData): string {
 
     return `<section class="chapter" data-num="3">
   <div class="chapter-header">3. 설계 (Ds)</div>
-  ${s31}<div class="page-break"></div>${s32}${s33}${s34}${s35}
+  ${s31}${s32}${s33}${s34}${s35}
 </section>`;
   } catch (e) {
     console.error("[pdf/Ds]", e);
@@ -885,19 +909,7 @@ function renderChapterE(d: RenderData): string {
     let s51 = sub("5.2 협력적 수업설계 종합 평가 체크리스트 (E-2)");
     s51 += `<p>협력적 수업설계 전 과정의 질을 점검하기 위해 4점 척도 체크리스트를 사용한다. 4=매우 잘 됨, 3=대체로 잘 됨, 2=다소 미흡, 1=개선 필요.</p>`;
     if (designRubric.length > 0) {
-      const checkRows = designRubric.map((item) => {
-        const score = parseInt(String(item.score), 10) || 0;
-        return [
-          item.area,
-          item.question,
-          { html: `<td class="check-cell${score === 4 ? " on" : ""}">` + (score === 4 ? "■" : "☐") + `</td>` },
-          { html: `<td class="check-cell${score === 3 ? " on" : ""}">` + (score === 3 ? "■" : "☐") + `</td>` },
-          { html: `<td class="check-cell${score === 2 ? " on" : ""}">` + (score === 2 ? "■" : "☐") + `</td>` },
-          { html: `<td class="check-cell${score === 1 ? " on" : ""}">` + (score === 1 ? "■" : "☐") + `</td>` },
-        ];
-      });
-
-      // Build the check table manually (needs <td> not <td> wrapper from helper)
+      // 표 도우미 대신 직접 — 점수 칸에 체크 그림을 넣는다
       const colgroup = `<colgroup>
         <col style="width:28mm"><col style="width:102mm">
         <col style="width:8mm"><col style="width:8mm"><col style="width:8mm"><col style="width:8mm">
@@ -908,7 +920,7 @@ function renderChapterE(d: RenderData): string {
       </tr></thead>`;
       const body = `<tbody>${designRubric.map((item) => {
         const score = parseInt(String(item.score), 10) || 0;
-        const cell = (n: number) => `<td class="check-cell${score === n ? " on" : ""}">${score === n ? "■" : "☐"}</td>`;
+        const cell = (n: number) => `<td class="check-cell">${score === n ? CHECK_MARK : ""}</td>`;
         return `<tr><td>${esc(item.area)}</td><td>${esc(item.question)}</td>${cell(4)}${cell(3)}${cell(2)}${cell(1)}</tr>`;
       }).join("")}</tbody>`;
       s51 += `<table class="data">${colgroup}${head}${body}</table>`;

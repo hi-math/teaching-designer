@@ -15,6 +15,7 @@ import { FIT_SCALE, ideaSubjectOfStandard, standardInSubject } from "@/lib/ideat
 // 기준이 될 인접 영역이 비어 있으면 추천하지 않는다 (recommendBlocker — 화면도 누를 때 같은 조건으로 막는다).
 // 인접 영역에서 선택한 항목(targetId)이 있으면 그 항목을 기준으로 좁힌다.
 // 인접 영역에는 있는데 이 영역에 아직 없는 교과(missingSubjects)는 후보에 꼭 넣고 먼저 탐색해 앞쪽에 둔다.
+// 수업주제가 비어 있으면 주제 설계는 하위요소 대신 핵심아이디어·성취기준을 아우르는 수업주제 후보를 추천한다.
 // 공식 데이터는 후보 ID 로만 고르게 하고(enum), 돌아온 ID·연결 대상은 데이터와 초안에 다시 대조한다.
 
 export const maxDuration = 120;
@@ -24,8 +25,10 @@ export type RecommendFocus = "topic" | "ideas" | "standards";
 export type ElementRec = { text: string; ideaId: string | null; strength: LinkStrength; reason: string; score: FitScore };
 export type IdeaRec = { catalogId: string; subject: string; domain: string; content: string; elementId: string | null; standardId: string | null; strength: LinkStrength; reason: string; score: FitScore };
 export type StandardRec = { code: string; subject: string; domain: string; content: string; ideaId: string | null; strength: LinkStrength; reason: string; score: FitScore };
+/** 수업주제 후보 — 수업주제가 비어 있을 때 주제 설계 with AI 가 핵심아이디어·성취기준으로 */
+export type TopicRec = { text: string; reason: string };
 /** 누른 영역의 목록만 채워진다 (나머지는 빈 목록) */
-export type Recommendations = { elements: ElementRec[]; ideas: IdeaRec[]; standards: StandardRec[]; fits: FitResult[] };
+export type Recommendations = { topics: TopicRec[]; elements: ElementRec[]; ideas: IdeaRec[]; standards: StandardRec[]; fits: FitResult[] };
 
 const FOCUSES: RecommendFocus[] = ["topic", "ideas", "standards"];
 const MAX = 5;
@@ -97,7 +100,9 @@ export async function POST(req: Request) {
     const elementIds = draft.elements.filter((e) => e.text.trim()).map((e) => e.id);
     const ideaIds = draft.ideas.map((i) => i.id);
     const standardIds = draft.standards.map((s) => s.id);
-    const ownIds = focus === "topic" ? elementIds : focus === "ideas" ? ideaIds : standardIds;
+    // 수업주제가 없으면 하위요소 대신 수업주제 후보 — 기준이 될 주제가 없으니 하위요소 적합성도 판단하지 않는다
+    const needTopic = focus === "topic" && !draft.topic.trim();
+    const ownIds = needTopic ? [] : focus === "topic" ? elementIds : focus === "ideas" ? ideaIds : standardIds;
     const fitsSchema = ownIds.length ? { fits: list(object({ id: oneOf(ownIds), score: level, reason: text })) } : {};
 
     // 후보: 이미 담은 항목은 빼고, 조건의 교과와 인접 영역에 있는 교과로 좁힌다
@@ -111,7 +116,12 @@ export async function POST(req: Request) {
     let own: unknown[];
     let guide: string;
 
-    if (focus === "topic") {
+    if (needTopic) {
+      basis = { ideas: ideasOf(draft), standards: standardsOf(draft) };
+      own = [];
+      schema = object({ topics: list(object({ text, reason: text })) });
+      guide = `주제 설계 영역입니다. 수업주제가 아직 없습니다. 핵심아이디어와 성취기준(선택한 항목이 있으면 그 항목)을 아우르는 수업주제 후보를 우선순위가 높은 순서로 최대 ${MAX}개 추천하세요. 학생의 삶과 연결된 탐구 질문이나 프로젝트 이름처럼 짧게(40자 이내), 서로 다른 방향으로. reason 은 어떤 핵심아이디어·성취기준을 어떻게 아우르는지 한 문장.`;
+    } else if (focus === "topic") {
       basis = { topic: draft.topic, ideas: ideasOf(draft) };
       own = elementsOf(draft);
       schema = object({ elements: list(object({ text, ideaId: optional(ideaIds), strength: level, reason: text, score: level })), ...fitsSchema });
@@ -159,13 +169,13 @@ export async function POST(req: Request) {
       ...(missingSubjects.length ? { missingSubjects } : {}),
       candidates: focus === "ideas" ? { ideas: ideaPool.map(({ id, subject, domain, content }) => ({ id, subject, domain, content })) }
         : focus === "standards" ? { standards: standardPool.map(({ code, subject, domain, content }) => ({ code, subject, domain, content })) } : undefined,
-      instructions: [
+      instructions: (needTopic ? [guide] : [
         guide,
         ...(missingSubjects.length ? [MISSING_GUIDE] : []),
         `우선순위가 높은 순서로 최대 ${MAX}개, 관련이 약하면 적게 고르거나 비워 두세요. strength 는 그 연결의 강도입니다. 3: 핵심적으로 직결, 2: 관련, 1: 보조적.`,
         SCORE_GUIDE,
         ...(ownIds.length ? [FIT_GUIDE] : []),
-      ].join("\n"),
+      ]).join("\n"),
     };
 
     if (!process.env.CHATGPT_API_KEY) return Response.json({ error: "AI 서비스 키가 설정되지 않았습니다. 관리자에게 CHATGPT_API_KEY 설정을 요청하세요." }, { status: 503 });
@@ -173,13 +183,21 @@ export async function POST(req: Request) {
       model: TASK_LLM_MODEL, maxTokens: 6000, system: SYSTEM, prompt: JSON.stringify(prompt), schema,
     });
     if (!result.ok) return Response.json({ error: "추천을 완성하지 못했습니다. 다시 시도하세요." }, { status: 502 });
-    const value = (result.value ?? {}) as { elements?: unknown[]; ideas?: unknown[]; standards?: unknown[]; fits?: unknown[] };
+    const value = (result.value ?? {}) as { topics?: unknown[]; elements?: unknown[]; ideas?: unknown[]; standards?: unknown[]; fits?: unknown[] };
     const rows = (v: unknown) => (Array.isArray(v) ? v as Record<string, unknown>[] : []);
     const reason = (r: Record<string, unknown>) => String(r.reason ?? "").trim().slice(0, 600);
     const existing = (ids: string[], v: unknown) => (typeof v === "string" && ids.includes(v) ? v : null);
 
-    const recommendations: Recommendations = { elements: [], ideas: [], standards: [], fits: [] };
-    if (focus === "topic") {
+    const recommendations: Recommendations = { topics: [], elements: [], ideas: [], standards: [], fits: [] };
+    if (needTopic) {
+      const seenTopics = new Set<string>();
+      recommendations.topics = rows(value.topics).flatMap((r) => {
+        const t = String(r.text ?? "").trim().slice(0, 80);
+        if (!t || seenTopics.has(t)) return [];
+        seenTopics.add(t);
+        return [{ text: t, reason: reason(r) }];
+      }).slice(0, MAX);
+    } else if (focus === "topic") {
       const seenTexts = new Set(draft.elements.map((e) => e.text.trim()));
       recommendations.elements = rows(value.elements).flatMap((r) => {
         const t = String(r.text ?? "").trim().slice(0, 300);

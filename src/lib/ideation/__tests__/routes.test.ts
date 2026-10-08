@@ -143,6 +143,25 @@ describe("with AI 추천 (우선순위 큐)", () => {
     expect(enumOf(0, "fits", "id")).toEqual([d.ideas[0].id]);
   });
 
+  it("수업주제가 비어 있으면 핵심아이디어·성취기준으로 수업주제 후보를 추천한다 (성취기준만 있어도)", async () => {
+    const d = { ...draft(), topic: "" };
+    mock.json.mockResolvedValueOnce({ ok: true, value: { topics: [
+      { text: "우리 동네 폭염 지도 만들기", reason: "탐구와 지역 참여를 아우름" },
+      { text: "우리 동네 폭염 지도 만들기", reason: "중복" },
+      { text: "  ", reason: "빈 후보" },
+    ] } });
+    const body = await (await recommend(request({ lessonId, focus: "topic", draft: d }))).json();
+    expect(body.topics).toEqual([{ text: "우리 동네 폭염 지도 만들기", reason: "탐구와 지역 참여를 아우름" }]);
+    expect(body.elements).toEqual([]);
+    const sent = mock.json.mock.calls[0][1] as { schema: Schema; prompt: string };
+    expect(Object.keys(sent.schema.properties)).toEqual(["topics"]);
+    expect(Object.keys(JSON.parse(sent.prompt).basis)).toEqual(["ideas", "standards"]);
+
+    const onlyStandards = { ...d, ideas: [], elements: [], elementIdeaLinks: [], ideaStandardLinks: [] };
+    mock.json.mockResolvedValueOnce({ ok: true, value: { topics: [] } });
+    expect((await recommend(request({ lessonId, focus: "topic", draft: onlyStandards }))).status).toBe(200);
+  });
+
   it("기준이 될 인접 영역이 비어 있으면 AI 를 부르지 않는다", async () => {
     const d = draft();
     const noIdeas = { ...d, ideas: [], elementIdeaLinks: [], ideaStandardLinks: [] };

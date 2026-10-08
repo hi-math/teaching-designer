@@ -162,7 +162,8 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     try {
       const rec = await post("/api/ideation", { lessonId, focus, targetId: target, draft: basis }, controller.signal) as Recommendations;
       const stamp = Date.now();
-      const items: RecItem[] = focus === "topic" ? rec.elements.map((r, i) => ({ kind: "element", key: `e${stamp}-${i}`, rec: r }))
+      const items: RecItem[] = focus === "topic"
+        ? [...(rec.topics ?? []).map((r, i): RecItem => ({ kind: "topic", key: `t${stamp}-${i}`, rec: r })), ...rec.elements.map((r, i): RecItem => ({ kind: "element", key: `e${stamp}-${i}`, rec: r }))]
         : focus === "ideas" ? rec.ideas.map((r, i) => ({ kind: "idea", key: `i${stamp}-${i}`, rec: r }))
           : rec.standards.map((r, i) => ({ kind: "standard", key: `s${stamp}-${i}`, rec: r }));
       setQueues((q) => ({ ...q, [FOCUS_QUEUE[focus]]: items }));
@@ -219,12 +220,18 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     setLocal((prev) => applyLinkVerdicts(applyFits(prev ?? savedRef.current ?? initial, fits, basis), links, basis));
   };
 
-  const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");
+  const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" || item.kind === "topic" ? "elements" : item.kind === "idea" ? "ideas" : "standards");
   const dropRec = (item: RecItem) => setQueues((q) => ({ ...q, [queueKey(item)]: q[queueKey(item)].filter((i) => i.key !== item.key) }));
 
   /** 추천 항목을 더하고, 추천이 가리킨 기존 항목과 강도·이유를 담아 잇는다 (가리킨 항목이 지워졌으면 잇지 않는다).
    *  새 카드의 적합성은 추천할 때 같은 기준으로 판단한 값을 그대로 쓴다 */
   const addRec = (item: RecItem) => {
+    // 수업주제 후보는 하나만 고른다 — 수업주제 칸에 넣고 나머지 후보는 거둔다
+    if (item.kind === "topic") {
+      change(clearFits({ ...draft, topic: item.rec.text.slice(0, LIMITS.topic) }));
+      setQueues((q) => ({ ...q, elements: [] }));
+      return;
+    }
     let next = draft;
     const fit: Fit = { score: item.rec.score, reason: item.rec.reason, kept: false };
     const ensureIdea = (x: IdeaRec): string | null => {
@@ -258,9 +265,10 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     dropRec(item);
   };
   /** 추가하면 기존 항목과 이어지는 추천인지 — 큐에서 강도 막대를 보여 준다 */
-  const recLinked = (item: RecItem): boolean => item.kind === "idea"
-    ? !!((item.rec.elementId && elementById.has(item.rec.elementId)) || (item.rec.standardId && stdById.has(item.rec.standardId)))
-    : !!(item.rec.ideaId && ideaById.has(item.rec.ideaId));
+  const recLinked = (item: RecItem): boolean => item.kind === "topic" ? false
+    : item.kind === "idea"
+      ? !!((item.rec.elementId && elementById.has(item.rec.elementId)) || (item.rec.standardId && stdById.has(item.rec.standardId)))
+      : !!(item.rec.ideaId && ideaById.has(item.rec.ideaId));
 
   // ── 저장·반영 ─────────────────────────────────────────────────
   /** 저장 — 저장하는 동안 더 바뀐 내용은 화면에 남겨 다음 자동 저장에 맡긴다 */

@@ -395,10 +395,11 @@ export function deletionAdvised(item: { fit?: Fit }): boolean {
 
 /**
  * with AI 의 기준이 될 인접 영역이 비었으면 그 안내, 누를 수 있으면 null — 화면은 누를 때, 서버는 받을 때 확인한다.
- * 주제 설계 ← 수업주제·핵심아이디어 / 핵심아이디어 ← 하위요소·성취기준 / 성취기준 ← 핵심아이디어
+ * 주제 설계 ← 수업주제·핵심아이디어 (수업주제가 비었으면 핵심아이디어·성취기준) / 핵심아이디어 ← 하위요소·성취기준 / 성취기준 ← 핵심아이디어
  */
 export function recommendBlocker(d: IdeationDraft, focus: "topic" | "ideas" | "standards"): string | null {
-  if (focus === "topic") return !d.topic.trim() && !d.ideas.length ? "수업주제를 먼저 입력하세요." : null;
+  // 수업주제가 비어 있어도 핵심아이디어나 성취기준이 있으면 그것으로 수업주제 후보를 추천한다
+  if (focus === "topic") return !d.topic.trim() && !d.ideas.length && !d.standards.length ? "수업주제를 먼저 입력하세요." : null;
   if (focus === "ideas") return !d.elements.some((e) => e.text.trim()) && !d.standards.length ? "하위요소 또는 성취기준이 1개 이상 필요합니다." : null;
   return !d.ideas.length ? "핵심아이디어가 1개 이상 필요합니다." : null;
 }

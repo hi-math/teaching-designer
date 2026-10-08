@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { getSubjectBadge } from "@/components/workspace/CardFields";
-import type { ElementRec, IdeaRec, StandardRec } from "@/app/api/ideation/route";
+import type { ElementRec, IdeaRec, StandardRec, TopicRec } from "@/app/api/ideation/route";
 import type { Fit, FitScore } from "@/lib/ideation/model";
 
 // 아이디어 도출 화면의 작은 부품 — 영역 틀, 출처 배지, 적합성 점·삭제 추천, with AI 추천 패널
@@ -89,6 +89,7 @@ export const XIcon = () => <svg className="h-3.5 w-3.5" fill="none" stroke="curr
 // ─── with AI 추천 — 우선순위 큐 ───────────────────────────────────
 
 export type RecItem =
+  | { kind: "topic"; key: string; rec: TopicRec }
   | { kind: "element"; key: string; rec: ElementRec }
   | { kind: "idea"; key: string; rec: IdeaRec }
   | { kind: "standard"; key: string; rec: StandardRec };
@@ -134,9 +135,9 @@ export function RecQueue({ items, linked, readonly, onAdd, onIgnore, onClose }: 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {item.kind === "idea" && <><SubjectBadge subject={item.rec.subject} /><span className="text-[11.5px] text-[#757b82]">{item.rec.domain}</span></>}
                   {item.kind === "standard" && <><SubjectBadge subject={item.rec.subject} /><CodeChip code={item.rec.code} /></>}
-                  {isLinked && <StrengthBars value={item.rec.strength} />}
+                  {isLinked && item.kind !== "topic" && <StrengthBars value={item.rec.strength} />}
                 </div>
-                <p className="mt-1 text-[13px] leading-relaxed text-[#2d3339]">{item.kind === "element" ? item.rec.text : item.rec.content}</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-[#2d3339]">{item.kind === "element" || item.kind === "topic" ? item.rec.text : item.rec.content}</p>
                 {item.rec.reason && <p className="mt-1.5 text-[12px] leading-relaxed text-[#757b82]"><span className="mr-1 rounded bg-[#f1f4f9] px-1 py-0.5 text-[10.5px] font-semibold text-[#5a6066]">AI 해석</span>{item.rec.reason}</p>}
                 {!readonly && (
                   <div className="mt-2 flex gap-1.5">

@@ -1837,7 +1837,16 @@ export default function WorkspaceShell({
   const handleApplyToCard = useCallback(async (code: string, fields: Record<string, unknown>, selections?: { ideas: IdeaItem[]; standards: StandardItem[] }): Promise<string | null> => {
     const st = activityStatusRef.current[code];
     if (st === "completed" || st === "skipped") {
-      throw new Error("완료했거나 건너뛴 카드라 반영할 수 없습니다.");
+      // 상태를 바꿀 수 있는 사람에게는 상태를 풀고 반영할지 묻는다 (예전에는 버튼만 생기고 눌러도 막혔다)
+      const canRelease = isHost || (st === "completed" ? permissions.complete : permissions.skip);
+      if (!canRelease) throw new Error("완료했거나 건너뛴 카드라 반영할 수 없습니다.");
+      if (!(await showConfirm(
+        `${code} 카드는 ${st === "completed" ? "반영하기를 마친" : "건너뛴"} 카드입니다.\n상태를 풀고 AI 답변을 반영할까요?`,
+        { title: "", confirmText: "반영" },
+      ))) return null;
+      // 상태는 아래 카드 저장에 함께 실린다 (저장 시점의 상태를 쓴다)
+      activityStatusRef.current = { ...activityStatusRef.current, [code]: "active" };
+      setActivityStatus((prev) => ({ ...prev, [code]: "active" }));
     }
     if (code === 'A-3') {
       if (!selections || (!selections.ideas.length && !selections.standards.length)) {
@@ -1863,7 +1872,7 @@ export default function WorkspaceShell({
     handleStructuredChange(code, { ...existing, ...fields }, "step");
     setSelectedActivityCode(code);
     return `${code} 카드에 반영했습니다.`;
-  }, [handleStructuredChange, updateA3Selections]);
+  }, [handleStructuredChange, updateA3Selections, isHost, permissions]);
 
   // ── 카드 지우기 · 되돌리기 ───────────────────────────────────
   const handleClearCard = useCallback(async (code: string) => {

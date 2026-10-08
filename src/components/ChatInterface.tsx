@@ -9,6 +9,7 @@ import type { BulletPicker } from './ChatMarkdown';
 import { buildChatPayload } from '@/lib/chat/trimPayload';
 import { CARD_SCHEMAS } from '@/components/workspace/cardSchemas';
 import { readChatStream, type ChatStreamError } from '@/lib/chat/streamProtocol';
+import { targetCard } from '@/lib/chat/cardTarget';
 
 interface PageContext {
   ideationContext?: string;
@@ -252,6 +253,15 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
 
     abortRef.current = new AbortController();
 
+    // 질문이 다른 카드를 분명히 가리키면(예: T-1 을 선택한 채 "T-2 수업설계 방향 만들어 줘") 답변도 반영도 그 카드로 —
+    // 답변을 선택한 카드의 지침으로 만들면 형식이 맞지 않아 반영되지 않거나 엉뚱한 카드에 들어간다.
+    // with AI·AI 안내는 누른 카드에 대한 것이라 옮기지 않는다.
+    const selectedCode = pageContext?.selectedActivityCode;
+    const targetCode = intent ? selectedCode : targetCard(text, selectedCode, cardLabels);
+    const moved = !!targetCode && targetCode !== selectedCode;
+    const askStage = moved ? targetCode.split('-')[0] : stage;
+    const askContext = moved && pageContext ? { ...pageContext, selectedActivityCode: targetCode, activePhase: askStage } : pageContext;
+
     // 사용자 메시지 DB 저장 (authUidRef 우선, 없으면 prop userId)
     const saveUid = authUidRef.current || userId;
     if (lessonId && saveUid) {
@@ -293,10 +303,10 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
         body: JSON.stringify({
           ...buildChatPayload({
             messages: apiMessages,
-            stage,
-            pageContext: pageContext
-              ? { ...pageContext, referenceFiles: refContents }
-              : pageContext,
+            stage: askStage,
+            pageContext: askContext
+              ? { ...askContext, referenceFiles: refContents }
+              : askContext,
           }),
           model,
           // 피드백은 서버가 카드 전체 흐름을 길게 싣는다 — 흐름 순서·이름을 알려 준다
@@ -361,7 +371,7 @@ export default function ChatInterface({ stage, onReady, pageContext, lessonId, u
 
       // 이 답변을 선택된 카드에 반영할 수 있는지 판정 — 가능할 때만 버튼이 생긴다
       // 정책: with AI(피드백)·AI 안내 답변은 카드에 반영하지 않는다 — 판정도, 체크박스도 없다
-      const cardCode = pageContext?.selectedActivityCode;
+      const cardCode = targetCode;
       const assistantIdx = newMessages.length;
       if (!intent && onApplyToCard && cardCode && (CARD_SCHEMAS[cardCode]?.fields.length ?? 0) > 0 && accumulated.trim().length >= 60) {
         setPickTarget({ idx: assistantIdx, code: cardCode });

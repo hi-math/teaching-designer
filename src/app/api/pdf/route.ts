@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { bracketCode, extractCodes, fixDoubleBrackets } from "@/lib/standardCode";
 import { readVisionRow, visionLines, type VisionEntry } from "@/lib/vision";
+import { IDEATION_ROW, ideaSubject, ideaText, readDraft, type IdeationDraft } from "@/lib/ideation/model";
 import chromium from "@sparticuz/chromium-min";
 import { chromium as playwrightChromium } from "playwright-core";
 import { existsSync } from "fs";
@@ -97,6 +98,8 @@ type RenderData = {
   opinions: { question: string; responses: { name: string; response: string }[] }[];
   /** T-1 개인별 교육비전 — 참가자마다 따로 저장된 행에서 */
   visions: { name: string; text: string }[];
+  /** 아이디어 도출 초안 — 2.2 표의 연결 성취기준·연결 이유 */
+  ideation: IdeationDraft | null;
   generatedAt: string;
   writtenDate: string | null; // 수업 기본정보의 작성일(created_date), 없으면 생성일로 대체
 };
@@ -193,6 +196,45 @@ function filledRows<T extends object>(rows: T[] | undefined): T[] {
 function textFallback(c: CardContent | undefined): string {
   const t = c?.text?.trim();
   return t ? `<p>${nl2br(t)}</p>` : `<p class="empty">(입력된 내용이 없습니다.)</p>`;
+}
+
+// ─── 2.2 교과별 핵심 아이디어 표 ──────────────────────────────────
+const normCode = (code: string) => code.replace(/[[\]\s]/g, "");
+
+/**
+ * 핵심 아이디어마다 이어진 성취기준과 그 이유.
+ * 아이디어 도출에서 확정한 연결(다시 검토할 연결 제외)이 있으면 그것을 강한 순서로 쓰고,
+ * 없으면 같은 교과의 성취기준을 이유 없이 둔다. 성취기준은 보고서 2.3 에 실린 것만.
+ */
+function coreIdeaRows(
+  core: Array<{ subject: string; core_idea: string }>,
+  standards: Array<{ subject: string; code: string }>,
+  draft: IdeationDraft | null,
+): Array<Array<string | { html: string }>> {
+  const reported = new Set(standards.map((s) => normCode(s.code)));
+  const stdById = new Map((draft?.standards ?? []).map((s) => [s.id, s]));
+  return core.map((row) => {
+    const idea = draft?.ideas.find((i) => ideaSubject(i) === row.subject && (i.official?.content === row.core_idea || ideaText(i) === row.core_idea));
+    const seen = new Set<string>();
+    const links = !idea ? [] : draft!.ideaStandardLinks
+      .filter((l) => l.from === idea.id && !l.review)
+      .sort((a, b) => b.strength - a.strength)
+      .flatMap((l) => {
+        const std = stdById.get(l.to);
+        if (!std || !reported.has(normCode(std.code)) || seen.has(normCode(std.code))) return [];
+        seen.add(normCode(std.code));
+        return [{ code: bracketCode(std.code), reason: l.reason.trim() }];
+      });
+    const codes = links.length
+      ? links.map((l) => l.code)
+      : [...new Set(standards.filter((s) => s.subject === row.subject).map((s) => bracketCode(s.code)))];
+    const reasons = links.filter((l) => l.reason);
+    // 이유가 하나면 그대로, 여럿이면 어느 성취기준의 이유인지 코드를 앞에
+    const reasonHtml = reasons.length === 1 && links.length === 1
+      ? nl2br(reasons[0].reason)
+      : reasons.map((l) => `<strong>${esc(l.code)}</strong> ${nl2br(l.reason)}`).join("<br>");
+    return [row.subject, row.core_idea, codes.join("\n"), { html: reasonHtml }];
+  });
 }
 
 // ─── SVG 다이어그램 (2.2 교과별 핵심 아이디어) ────────────────────
@@ -324,10 +366,8 @@ table.data td.c,table.data th.c{text-align:center;}
 .emphasis-box .label{font-weight:700;margin-right:6pt;color:var(--accent-dark);}
 p.part{font-weight:700;color:var(--accent-dark);margin:4mm 0 1.5mm;font-size:9.5pt;}
 
-.two-col{display:flex;gap:6mm;align-items:flex-start;margin:3mm 0;}
-.two-col .text{flex:100 0 0;}
-.two-col .figure{flex:70 0 0;text-align:center;}
-.two-col svg{width:100%;max-width:70mm;height:auto;}
+.figure-center{text-align:center;margin:2mm 0 3mm;break-inside:avoid;}
+.figure-center svg{width:62mm;height:auto;}
 
 .cover{position:relative;height:297mm;padding:55mm 20mm 20mm;}
 .cover::before{content:"";position:absolute;left:0;top:0;width:8mm;height:60mm;background:var(--accent);}
@@ -583,12 +623,17 @@ function renderChapterA(d: RenderData): string {
       : d.ideas.map((i) => ({ subject: i.subject, core_idea: i.content }));
     let s22 = sub("2.2 교과별 핵심 아이디어 (A-3)");
     if (coreList.length > 0) {
-      const textPart = `<div class="text">${coreList
-        .map((i) => `<p><strong>${esc(i.subject)}</strong><br>${nl2br(i.core_idea)}</p>`)
-        .join("")}</div>`;
-      const centerText = d.title;
-      const svgPart = `<div class="figure">${renderCoreIdeasSvg(coreList, centerText)}</div>`;
-      s22 += `<div class="two-col">${textPart}${svgPart}</div>`;
+      // 그림은 위에 가운데로, 표는 페이지 폭 전체로
+      s22 += `<div class="figure-center">${renderCoreIdeasSvg(coreList, d.title)}</div>`;
+      const reportedStds = (hasField(A21, "achievement_standards")
+        ? (A21!.achievement_standards ?? []).map((s) => ({ subject: s.subject, code: s.code ?? extractCodes(String(s.standard ?? s.statement ?? ""))[0] ?? "" }))
+        : d.standards.map((s) => ({ subject: s.subject, code: s.code })))
+        .filter((s) => s.code);
+      s22 += table(
+        ["교과", "핵심 아이디어", "연결 성취기준", "연결 이유"],
+        coreIdeaRows(coreList, reportedStds, d.ideation),
+        { colWidthsMm: [20, 62, 28, 60], centerCols: [0] }
+      );
     } else {
       s22 += textFallback(A21);
     }
@@ -1025,6 +1070,7 @@ export async function GET(req: Request) {
     const opinionsMap: Record<string, { question: string; responses: { userId: string; response: string }[] }> = {};
     const opinionResMap: Record<string, Record<string, string>> = {};
     const visionRows: { userId: string; items: VisionEntry[] }[] = [];
+    let ideation: IdeationDraft | null = null;
 
     for (const row of contentRows ?? []) {
       const code = row.activity_code as string;
@@ -1035,6 +1081,10 @@ export async function GET(req: Request) {
         continue;
       }
 
+      if (code === IDEATION_ROW) {
+        ideation = readDraft((c as Record<string, unknown>).fields ?? c);
+        continue;
+      }
       if (code === "__selected_standards") {
         standards = (c.items ?? []) as typeof standards;
         continue;
@@ -1113,6 +1163,7 @@ export async function GET(req: Request) {
       ideas,
       opinions,
       visions,
+      ideation,
       generatedAt,
       writtenDate: lesson.created_date ?? null,
     };

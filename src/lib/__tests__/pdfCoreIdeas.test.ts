@@ -8,7 +8,7 @@ const idea = (id: string, subject: string, content: string) => ({
 const std = (code: string, subject: string) => ({ id: code, code, subject, domain: "", content: "", note: "", via: "manual" });
 const link = (id: string, from: string, to: string, strength: number, reason: string, review = false) => ({ id, from, to, via: "ai", strength, reason, review });
 const TABLES: Record<string, unknown> = {
-  lessons: { title: "급식 잔반 줄이기", target_grade: "중2", related_subjects: "과학, 사회, 수학", num_classes: null, num_students: null, total_sessions: 6, created_date: null },
+  lessons: { title: "급식 잔반 줄이기", target_grade: "중2", related_subjects: "과학,사회 ,수학", num_classes: null, num_students: null, total_sessions: 6, created_date: null },
   lesson_members: [],
   profiles: [],
   activity_contents: [
@@ -100,6 +100,12 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     expect(math).toContain('<td class="c">[9과01-01]<br>[9수04-03]</td>');
     expect(soc).toContain("[9사01-01]");
     expect(soc).toMatch(/<td class="">\s*<\/td><\/tr>/);
+  });
+
+  it("표지의 교과는 쉼표 뒤를 띄워서 (저장값은 쉼표만으로 이어져 있다)", async () => {
+    await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
+    expect(mock.html).toContain("— 중2 과학, 사회, 수학 융합 PBL —");
+    expect(mock.html).not.toContain("과학,사회");
   });
 
   it("성취기준 칸은 코드만 있으면 한 줄에 하나씩 가운데로, 줄글이면 그대로 왼쪽", async () => {

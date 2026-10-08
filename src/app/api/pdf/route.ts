@@ -114,6 +114,10 @@ function esc(s: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
+// 수업 기본정보는 여러 개를 "수학,사회" 처럼 쉼표만으로 이어 저장한다 — 보고서에는 쉼표 뒤를 띄워서
+const listText = (v: string | null | undefined): string | null =>
+  v ? v.split(/\s*,\s*/).filter(Boolean).join(", ") || null : null;
+
 const cssEsc = (s: string): string =>
   s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
@@ -1119,8 +1123,8 @@ export async function GET(req: Request) {
     const generatedAt = new Date().toISOString();
     const renderData: RenderData = {
       title: lesson.title ?? "제목 없음",
-      targetGrade: lesson.target_grade ?? null,
-      relatedSubjects: lesson.related_subjects ?? null,
+      targetGrade: listText(lesson.target_grade),
+      relatedSubjects: listText(lesson.related_subjects),
       numClasses: lesson.num_classes ?? null,
       numStudents: lesson.num_students ?? null,
       totalSessions: lesson.total_sessions ?? null,

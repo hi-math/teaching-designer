@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { bracketCode, extractCodes, fixDoubleBrackets } from "@/lib/standardCode";
 import { readVisionRow, visionLines, type VisionEntry } from "@/lib/vision";
+import { compareSubjects } from "@/lib/subjectOrder";
 import { IDEATION_ROW, ideaSubject, ideaText, readDraft, type IdeationDraft } from "@/lib/ideation/model";
 import chromium from "@sparticuz/chromium-min";
 import { chromium as playwrightChromium } from "playwright-core";
@@ -176,22 +177,19 @@ function standardsCell(text: string): Cell {
   return codes.length && !rest ? { html: codes.map(esc).join("<br>"), center: true } : text;
 }
 
-/**
- * 과목별로 묶어 과목 이름 아래 불릿으로 (html 은 이미 이스케이프한 값).
- * 과목 순서는 수업 기본정보의 교과 순서, 거기 없는 과목은 가나다순. 같은 과목 안에서는 입력 순서 그대로.
- */
-function bySubject(items: Array<{ subject: string; html: string }>, subjectOrder: string[]): string {
+/** 핵심 아이디어·성취기준은 성취기준 검색의 교과 메뉴 순서로 (같은 교과 안에서는 입력 순서 그대로) */
+const sortBySubject = <T extends { subject?: string }>(rows: T[]): T[] =>
+  [...rows].sort((a, b) => compareSubjects(a.subject ?? "", b.subject ?? ""));
+
+/** 과목별로 묶어 과목 이름 아래 불릿으로 (html 은 이미 이스케이프한 값) */
+function bySubject(items: Array<{ subject: string; html: string }>): string {
   const groups = new Map<string, string[]>();
   for (const item of items) {
     const key = item.subject.trim();
     groups.set(key, [...(groups.get(key) ?? []), item.html]);
   }
-  const rank = (subject: string) => {
-    const i = subjectOrder.indexOf(subject);
-    return i === -1 ? subjectOrder.length : i;
-  };
   return `<div class="by-subject">${[...groups.entries()]
-    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b, "ko"))
+    .sort(([a], [b]) => compareSubjects(a, b))
     .map(([subject, list]) => `${subject ? `<p class="subject">${esc(subject)}</p>` : ""}<ul class="bullets">${list.map((h) => `<li>${h}</li>`).join("")}</ul>`)
     .join("")}</div>`;
 }
@@ -421,12 +419,11 @@ function renderTocOverview(d: RenderData): string {
     const A22 = d.contents["A-4"];
 
     // 핵심 아이디어 → 관련 성취기준, 둘 다 과목 이름 아래 불릿으로 과목별로 묶는다
-    const subjectOrder = (d.relatedSubjects ?? "").split(", ").filter(Boolean);
     const ideaList = hasField(A21, "core_ideas")
       ? (A21!.core_ideas ?? []).map((i) => ({ subject: i.subject, text: i.core_idea }))
       : d.ideas.map((i) => ({ subject: i.subject, text: i.content }));
     const ideaHtml = ideaList.some((i) => i.text?.trim())
-      ? bySubject(ideaList.filter((i) => i.text?.trim()).map((i) => ({ subject: i.subject ?? "", html: nl2br(i.text) })), subjectOrder)
+      ? bySubject(ideaList.filter((i) => i.text?.trim()).map((i) => ({ subject: i.subject ?? "", html: nl2br(i.text) })))
       : "(미입력)";
 
     // 관련 성취기준: 카드 구조화 필드 → 전역 __selected_standards 순
@@ -439,7 +436,7 @@ function renderTocOverview(d: RenderData): string {
           html: s.code
             ? `<strong>${esc(bracketCode(s.code))}</strong> ${esc(s.statement)}`
             : esc(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? ""))),
-        })), subjectOrder)
+        })))
       : "(미입력)";
 
     // 수업 주제/목적
@@ -618,9 +615,9 @@ function renderChapterA(d: RenderData): string {
 
     // 2.2 교과별 핵심 아이디어
     const A21 = c["A-3"];
-    const coreList = hasField(A21, "core_ideas")
+    const coreList = sortBySubject(hasField(A21, "core_ideas")
       ? (A21!.core_ideas ?? [])
-      : d.ideas.map((i) => ({ subject: i.subject, core_idea: i.content }));
+      : d.ideas.map((i) => ({ subject: i.subject, core_idea: i.content })));
     let s22 = sub("2.2 교과별 핵심 아이디어 (A-3)");
     if (coreList.length > 0) {
       const reportedStds = (hasField(A21, "achievement_standards")
@@ -637,9 +634,9 @@ function renderChapterA(d: RenderData): string {
     }
 
     // 2.3 성취기준 분석 — 원문 렌더, 코드 볼드
-    const stdList = hasField(A21, "achievement_standards")
+    const stdList = sortBySubject(hasField(A21, "achievement_standards")
       ? (A21!.achievement_standards ?? [])
-      : d.standards.map((s) => ({ subject: s.subject, code: s.code, statement: s.content }));
+      : d.standards.map((s) => ({ subject: s.subject, code: s.code, statement: s.content })));
     let s23 = sub("2.3 성취기준 분석 (A-3)");
     if (stdList.length > 0) {
       s23 += table(

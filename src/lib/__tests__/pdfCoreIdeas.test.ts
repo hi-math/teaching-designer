@@ -85,7 +85,8 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     const rows = s22.split("<tr>").slice(2);
     expect(rows).toHaveLength(3);
 
-    const [sci, math, soc] = rows;
+    // 성취기준 검색의 교과 메뉴 순서 — 사회 · 수학 · 과학
+    const [soc, math, sci] = rows;
     expect(sci).toContain("[9과01-01]");
     expect(sci).toContain("잔반 원인을 탐구 방법으로 조사한다.");
     expect(sci).not.toContain("[9과02-01]");
@@ -108,7 +109,7 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     expect(mock.html).not.toContain("수학,사회");
   });
 
-  it("수업 개요는 핵심 아이디어 → 관련 성취기준, 둘 다 과목 이름 아래 불릿으로 수업 기본정보의 교과 순서대로", async () => {
+  it("수업 개요는 핵심 아이디어 → 관련 성취기준, 둘 다 과목 이름 아래 불릿으로 성취기준 검색의 교과 메뉴 순서대로", async () => {
     await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
     const overview = mock.html.slice(mock.html.indexOf("수업 개요</h2>"), mock.html.indexOf("팀 구성</h2>"));
     const ideas = overview.slice(overview.indexOf("<strong>핵심 아이디어</strong>"), overview.indexOf("<strong>관련 성취기준</strong>"));
@@ -116,8 +117,8 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     expect(ideas.length).toBeGreaterThan(0);
     expect(stds.length).toBeGreaterThan(0);
     const order = (html: string) => [...html.matchAll(/<p class="subject">([^<]+)<\/p>/g)].map((m) => m[1]);
-    expect(order(ideas)).toEqual(["수학", "사회", "과학"]);
-    expect(order(stds)).toEqual(["수학", "사회", "과학"]);
+    expect(order(ideas)).toEqual(["사회", "수학", "과학"]);
+    expect(order(stds)).toEqual(["사회", "수학", "과학"]);
     expect(ideas).toContain('<p class="subject">수학</p><ul class="bullets"><li>자료를 분석하면 합리적으로 결정할 수 있다.</li></ul>');
     expect(stds).toContain('<p class="subject">과학</p><ul class="bullets"><li>[9과01-01] 과학적 탐구 방법을 이해한다.</li></ul>');
   });
@@ -129,5 +130,7 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     expect(s33).toContain('<td class="">탐구 결과를 발표하는 성취기준</td>');
     const s23 = mock.html.slice(mock.html.indexOf("2.3 성취기준 분석"), mock.html.indexOf("2.4 "));
     expect(s23).toContain('<td class="c">과학</td>');
+    expect(s23.indexOf("[9사01-01]")).toBeLessThan(s23.indexOf("[9수04-03]"));
+    expect(s23.indexOf("[9수04-03]")).toBeLessThan(s23.indexOf("[9과01-01]"));
   });
 });

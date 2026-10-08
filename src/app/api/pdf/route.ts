@@ -234,17 +234,18 @@ function renderCoreIdeasSvg(
 }
 
 // 체크리스트의 체크 표시 — 글꼴에 ✓ 가 없을 수 있어 그림으로
-const CHECK_MARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#1F2937" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHECK_MARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#C8341E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 // ─── CSS ──────────────────────────────────────────────────────────
 function buildCss(lessonTitle: string): string {
   const footerTitle = lessonTitle ? `"${cssEsc(lessonTitle)}"` : '""';
   return `
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
+/* 브랜드 빨강은 살리되 면을 칠하지 않는다 — 진한 빨강은 가는 막대·번호·라벨에, 넓은 면은 아주 옅은 붉은 기운으로 */
 :root{
-  --accent:#C2412D;--accent-soft:#EFC9C0;
+  --accent:#C8341E;--accent-dark:#8E2414;--accent-tint:#FDF0EC;--accent-line:#F2C9BF;
   --dark:#1F2937;--ink-2:#374151;--gray:#6B7280;--light:#F3F4F6;--line:#E5E7EB;
-  --border:#D1D5DB;
+  --border:#D9DCE1;
 }
 *{box-sizing:border-box}
 html,body{padding:0;margin:0;color:var(--dark);
@@ -278,36 +279,42 @@ body{font-size:9.6pt;line-height:1.48;-webkit-print-color-adjust:exact;print-col
 .chapter + .chapter{margin-top:14mm;}
 
 h1.title{font-size:26pt;color:var(--dark);text-align:center;margin:0 0 4mm;font-weight:700;}
+h1.title::after{content:"";display:block;width:18mm;height:1.6pt;background:var(--accent);margin:5mm auto 0;}
 p.subtitle{font-size:12pt;color:var(--gray);text-align:center;margin:0;}
-h2.section{font-size:11.5pt;color:var(--dark);margin:8mm 0 2mm;font-weight:700;}
+h2.section{font-size:11.5pt;color:var(--dark);margin:8mm 0 2.5mm;font-weight:700;line-height:1.25;
+  padding-left:2.6mm;border-left:3pt solid var(--accent);}
 h3.sub{font-size:10.3pt;color:var(--dark);margin:5mm 0 1.5mm;font-weight:700;break-after:avoid;page-break-after:avoid;}
+h3.sub::before{content:"";display:inline-block;width:2.6pt;height:9pt;background:var(--accent);
+  border-radius:1pt;margin-right:5pt;vertical-align:-0.5pt;}
 p,li{font-size:9.6pt;line-height:1.48;margin:0 0 3pt;}
 ul.bullets{margin:0 0 3mm 5mm;padding:0;}
 ul.bullets li{list-style:disc;margin-bottom:1.5pt;}
 
-/* 장 제목 — 색칠한 띠 대신 짙은 글씨 + 강조색 가는 밑줄. 페이지 맨 아래에 제목만 남지 않게 */
+/* 장 제목 — 왼쪽 빨간 막대 + 오른쪽으로 옅어지는 붉은 띠, 장 번호는 빨강. 페이지 맨 아래에 제목만 남지 않게 */
 .chapter-header{
   color:var(--dark);font-weight:700;font-size:15pt;
-  padding:0 0 2.5mm;border-bottom:1.2pt solid var(--accent);margin-bottom:4mm;
+  background:linear-gradient(90deg,var(--accent-tint) 0%,var(--accent-tint) 55%,#fff 100%);
+  border-left:5pt solid var(--accent);padding:8px 12px;margin-bottom:4mm;
   break-after:avoid;page-break-after:avoid;
 }
+.chapter-header::first-letter{color:var(--accent);}
 
 table.data{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.8pt;margin-bottom:2.5mm;}
 table.data th,table.data td{
   border:0.3pt solid var(--border);padding:5px 6px;vertical-align:middle;
   word-break:keep-all;overflow-wrap:anywhere;
 }
-table.data thead th{background:var(--light);color:var(--dark);font-weight:700;text-align:center;font-size:9.2pt;border-bottom:0.8pt solid var(--border);}
+table.data thead th{background:var(--accent-tint);color:var(--accent-dark);font-weight:700;text-align:center;font-size:9.2pt;border-bottom:1pt solid var(--accent-line);}
 table.data tr{break-inside:avoid;page-break-inside:avoid;}
-table.data tbody tr:nth-child(even) td{background:#F9FAFB;}
+table.data tbody tr:nth-child(even) td{background:#FBFBFC;}
 table.data td.c,table.data th.c{text-align:center;}
 
 .emphasis-box{
-  background:#FAFAFA;border:0.4pt solid var(--line);border-left:2.4pt solid var(--accent-soft);
+  background:var(--accent-tint);border:0.4pt solid var(--accent-line);border-left:3pt solid var(--accent);
   padding:8px 10px;color:var(--dark);margin:3mm 0;
 }
-.emphasis-box .label{font-weight:700;margin-right:6pt;color:var(--accent);}
-p.part{font-weight:700;color:var(--ink-2);margin:4mm 0 1.5mm;font-size:9.5pt;}
+.emphasis-box .label{font-weight:700;margin-right:6pt;color:var(--accent-dark);}
+p.part{font-weight:700;color:var(--accent-dark);margin:4mm 0 1.5mm;font-size:9.5pt;}
 
 .two-col{display:flex;gap:6mm;align-items:flex-start;margin:3mm 0;}
 .two-col .text{flex:100 0 0;}
@@ -316,17 +323,18 @@ p.part{font-weight:700;color:var(--ink-2);margin:4mm 0 1.5mm;font-size:9.5pt;}
 
 .cover{position:relative;height:297mm;padding:55mm 20mm 20mm;}
 .cover::before{content:"";position:absolute;left:0;top:0;width:8mm;height:60mm;background:var(--accent);}
-.cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--light);}
-.cover .meta{margin-top:28mm;border:0.6pt solid var(--border);width:100%;border-collapse:collapse;}
+.cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--accent-tint);}
+.cover .meta{margin-top:28mm;border:0.6pt solid var(--accent-line);width:100%;border-collapse:collapse;}
 .cover .meta th,.cover .meta td{padding:9px 10px;font-size:10pt;border:0.3pt solid var(--line);}
-.cover .meta th{background:var(--light);color:var(--ink-2);text-align:left;font-weight:700;width:35mm;}
+.cover .meta th{background:var(--accent-tint);color:var(--accent-dark);text-align:left;font-weight:700;width:35mm;}
 
 ol.toc{list-style:none;padding:0;margin:0 0 6mm;}
-ol.toc li{display:flex;justify-content:space-between;border-bottom:0.3pt solid #E5E7EB;padding:5pt 0;font-size:10pt;}
+ol.toc li{border-bottom:0.3pt solid var(--line);padding:5pt 0;font-size:10pt;}
+ol.toc .toc-num{display:inline-block;min-width:5mm;color:var(--accent);font-weight:700;}
 
 /* 체크리스트 — 칸을 칠하지 않고 고른 점수 칸에 체크 표시 */
 .check-cell{text-align:center;width:6mm;}
-.check-cell svg{width:9pt;height:9pt;vertical-align:middle;}
+.check-cell svg{width:11pt;height:11pt;vertical-align:middle;}
 
 p.empty{color:var(--gray);font-style:italic;}
 `;
@@ -417,13 +425,13 @@ function renderTocOverview(d: RenderData): string {
     return `<section class="toc-overview">
   <h2 class="section">목차</h2>
   <ol class="toc">
-    <li><span>수업 개요</span></li>
-    <li><span>팀 구성</span></li>
-    <li><span>1. 팀 준비 (T)</span></li>
-    <li><span>2. 분석 (A)</span></li>
-    <li><span>3. 설계 (Ds)</span></li>
-    <li><span>4. 개발·실행 (DI)</span></li>
-    <li><span>5. 평가·성찰 (E)</span></li>
+    <li><span class="toc-num"></span>수업 개요</li>
+    <li><span class="toc-num"></span>팀 구성</li>
+    <li><span class="toc-num">1.</span>팀 준비 (T)</li>
+    <li><span class="toc-num">2.</span>분석 (A)</li>
+    <li><span class="toc-num">3.</span>설계 (Ds)</li>
+    <li><span class="toc-num">4.</span>개발·실행 (DI)</li>
+    <li><span class="toc-num">5.</span>평가·성찰 (E)</li>
   </ol>
 
   <h2 class="section">수업 개요</h2>

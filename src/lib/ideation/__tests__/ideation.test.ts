@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addLink, applyFits, clearFits, deletionAdvised, emptyDraft, keepItem, readDraft, relatedTo, removeItem, removeLink, setElementText, setIdeaText,
+  addLink, applyFits, applyLinkVerdicts, clearFits, deletionAdvised, emptyDraft, keepItem, readDraft, relatedTo, removeItem, removeLink, setElementText, setIdeaText,
   type IdeationDraft,
 } from "../model";
 import { buildApplication, buildNarrative, canonicalize, type IdeationCatalog } from "../application";
@@ -110,6 +110,30 @@ describe("아이디어 도출 초안", () => {
     expect(relatedTo(d, "element", "el_heat")).toEqual({ strong: new Set([i1.id]), soft: new Set(["[9과01-01]"]) });
     expect(relatedTo(d, "idea", i1.id).strong).toEqual(new Set(["el_heat", "[9과01-01]"]));
     expect(relatedTo(d, "standard", "[9과01-01]")).toEqual({ strong: new Set([i1.id]), soft: new Set(["el_heat"]) });
+  });
+});
+
+describe("다시 검토할 연결", () => {
+  it("AI 가 이어진다고 보면 확정하고 강도·설명을 새로, 아니면 지운다 — 확정된 연결은 A-4 연계 설명에 다시 실린다", () => {
+    const edited = setElementText(setElementText(workspace(), "el_heat", "도시 열섬"), "el_plan", "축구 경기 규칙");
+    const [heat, plan] = ["el_heat", "el_plan"].map((id) => edited.elementIdeaLinks.find((l) => l.from === id)!);
+    expect(heat.review && plan.review).toBe(true);
+    expect(buildNarrative(edited)).not.toContain("도시 열섬");
+    const d = applyLinkVerdicts(edited, [
+      { id: heat.id, keep: true, strength: 3, reason: "열섬이 탐구 대상이 됩니다" },
+      { id: plan.id, keep: false, strength: 2, reason: "" },
+    ], edited);
+    expect(d.elementIdeaLinks.find((l) => l.id === heat.id)).toMatchObject({ review: false, strength: 3, reason: "열섬이 탐구 대상이 됩니다", via: "ai" });
+    expect(d.elementIdeaLinks.some((l) => l.id === plan.id)).toBe(false);
+    expect(buildNarrative(d)).toContain("도시 열섬");
+  });
+
+  it("판정을 요청한 뒤 문장이 또 바뀐 연결은 그대로 둔다", () => {
+    const basis = setElementText(workspace(), "el_heat", "도시 열섬");
+    const link = basis.elementIdeaLinks.find((l) => l.from === "el_heat")!;
+    const later = setElementText(basis, "el_heat", "도시 열섬과 녹지");
+    const d = applyLinkVerdicts(later, [{ id: link.id, keep: false, strength: 2, reason: "" }], basis);
+    expect(d.elementIdeaLinks.find((l) => l.id === link.id)?.review).toBe(true);
   });
 });
 

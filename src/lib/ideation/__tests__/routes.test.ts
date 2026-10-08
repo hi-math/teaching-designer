@@ -209,6 +209,20 @@ describe("빠진 교과 먼저", () => {
 describe("적합성 자동 판단", () => {
   const fitRequest = (body: unknown) => new Request("http://localhost/api/ideation/fit", { method: "POST", body: JSON.stringify(body) });
 
+  it("다시 검토할 연결도 함께 판정하고, 요청한 검토 연결만 돌려준다", async () => {
+    const d = draft();
+    const reviewed = { ...d, elements: [{ ...d.elements[0], text: "도시 열섬" }], elementIdeaLinks: d.elementIdeaLinks.map((l) => ({ ...l, review: true })) };
+    const linkId = reviewed.elementIdeaLinks[0].id;
+    mock.json.mockResolvedValueOnce({ ok: true, value: { fits: [], links: [
+      { id: linkId, keep: true, strength: 3, reason: "열섬이 탐구 대상" },
+      { id: "ln_other", keep: false, strength: 2, reason: "" },
+    ] } });
+    const res = await judgeFit(fitRequest({ lessonId, draft: reviewed, ids: [], links: [linkId] }));
+    expect((await res.json()).links).toEqual([{ id: linkId, keep: true, strength: 3, reason: "열섬이 탐구 대상" }]);
+    const prompt = JSON.parse((mock.json.mock.calls[0][1] as { prompt: string }).prompt);
+    expect(prompt.recheck).toEqual([expect.objectContaining({ id: linkId, from: "도시 열섬" })]);
+  });
+
   it("로그인·소유자 확인을 먼저 하고, 주제가 없으면 AI 를 부르지 않는다", async () => {
     mock.authorize.mockResolvedValueOnce({ error: Response.json({ error: "로그인 필요" }, { status: 401 }) });
     expect((await judgeFit(fitRequest({ lessonId, draft: draft(), ids: ["el_a"] }))).status).toBe(401);

@@ -8,9 +8,9 @@ import type { ContentMap } from "@/lib/ideation/application";
 import type { IdeaRec, RecommendFocus, Recommendations } from "@/app/api/ideation/route";
 import { bracketCode } from "@/lib/standardCode";
 import {
-  IDEATION_ROW, LIMITS, addLink, applyFits, clearFits, deletionAdvised, emptyDraft, ideaOrigin, ideaSubject, ideaText, keepItem, newId, readDraft,
+  IDEATION_ROW, LIMITS, addLink, applyFits, applyLinkVerdicts, linkEnds, clearFits, deletionAdvised, emptyDraft, ideaOrigin, ideaSubject, ideaText, keepItem, newId, readDraft,
   recommendBlocker, relatedTo, removeItem, setElementText,
-  type Fit, type FitResult, type IdeaEntry, type IdeationConditions, type IdeationDraft, type StandardEntry,
+  type Fit, type FitResult, type IdeaEntry, type LinkVerdict, type IdeationConditions, type IdeationDraft, type StandardEntry,
 } from "@/lib/ideation/model";
 import {
   CodeChip, FitAdvice, FitDot, IconBtn, Pane, RecError, RecQueue, SourceBadge, SparklesIcon, SpinnerIcon, SubjectBadge, XIcon,
@@ -174,27 +174,33 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     }
   };
   useEffect(() => () => recController.current?.abort(), []);
-  // ── 적합성 자동 판단 ── 입력이 멈추고 잠시 뒤, 판단이 없는 카드만
+  // ── 적합성 자동 판단 ── 입력이 멈추고 잠시 뒤, 판단이 없는 카드와 다시 검토할 연결(한쪽 문장이 바뀐 연결)만
   const fitSignature = (text: string) => JSON.stringify([draft.topic, draft.conditions, text]);
   const unjudged: [string, string][] = !isHost || !draft.topic.trim() ? [] : [
     ...draft.elements.filter((e) => e.text.trim() && !e.fit).map((e): [string, string] => [e.id, fitSignature(e.text)]),
     ...draft.ideas.filter((i) => !i.fit).map((i): [string, string] => [i.id, fitSignature(ideaText(i))]),
     ...draft.standards.filter((s) => !s.fit).map((s): [string, string] => [s.id, fitSignature(s.code)]),
   ];
-  const unjudgedKey = unjudged.map(([id, sig]) => `${id}${sig}`).join("|");
+  const unsettled: [string, string][] = !isHost || !draft.topic.trim() ? [] : [
+    ...draft.elementIdeaLinks.filter((l) => l.review).map((l): [string, string] => [l.id, fitSignature(linkEnds(draft, "elementIdea", l).join("|"))]),
+    ...draft.ideaStandardLinks.filter((l) => l.review).map((l): [string, string] => [l.id, fitSignature(linkEnds(draft, "ideaStandard", l).join("|"))]),
+  ];
+  const unjudgedKey = [...unjudged, ...unsettled].map(([id, sig]) => `${id}${sig}`).join("|");
   const judgeFits = useEffectEvent(async (signal: AbortSignal) => {
     const todo = unjudged.filter(([id, sig]) => fitAttempts.current.get(id) !== sig);
-    if (!todo.length) return;
-    todo.forEach(([id, sig]) => fitAttempts.current.set(id, sig));
+    const linkTodo = unsettled.filter(([id, sig]) => fitAttempts.current.get(id) !== sig);
+    if (!todo.length && !linkTodo.length) return;
+    [...todo, ...linkTodo].forEach(([id, sig]) => fitAttempts.current.set(id, sig));
     const ids = todo.map(([id]) => id);
+    const links = linkTodo.map(([id]) => id);
     const basis = draft;
     setJudging(new Set(ids));
     try {
-      const result = await post("/api/ideation/fit", { lessonId, draft: basis, ids }, signal) as { fits: FitResult[] };
-      applyFitResult(result.fits ?? [], basis);
+      const result = await post("/api/ideation/fit", { lessonId, draft: basis, ids, links }, signal) as { fits: FitResult[]; links?: LinkVerdict[] };
+      applyFitResult(result.fits ?? [], basis, result.links ?? []);
     } catch {
       // 입력이 이어져 취소된 판단은 다음에 다시 요청한다. 실패는 조용히 넘기고 문장이 바뀌거나 with AI 를 누르면 다시 판단한다
-      if (signal.aborted) todo.forEach(([id, sig]) => { if (fitAttempts.current.get(id) === sig) fitAttempts.current.delete(id); });
+      if (signal.aborted) [...todo, ...linkTodo].forEach(([id, sig]) => { if (fitAttempts.current.get(id) === sig) fitAttempts.current.delete(id); });
     } finally {
       setJudging((cur) => new Set([...cur].filter((id) => !ids.includes(id))));
     }
@@ -206,11 +212,11 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     return () => { clearTimeout(timer); controller.abort(); };
   }, [unjudgedKey, busy]);
 
-  /** 기다리는 동안 바뀐 내용은 지키고, 요청 뒤 문장이 바뀐 카드의 판단은 버린다 */
-  const applyFitResult = (fits: FitResult[], basis: IdeationDraft) => {
-    if (!isHost || !fits.length) return;
+  /** 기다리는 동안 바뀐 내용은 지키고, 요청 뒤 문장이 바뀐 카드의 판단·연결 판정은 버린다 */
+  const applyFitResult = (fits: FitResult[], basis: IdeationDraft, links: LinkVerdict[] = []) => {
+    if (!isHost || (!fits.length && !links.length)) return;
     setBase((b) => b ?? stableStringify(savedRef.current));
-    setLocal((prev) => applyFits(prev ?? savedRef.current ?? initial, fits, basis));
+    setLocal((prev) => applyLinkVerdicts(applyFits(prev ?? savedRef.current ?? initial, fits, basis), links, basis));
   };
 
   const queueKey = (item: RecItem): keyof Queues => (item.kind === "element" ? "elements" : item.kind === "idea" ? "ideas" : "standards");

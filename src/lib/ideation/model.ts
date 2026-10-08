@@ -23,6 +23,8 @@ export interface Fit {
   kept: boolean;
 }
 export type FitResult = { id: string; score: FitScore; reason: string };
+/** 다시 검토할 연결에 대한 AI 판정 — 지금 문장으로도 이어지면 keep, 강도·설명을 새로 */
+export type LinkVerdict = { id: string; keep: boolean; strength: LinkStrength; reason: string };
 
 export interface IdeationConditions {
   subjects: string[];
@@ -354,6 +356,36 @@ export function keepItem(d: IdeationDraft, kind: "element" | "idea" | "standard"
   if (kind === "element") return { ...d, elements: d.elements.map(keep) };
   if (kind === "idea") return { ...d, ideas: d.ideas.map(keep) };
   return { ...d, standards: d.standards.map(keep) };
+}
+
+/** 연결 양끝의 지금 문장 — 판정을 요청한 뒤 바뀌었는지 보는 데 쓴다 */
+export function linkEnds(d: IdeationDraft, kind: LinkKind, link: IdeationLink): [string, string] {
+  const idea = (id: string) => { const i = d.ideas.find((x) => x.id === id); return i ? ideaText(i) : ""; };
+  return kind === "elementIdea"
+    ? [d.elements.find((e) => e.id === link.from)?.text ?? "", idea(link.to)]
+    : [idea(link.from), d.standards.find((s) => s.id === link.to)?.code ?? ""];
+}
+
+/**
+ * 다시 검토할 연결(한쪽 문장이 바뀐 연결)에 AI 판정을 반영한다 — 이어지면 확정하고 강도·설명을 새로, 아니면 지운다.
+ * 판정을 요청한 뒤 양끝 문장이 또 바뀌었거나 이미 확정·삭제된 연결은 건드리지 않는다.
+ */
+export function applyLinkVerdicts(d: IdeationDraft, verdicts: LinkVerdict[], basis: IdeationDraft): IdeationDraft {
+  if (!verdicts.length) return d;
+  const byId = new Map(verdicts.map((v) => [v.id, v]));
+  const settle = (kind: LinkKind) => {
+    const key = linkKey(kind);
+    const before = new Map(basis[key].map((l) => [l.id, l]));
+    return d[key].flatMap((l) => {
+      const v = byId.get(l.id);
+      const old = before.get(l.id);
+      if (!v || !l.review || !old) return [l];
+      const same = linkEnds(d, kind, l).join("\u0000") === linkEnds(basis, kind, old).join("\u0000");
+      if (!same) return [l];
+      return v.keep ? [{ ...l, review: false, via: "ai" as const, strength: v.strength, reason: v.reason.slice(0, LIMITS.reason) || l.reason }] : [];
+    });
+  };
+  return { ...d, elementIdeaLinks: settle("elementIdea"), ideaStandardLinks: settle("ideaStandard") };
 }
 
 /** 적합성이 낮아 삭제를 추천하는 항목인지 (남기기로 한 항목 제외) */

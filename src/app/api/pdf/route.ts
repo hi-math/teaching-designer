@@ -176,6 +176,26 @@ function standardsCell(text: string): Cell {
   return codes.length && !rest ? { html: codes.map(esc).join("<br>"), center: true } : text;
 }
 
+/**
+ * 과목별로 묶어 과목 이름 아래 불릿으로 (html 은 이미 이스케이프한 값).
+ * 과목 순서는 수업 기본정보의 교과 순서, 거기 없는 과목은 가나다순. 같은 과목 안에서는 입력 순서 그대로.
+ */
+function bySubject(items: Array<{ subject: string; html: string }>, subjectOrder: string[]): string {
+  const groups = new Map<string, string[]>();
+  for (const item of items) {
+    const key = item.subject.trim();
+    groups.set(key, [...(groups.get(key) ?? []), item.html]);
+  }
+  const rank = (subject: string) => {
+    const i = subjectOrder.indexOf(subject);
+    return i === -1 ? subjectOrder.length : i;
+  };
+  return `<div class="by-subject">${[...groups.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b, "ko"))
+    .map(([subject, list]) => `${subject ? `<p class="subject">${esc(subject)}</p>` : ""}<ul class="bullets">${list.map((h) => `<li>${h}</li>`).join("")}</ul>`)
+    .join("")}</div>`;
+}
+
 const bullets = (items: string[]): string => {
   const filtered = items.filter(Boolean);
   return filtered.length > 0
@@ -315,6 +335,9 @@ h3.sub::before{content:"";display:inline-block;width:2.6pt;height:9pt;background
 p,li{font-size:9.6pt;line-height:1.48;margin:0 0 3pt;}
 ul.bullets{margin:0 0 3mm 5mm;padding:0;}
 ul.bullets li{list-style:disc;margin-bottom:1.5pt;}
+.by-subject p.subject{font-weight:700;color:var(--dark);margin:0 0 1pt;}
+.by-subject ul.bullets{margin:0 0 2mm 5mm;}
+.by-subject ul.bullets:last-child{margin-bottom:0;}
 
 /* 장 제목 — 왼쪽 빨간 막대 + 오른쪽으로 옅어지는 붉은 띠, 장 번호는 빨강. 페이지 맨 아래에 제목만 남지 않게 */
 .chapter-header{
@@ -397,24 +420,27 @@ function renderTocOverview(d: RenderData): string {
     const A21 = d.contents["A-3"];
     const A22 = d.contents["A-4"];
 
+    // 핵심 아이디어 → 관련 성취기준, 둘 다 과목 이름 아래 불릿으로 과목별로 묶는다
+    const subjectOrder = (d.relatedSubjects ?? "").split(", ").filter(Boolean);
+    const ideaList = hasField(A21, "core_ideas")
+      ? (A21!.core_ideas ?? []).map((i) => ({ subject: i.subject, text: i.core_idea }))
+      : d.ideas.map((i) => ({ subject: i.subject, text: i.content }));
+    const ideaHtml = ideaList.some((i) => i.text?.trim())
+      ? bySubject(ideaList.filter((i) => i.text?.trim()).map((i) => ({ subject: i.subject ?? "", html: nl2br(i.text) })), subjectOrder)
+      : "(미입력)";
+
     // 관련 성취기준: 카드 구조화 필드 → 전역 __selected_standards 순
     const stdList = hasField(A21, "achievement_standards")
       ? (A21!.achievement_standards ?? [])
       : d.standards.map((s) => ({ subject: s.subject, code: s.code, statement: s.content }));
     const stdHtml = stdList.length > 0
-      ? `<ul class="bullets">${stdList.map((s) => {
-          const text = s.code
+      ? bySubject(stdList.map((s) => ({
+          subject: s.subject ?? "",
+          html: s.code
             ? `<strong>${esc(bracketCode(s.code))}</strong> ${esc(s.statement)}`
-            : esc(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? "")));
-          return `<li>${text}</li>`;
-        }).join("")}</ul>`
+            : esc(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? ""))),
+        })), subjectOrder)
       : "(미입력)";
-
-    // 핵심 아이디어 요약
-    const ideaList = hasField(A21, "core_ideas")
-      ? (A21!.core_ideas ?? []).map((i) => `${i.subject}: ${i.core_idea}`)
-      : d.ideas.map((i) => `${i.subject}: ${i.content}`);
-    const coreIdeaSummary = ideaList.join(" / ") || "(미입력)";
 
     // 수업 주제/목적
     const topic   = A12?.final_topic || A12?.text?.trim() || d.title;
@@ -463,8 +489,8 @@ function renderTocOverview(d: RenderData): string {
       <tr><td class="c"><strong>수업 주제</strong></td><td>${nl2br(topic)}</td></tr>
       <tr><td class="c"><strong>수업 목적</strong></td><td>${nl2br(purpose)}</td></tr>
       <tr><td class="c"><strong>수업 대상</strong></td><td>${esc(audience)}</td></tr>
+      <tr><td class="c"><strong>핵심 아이디어</strong></td><td>${ideaHtml}</td></tr>
       <tr><td class="c"><strong>관련 성취기준</strong></td><td>${stdHtml}</td></tr>
-      <tr><td class="c"><strong>핵심 아이디어</strong></td><td>${esc(coreIdeaSummary)}</td></tr>
     </tbody>
   </table>
 

@@ -8,7 +8,7 @@ const idea = (id: string, subject: string, content: string) => ({
 const std = (code: string, subject: string) => ({ id: code, code, subject, domain: "", content: "", note: "", via: "manual" });
 const link = (id: string, from: string, to: string, strength: number, reason: string, review = false) => ({ id, from, to, via: "ai", strength, reason, review });
 const TABLES: Record<string, unknown> = {
-  lessons: { title: "급식 잔반 줄이기", target_grade: "중2", related_subjects: "과학,사회 ,수학", num_classes: null, num_students: null, total_sessions: 6, created_date: null },
+  lessons: { title: "급식 잔반 줄이기", target_grade: "중2", related_subjects: "수학,사회 ,과학", num_classes: null, num_students: null, total_sessions: 6, created_date: null },
   lesson_members: [],
   profiles: [],
   activity_contents: [
@@ -104,8 +104,22 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
 
   it("표지의 교과는 쉼표 뒤를 띄워서 (저장값은 쉼표만으로 이어져 있다)", async () => {
     await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
-    expect(mock.html).toContain("— 중2 과학, 사회, 수학 융합 PBL —");
-    expect(mock.html).not.toContain("과학,사회");
+    expect(mock.html).toContain("— 중2 수학, 사회, 과학 융합 PBL —");
+    expect(mock.html).not.toContain("수학,사회");
+  });
+
+  it("수업 개요는 핵심 아이디어 → 관련 성취기준, 둘 다 과목 이름 아래 불릿으로 수업 기본정보의 교과 순서대로", async () => {
+    await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
+    const overview = mock.html.slice(mock.html.indexOf("수업 개요</h2>"), mock.html.indexOf("팀 구성</h2>"));
+    const ideas = overview.slice(overview.indexOf("<strong>핵심 아이디어</strong>"), overview.indexOf("<strong>관련 성취기준</strong>"));
+    const stds = overview.slice(overview.indexOf("<strong>관련 성취기준</strong>"));
+    expect(ideas.length).toBeGreaterThan(0);
+    expect(stds.length).toBeGreaterThan(0);
+    const order = (html: string) => [...html.matchAll(/<p class="subject">([^<]+)<\/p>/g)].map((m) => m[1]);
+    expect(order(ideas)).toEqual(["수학", "사회", "과학"]);
+    expect(order(stds)).toEqual(["수학", "사회", "과학"]);
+    expect(ideas).toContain('<p class="subject">수학</p><ul class="bullets"><li>자료를 분석하면 합리적으로 결정할 수 있다.</li></ul>');
+    expect(stds).toContain('<p class="subject">과학</p><ul class="bullets"><li>[9과01-01] 과학적 탐구 방법을 이해한다.</li></ul>');
   });
 
   it("성취기준 칸은 코드만 있으면 한 줄에 하나씩 가운데로, 줄글이면 그대로 왼쪽", async () => {

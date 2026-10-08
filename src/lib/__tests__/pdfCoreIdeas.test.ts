@@ -75,7 +75,7 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     const res = await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
     expect(res.status).toBe(200);
     const s22 = mock.html.slice(mock.html.indexOf("2.2 교과별 핵심 아이디어"), mock.html.indexOf("2.3 성취기준 분석"));
-    expect(s22).toContain("<svg");
+    expect(s22).not.toContain("<svg");
     expect(s22).toContain("연결 성취기준");
     expect(s22).toContain("연결 이유");
     const rows = s22.split("<tr>").slice(2);

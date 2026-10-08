@@ -237,44 +237,6 @@ function coreIdeaRows(
   });
 }
 
-// ─── SVG 다이어그램 (2.2 교과별 핵심 아이디어) ────────────────────
-/** 가운데 라벨 — 글자 폭을 어림해 상자를 글에 맞추고, 그림 폭(150)을 넘으면 말줄임 (한글 10, 그 밖 6 단위, 글자 크기 10 기준) */
-const LABEL_MAX = 150;
-function fitLabel(text: string): { text: string; width: number } {
-  const unit = (ch: string) => (/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF\u4E00-\u9FFF]/.test(ch) ? 10 : 6);
-  const chars = [...text.trim()];
-  const room = LABEL_MAX - 16;
-  const total = chars.reduce((sum, ch) => sum + unit(ch), 0);
-  if (total <= room) return { text: chars.join(""), width: Math.max(60, total + 16) };
-  let out = "";
-  let w = 0;
-  for (const ch of chars) {
-    if (w + unit(ch) + 6 > room) break;
-    out += ch;
-    w += unit(ch);
-  }
-  return { text: `${out.trimEnd()}…`, width: LABEL_MAX };
-}
-
-function renderCoreIdeasSvg(
-  core: Array<{ subject: string }>,
-  centerText: string
-): string {
-  const subjects = core.slice(0, 3).map((c) => c.subject);
-  while (subjects.length < 3) subjects.push("");
-  const label = fitLabel(centerText);
-  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="80"  cy="80"  r="55" fill="#C6AA76" fill-opacity="0.5"/>
-    <circle cx="120" cy="80"  r="55" fill="#97999B" fill-opacity="0.42"/>
-    <circle cx="100" cy="120" r="55" fill="#968C83" fill-opacity="0.42"/>
-    <text x="55"  y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#6E6259">${esc(subjects[0])}</text>
-    <text x="145" y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#53565A">${esc(subjects[1])}</text>
-    <text x="100" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#4D4D4F">${esc(subjects[2])}</text>
-    <rect x="${100 - label.width / 2}" y="92" rx="6" ry="6" width="${label.width}" height="22" fill="#53565A"/>
-    <text x="100" y="107" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">${esc(label.text)}</text>
-  </svg>`;
-}
-
 // 체크리스트의 체크 표시 — 글꼴에 ✓ 가 없을 수 있어 그림으로
 const CHECK_MARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#B9975B" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
@@ -366,8 +328,6 @@ table.data td.c,table.data th.c{text-align:center;}
 .emphasis-box .label{font-weight:700;margin-right:6pt;color:var(--accent-dark);}
 p.part{font-weight:700;color:var(--accent-dark);margin:4mm 0 1.5mm;font-size:9.5pt;}
 
-.figure-center{text-align:center;margin:2mm 0 3mm;break-inside:avoid;}
-.figure-center svg{width:62mm;height:auto;}
 
 .cover{position:relative;height:297mm;padding:55mm 20mm 20mm;}
 .cover::before{content:"";position:absolute;left:0;top:0;width:8mm;height:60mm;background:var(--accent);}
@@ -623,8 +583,6 @@ function renderChapterA(d: RenderData): string {
       : d.ideas.map((i) => ({ subject: i.subject, core_idea: i.content }));
     let s22 = sub("2.2 교과별 핵심 아이디어 (A-3)");
     if (coreList.length > 0) {
-      // 그림은 위에 가운데로, 표는 페이지 폭 전체로
-      s22 += `<div class="figure-center">${renderCoreIdeasSvg(coreList, d.title)}</div>`;
       const reportedStds = (hasField(A21, "achievement_standards")
         ? (A21!.achievement_standards ?? []).map((s) => ({ subject: s.subject, code: s.code ?? extractCodes(String(s.standard ?? s.statement ?? ""))[0] ?? "" }))
         : d.standards.map((s) => ({ subject: s.subject, code: s.code })))

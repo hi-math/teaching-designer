@@ -222,30 +222,38 @@ function renderCoreIdeasSvg(
   while (subjects.length < 3) subjects.push("");
   const label = fitLabel(centerText);
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="80"  cy="80"  r="55" fill="#D1260F" fill-opacity="0.42"/>
-    <circle cx="120" cy="80"  r="55" fill="#9FE1CB" fill-opacity="0.55"/>
-    <circle cx="100" cy="120" r="55" fill="#F59E0B" fill-opacity="0.42"/>
-    <text x="55"  y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#9A3412">${esc(subjects[0])}</text>
-    <text x="145" y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">${esc(subjects[1])}</text>
-    <text x="100" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#92400E">${esc(subjects[2])}</text>
-    <rect x="${100 - label.width / 2}" y="92" rx="6" ry="6" width="${label.width}" height="22" fill="#374151"/>
+    <circle cx="80"  cy="80"  r="55" fill="#C6AA76" fill-opacity="0.5"/>
+    <circle cx="120" cy="80"  r="55" fill="#97999B" fill-opacity="0.42"/>
+    <circle cx="100" cy="120" r="55" fill="#968C83" fill-opacity="0.42"/>
+    <text x="55"  y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#6E6259">${esc(subjects[0])}</text>
+    <text x="145" y="45" text-anchor="middle" font-size="12" font-weight="700" fill="#53565A">${esc(subjects[1])}</text>
+    <text x="100" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#4D4D4F">${esc(subjects[2])}</text>
+    <rect x="${100 - label.width / 2}" y="92" rx="6" ry="6" width="${label.width}" height="22" fill="#53565A"/>
     <text x="100" y="107" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">${esc(label.text)}</text>
   </svg>`;
 }
 
 // 체크리스트의 체크 표시 — 글꼴에 ✓ 가 없을 수 있어 그림으로
-const CHECK_MARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#C8341E" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHECK_MARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#B9975B" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 // ─── CSS ──────────────────────────────────────────────────────────
 function buildCss(lessonTitle: string): string {
   const footerTitle = lessonTitle ? `"${cssEsc(lessonTitle)}"` : '""';
   return `
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
-/* 브랜드 빨강은 살리되 면을 칠하지 않는다 — 진한 빨강은 가는 막대·번호·라벨에, 넓은 면은 아주 옅은 붉은 기운으로 */
+/* 컬러칩 — Pantone 465·466(금색 계열)과 Cool·Warm Gray 7·11, Black 50·85%.
+   짙은 금색(465)은 가는 막대·번호·체크 표시에, 넓은 면은 466 을 아주 옅게 깐 바탕으로, 글씨는 짙은 회색으로 */
 :root{
-  --accent:#C8341E;--accent-dark:#8E2414;--accent-tint:#FDF0EC;--accent-line:#F2C9BF;
-  --dark:#1F2937;--ink-2:#374151;--gray:#6B7280;--light:#F3F4F6;--line:#E5E7EB;
-  --border:#D9DCE1;
+  --accent:#B9975B;      /* Pantone 465 */
+  --accent-2:#C6AA76;    /* Pantone 466 */
+  --accent-dark:#6E6259; /* Warm Gray 11 — 표 머리·라벨 글씨 */
+  --accent-tint:#F6F2EA; /* 466 옅게 — 장 띠·표 머리·강조 상자 바탕 */
+  --accent-line:#E8DDC8; /* 466 조금 옅게 — 옅은 바탕의 테두리 */
+  --dark:#4D4D4F;        /* Black 85% — 제목·본문 */
+  --ink-2:#53565A;       /* Cool Gray 11 — 보조 글씨 */
+  --gray:#939598;        /* Black 50% */
+  --warm-gray:#968C83;   /* Warm Gray 7 */
+  --light:#F3F3F4;--line:#E5E5E6;--border:#CBCCCD; /* Cool Gray 7 을 옅게 */
 }
 *{box-sizing:border-box}
 html,body{padding:0;margin:0;color:var(--dark);
@@ -257,12 +265,12 @@ body{font-size:9.6pt;line-height:1.48;-webkit-print-color-adjust:exact;print-col
   margin:18mm 20mm 22mm 20mm;
   @bottom-left{
     font-family:'Noto Sans KR',sans-serif;
-    font-size:8pt;color:#6B7280;
+    font-size:8pt;color:#53565A;
     content:${footerTitle};
   }
   @bottom-right{
     font-family:'Noto Sans KR',sans-serif;
-    font-size:8pt;color:#6B7280;
+    font-size:8pt;color:#53565A;
     content:"- " counter(page) " -";
   }
 }
@@ -280,7 +288,7 @@ body{font-size:9.6pt;line-height:1.48;-webkit-print-color-adjust:exact;print-col
 
 h1.title{font-size:26pt;color:var(--dark);text-align:center;margin:0 0 4mm;font-weight:700;}
 h1.title::after{content:"";display:block;width:18mm;height:1.6pt;background:var(--accent);margin:5mm auto 0;}
-p.subtitle{font-size:12pt;color:var(--gray);text-align:center;margin:0;}
+p.subtitle{font-size:12pt;color:var(--ink-2);text-align:center;margin:0;}
 h2.section{font-size:11.5pt;color:var(--dark);margin:8mm 0 2.5mm;font-weight:700;line-height:1.25;
   padding-left:2.6mm;border-left:3pt solid var(--accent);}
 h3.sub{font-size:10.3pt;color:var(--dark);margin:5mm 0 1.5mm;font-weight:700;break-after:avoid;page-break-after:avoid;}
@@ -306,7 +314,7 @@ table.data th,table.data td{
 }
 table.data thead th{background:var(--accent-tint);color:var(--accent-dark);font-weight:700;text-align:center;font-size:9.2pt;border-bottom:1pt solid var(--accent-line);}
 table.data tr{break-inside:avoid;page-break-inside:avoid;}
-table.data tbody tr:nth-child(even) td{background:#FBFBFC;}
+table.data tbody tr:nth-child(even) td{background:#FAF8F4;}
 table.data td.c,table.data th.c{text-align:center;}
 
 .emphasis-box{
@@ -323,7 +331,7 @@ p.part{font-weight:700;color:var(--accent-dark);margin:4mm 0 1.5mm;font-size:9.5
 
 .cover{position:relative;height:297mm;padding:55mm 20mm 20mm;}
 .cover::before{content:"";position:absolute;left:0;top:0;width:8mm;height:60mm;background:var(--accent);}
-.cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--accent-tint);}
+.cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--warm-gray);}
 .cover .meta{margin-top:28mm;border:0.6pt solid var(--accent-line);width:100%;border-collapse:collapse;}
 .cover .meta th,.cover .meta td{padding:9px 10px;font-size:10pt;border:0.3pt solid var(--line);}
 .cover .meta th{background:var(--accent-tint);color:var(--accent-dark);text-align:left;font-weight:700;width:35mm;}
@@ -336,7 +344,7 @@ ol.toc .toc-num{display:inline-block;min-width:5mm;color:var(--accent);font-weig
 .check-cell{text-align:center;width:6mm;}
 .check-cell svg{width:11pt;height:11pt;vertical-align:middle;}
 
-p.empty{color:var(--gray);font-style:italic;}
+p.empty{color:var(--ink-2);font-style:italic;}
 `;
 }
 

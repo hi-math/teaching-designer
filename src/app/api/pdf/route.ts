@@ -303,8 +303,9 @@ body{font-size:9.6pt;line-height:1.48;-webkit-print-color-adjust:exact;print-col
 /* 장은 새 페이지로 넘기지 않고 앞 장에 이어 붙인다 — 위에 여백만 둔다 */
 .chapter + .chapter{margin-top:14mm;}
 
-h1.title{font-size:26pt;color:var(--dark);text-align:center;margin:0 0 4mm;font-weight:700;}
-h1.title::after{content:"";display:block;width:18mm;height:1.6pt;background:var(--accent);margin:5mm auto 0;}
+/* 제목 폭에 맞춘 상자 — 밑줄이 제목 길이만큼 */
+h1.title{display:table;font-size:26pt;color:var(--dark);text-align:center;margin:0 auto 4mm;font-weight:700;}
+h1.title::after{content:"";display:block;width:100%;height:1.6pt;background:var(--accent);margin-top:5mm;}
 p.subtitle{font-size:12pt;color:var(--ink-2);text-align:center;margin:0;}
 h2.section{font-size:11.5pt;color:var(--dark);margin:8mm 0 2.5mm;font-weight:700;line-height:1.25;
   padding-left:2.6mm;border-left:3pt solid var(--accent);}

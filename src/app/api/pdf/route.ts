@@ -135,9 +135,11 @@ function nl2br(s: unknown): string {
   return esc(s).replace(/\n/g, "<br>");
 }
 
+type Cell = string | { html: string; center?: boolean };
+
 function table(
   headers: string[],
-  rows: Array<Array<string | { html: string }>>,
+  rows: Array<Array<Cell>>,
   opts: { colWidthsMm?: number[]; centerCols?: number[] } = {}
 ): string {
   const { colWidthsMm = [], centerCols = [] } = opts;
@@ -153,7 +155,7 @@ function table(
       (r) =>
         `<tr>${r
           .map((c, i) => {
-            const cls = centerCols.includes(i) ? "c" : "";
+            const cls = centerCols.includes(i) || (typeof c !== "string" && c.center) ? "c" : "";
             const inner = typeof c === "string" ? nl2br(c) : c.html;
             return `<td class="${cls}">${inner}</td>`;
           })
@@ -161,6 +163,13 @@ function table(
     )
     .join("")}</tbody>`;
   return `<table class="data">${colgroup}${head}${body}</table>`;
+}
+
+/** 성취기준 칸 — 코드만 적혀 있으면(줄글이 아니면) 한 줄에 하나씩 가운데로, 줄글이면 그대로 */
+function standardsCell(text: string): Cell {
+  const codes = extractCodes(text);
+  const rest = text.replace(/\[+[^[\]\n]+\]+/g, "").replace(/[\s,、·/;]+/g, "");
+  return codes.length && !rest ? { html: codes.map(esc).join("<br>"), center: true } : text;
 }
 
 const bullets = (items: string[]): string => {
@@ -210,7 +219,7 @@ function coreIdeaRows(
   core: Array<{ subject: string; core_idea: string }>,
   standards: Array<{ subject: string; code: string }>,
   draft: IdeationDraft | null,
-): Array<Array<string | { html: string }>> {
+): Array<Array<Cell>> {
   const reported = new Set(standards.map((s) => normCode(s.code)));
   const stdById = new Map((draft?.standards ?? []).map((s) => [s.id, s]));
   return core.map((row) => {
@@ -334,7 +343,7 @@ p.part{font-weight:700;color:var(--accent-dark);margin:4mm 0 1.5mm;font-size:9.5
 .cover::after{content:"";position:absolute;left:0;top:60mm;width:8mm;height:calc(297mm - 60mm);background:var(--warm-gray);}
 .cover .meta{margin-top:28mm;border:0.6pt solid var(--accent-line);width:100%;border-collapse:collapse;}
 .cover .meta th,.cover .meta td{padding:9px 10px;font-size:10pt;border:0.3pt solid var(--line);}
-.cover .meta th{background:var(--accent-tint);color:var(--accent-dark);text-align:left;font-weight:700;width:35mm;}
+.cover .meta th{background:var(--accent-tint);color:var(--accent-dark);text-align:center;font-weight:700;width:35mm;}
 
 ol.toc{list-style:none;padding:0;margin:0 0 6mm;}
 ol.toc li{border-bottom:0.3pt solid var(--line);padding:5pt 0;font-size:10pt;}
@@ -446,11 +455,11 @@ function renderTocOverview(d: RenderData): string {
   <table class="data">
     <colgroup><col style="width:30mm"><col></colgroup>
     <tbody>
-      <tr><td><strong>수업 주제</strong></td><td>${nl2br(topic)}</td></tr>
-      <tr><td><strong>수업 목적</strong></td><td>${nl2br(purpose)}</td></tr>
-      <tr><td><strong>수업 대상</strong></td><td>${esc(audience)}</td></tr>
-      <tr><td><strong>관련 성취기준</strong></td><td>${stdHtml}</td></tr>
-      <tr><td><strong>핵심 아이디어</strong></td><td>${esc(coreIdeaSummary)}</td></tr>
+      <tr><td class="c"><strong>수업 주제</strong></td><td>${nl2br(topic)}</td></tr>
+      <tr><td class="c"><strong>수업 목적</strong></td><td>${nl2br(purpose)}</td></tr>
+      <tr><td class="c"><strong>수업 대상</strong></td><td>${esc(audience)}</td></tr>
+      <tr><td class="c"><strong>관련 성취기준</strong></td><td>${stdHtml}</td></tr>
+      <tr><td class="c"><strong>핵심 아이디어</strong></td><td>${esc(coreIdeaSummary)}</td></tr>
     </tbody>
   </table>
 
@@ -590,7 +599,7 @@ function renderChapterA(d: RenderData): string {
       s22 += table(
         ["교과", "핵심 아이디어", "연결 성취기준", "연결 이유"],
         coreIdeaRows(coreList, reportedStds, d.ideation),
-        { colWidthsMm: [20, 62, 28, 60], centerCols: [0] }
+        { colWidthsMm: [20, 62, 28, 60], centerCols: [0, 2] }
       );
     } else {
       s22 += textFallback(A21);
@@ -610,7 +619,7 @@ function renderChapterA(d: RenderData): string {
             : nl2br(fixDoubleBrackets(String((s as Record<string, unknown>).standard ?? s.statement ?? "")));
           return [s.subject, { html: inner }];
         }),
-        { colWidthsMm: [22, 148] }
+        { colWidthsMm: [22, 148], centerCols: [0] }
       );
     } else {
       s23 += `<p class="empty">(입력된 내용이 없습니다.)</p>`;
@@ -642,10 +651,10 @@ function renderChapterA(d: RenderData): string {
           r.subject,
           r.title ?? "",
           r.objective,
-          (extractCodes(r.standard).length ? extractCodes(r.standard) : [r.standard]).join("\n"),
+          standardsCell(extractCodes(r.standard).length ? extractCodes(r.standard).join("\n") : r.standard),
           r.content.split("\n").filter((l) => l.trim()).map((l) => `• ${l.replace(/^\s*[-•·*]\s*/, "")}`).join("\n"),
         ]),
-        { colWidthsMm: [10, 15, 28, 40, 24, 53], centerCols: [0] }
+        { colWidthsMm: [10, 15, 28, 40, 24, 53], centerCols: [0, 1, 2] }
       );
     } else {
       s25 += textFallback(A5);
@@ -688,7 +697,7 @@ function renderChapterDs(d: RenderData): string {
         s31 += table(
           ["평가 축", "상", "중", "하"],
           (Ds11!.rubric ?? []).map((r) => [r.axis, r.level_high ?? r.level_4 ?? "", r.level_mid ?? r.level_3 ?? "", r.level_low ?? r.level_2 ?? ""]),
-          { colWidthsMm: [28, 47, 47, 48] }
+          { colWidthsMm: [28, 47, 47, 48], centerCols: [0] }
         );
       }
     } else {
@@ -722,7 +731,7 @@ function renderChapterDs(d: RenderData): string {
           r.period,
           r.activity,
           // 표 입력은 문자열로 저장되므로 배열·문자열을 모두 받는다
-          Array.isArray(r.linked_standards) ? r.linked_standards.join(", ") : (r.linked_standards ?? ""),
+          standardsCell(Array.isArray(r.linked_standards) ? r.linked_standards.join(", ") : (r.linked_standards ?? "")),
         ]),
         { colWidthsMm: [15, 105, 50], centerCols: [0] }
       );
@@ -737,7 +746,7 @@ function renderChapterDs(d: RenderData): string {
       s34 += table(
         ["활동 단계", "도구", "목적", "관련 차시"],
         (Ds21!.support_tools ?? []).map((r) => [r.stage, r.tool, r.purpose, r.related_period]),
-        { colWidthsMm: [28, 32, 95, 15], centerCols: [3] }
+        { colWidthsMm: [28, 32, 90, 20], centerCols: [0, 3] }
       );
     } else {
       s34 += textFallback(Ds21);
@@ -748,7 +757,7 @@ function renderChapterDs(d: RenderData): string {
       s34 += table(
         ["활동 / 도구", "학생이 직접 할 일", "AI가 지원할 일", "교사가 확인·개입할 일"],
         agency.map((r) => [r.activity, r.student, r.ai, r.teacher]),
-        { colWidthsMm: [31, 46, 46, 47] }
+        { colWidthsMm: [31, 46, 46, 47], centerCols: [0] }
       );
     }
 
@@ -764,7 +773,7 @@ function renderChapterDs(d: RenderData): string {
         s35 += table(
           ["활동", "학생의 어려움 예상 지점", "필요한 스캐폴딩"],
           difficulties.map((r) => [r.activity, r.difficulty, r.scaffold]),
-          { colWidthsMm: [35, 70, 65] }
+          { colWidthsMm: [35, 70, 65], centerCols: [0] }
         );
       }
       if (supportLevel.length) {
@@ -772,7 +781,7 @@ function renderChapterDs(d: RenderData): string {
         s35 += table(
           ["지원 내용", "없으면 수행이 어려운가?", "있으면 스스로 생각하지 않아도 되는가?", "조정 의견"],
           supportLevel.map((r) => [r.support, r.necessary, r.overreach, r.adjust]),
-          { colWidthsMm: [42, 42, 44, 42] }
+          { colWidthsMm: [42, 42, 44, 42], centerCols: [0] }
         );
       }
       if (supportPlan.length) {
@@ -780,7 +789,7 @@ function renderChapterDs(d: RenderData): string {
         s35 += table(
           ["활동 단계", "대상", "지원 방법", "제공 시점"],
           supportPlan.map((r) => [r.stage, r.target, r.method, r.timing]),
-          { colWidthsMm: [32, 28, 80, 30] }
+          { colWidthsMm: [32, 28, 80, 30], centerCols: [0, 1, 3] }
         );
       }
       if (Ds5?.scaffold_summary?.trim()) s35 += emphasisBox("스캐폴딩 핵심 정리", Ds5.scaffold_summary);
@@ -810,7 +819,7 @@ function renderChapterDI(d: RenderData): string {
       s41 += table(
         ["팀원", "자료명", "내용 요약", "검토자"],
         (DI11!.dev_materials ?? []).map((r) => [r.member, r.material, r.content, r.reviewer]),
-        { colWidthsMm: [25, 38, 82, 25], centerCols: [0, 3] }
+        { colWidthsMm: [25, 38, 82, 25], centerCols: [0, 1, 3] }
       );
     } else {
       s41 += textFallback(DI11);
@@ -827,7 +836,7 @@ function renderChapterDI(d: RenderData): string {
         s42 += table(
           ["역할", "담당 교사", "주요 내용"],
           execRoles.map((r) => [r.role, r.teacher, r.detail]),
-          { colWidthsMm: [40, 30, 100], centerCols: [1] }
+          { colWidthsMm: [40, 30, 100], centerCols: [0, 1] }
         );
       }
     }
@@ -851,7 +860,7 @@ function renderChapterDI(d: RenderData): string {
       s42 += table(
         ["시간/차시", "상황 / 에피소드", "관련 활동", "기록 방식", "기록자"],
         episodes.map((r) => [r.when, r.episode, r.activity, r.method, r.recorder]),
-        { colWidthsMm: [18, 80, 30, 22, 20], centerCols: [0, 3, 4] }
+        { colWidthsMm: [18, 80, 30, 22, 20], centerCols: [0, 2, 3, 4] }
       );
     }
     if (DI21?.record_types?.length) {
@@ -918,7 +927,7 @@ function renderChapterE(d: RenderData): string {
         s50 += table(
           ["수정 항목", "수정 전", "수정 후", "수정 이유"],
           revisions.map((r) => [r.item, r.before, r.after, r.reason]),
-          { colWidthsMm: [30, 48, 48, 44] }
+          { colWidthsMm: [30, 48, 48, 44], centerCols: [0] }
         );
       }
     } else {
@@ -940,7 +949,7 @@ function renderChapterE(d: RenderData): string {
       const body = `<tbody>${designRubric.map((item) => {
         const score = parseInt(String(item.score), 10) || 0;
         const cell = (n: number) => `<td class="check-cell">${score === n ? CHECK_MARK : ""}</td>`;
-        return `<tr><td>${esc(item.area)}</td><td>${esc(item.question)}</td>${cell(4)}${cell(3)}${cell(2)}${cell(1)}</tr>`;
+        return `<tr><td class="c">${esc(item.area)}</td><td>${esc(item.question)}</td>${cell(4)}${cell(3)}${cell(2)}${cell(1)}</tr>`;
       }).join("")}</tbody>`;
       s51 += `<table class="data">${colgroup}${head}${body}</table>`;
     } else {

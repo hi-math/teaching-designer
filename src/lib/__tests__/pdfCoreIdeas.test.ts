@@ -24,6 +24,10 @@ const TABLES: Record<string, unknown> = {
         { subject: "사회", standard: "[9사01-01] 지역 문제를 탐구한다." },
       ],
     } } },
+    { activity_code: "Ds-3", content: { type: "structured", fields: { activities: [
+      { period: "1", activity: "잔반 관찰", linked_standards: "[9과01-01], [9수04-03]" },
+      { period: "2", activity: "해결안 발표", linked_standards: "탐구 결과를 발표하는 성취기준" },
+    ] } } },
     { activity_code: "__ideation", content: { type: "structured", fields: {
       schemaVersion: 2, dataVersion: "", conditions: { subjects: ["과학", "수학", "사회"], grade: "중2" }, topic: "급식 잔반 줄이기",
       elements: [],
@@ -92,7 +96,18 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
     expect(math).toContain("<strong>[9과01-01]</strong> 탐구 결과를 수치로 판단한다.");
     expect(math).toContain("<strong>[9수04-03]</strong> 잔반 자료를 상대도수로 분석한다.");
 
+    expect(sci).toMatch(/^<td class="c">과학<\/td>/);
+    expect(math).toContain('<td class="c">[9과01-01]<br>[9수04-03]</td>');
     expect(soc).toContain("[9사01-01]");
     expect(soc).toMatch(/<td class="">\s*<\/td><\/tr>/);
+  });
+
+  it("성취기준 칸은 코드만 있으면 한 줄에 하나씩 가운데로, 줄글이면 그대로 왼쪽", async () => {
+    await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
+    const s33 = mock.html.slice(mock.html.indexOf("3.3 학습자 활동"), mock.html.indexOf("3.4 지원 도구"));
+    expect(s33).toContain('<td class="c">[9과01-01]<br>[9수04-03]</td>');
+    expect(s33).toContain('<td class="">탐구 결과를 발표하는 성취기준</td>');
+    const s23 = mock.html.slice(mock.html.indexOf("2.3 성취기준 분석"), mock.html.indexOf("2.4 "));
+    expect(s23).toContain('<td class="c">과학</td>');
   });
 });

@@ -105,7 +105,7 @@ describe("PDF 2.2 교과별 핵심 아이디어", () => {
 
   it("표지의 교과는 쉼표 뒤를 띄워서 (저장값은 쉼표만으로 이어져 있다)", async () => {
     await GET(new Request("http://localhost/api/pdf?lessonId=00000000-0000-0000-0000-000000000000"));
-    expect(mock.html).toContain("— 중2 수학, 사회, 과학 융합 PBL —");
+    expect(mock.html).toContain("— 중2 수학, 사회, 과학 융합수업설계안 —");
     expect(mock.html).not.toContain("수학,사회");
   });
 

@@ -395,7 +395,7 @@ function renderCover(d: RenderData): string {
     return `<section class="cover">
   <h1 class="title">협력적 수업설계안 보고서</h1>
   <p class="subtitle">${esc(d.title)}</p>
-  ${grade && subjects ? `<p class="subtitle">— ${esc(grade)} ${esc(subjects)} 융합 PBL —</p>` : ""}
+  ${grade && subjects ? `<p class="subtitle">— ${esc(grade)} ${esc(subjects)} 융합수업설계안 —</p>` : ""}
   <table class="meta">
     <tr><th>수업명</th><td>${esc(d.title)}</td></tr>
     <tr><th>대상 학년</th><td>${esc(grade)}${classMeta ? ` (${esc(classMeta)})` : ""}</td></tr>

@@ -109,7 +109,7 @@ async function applyCatalogRecommendations(answer: string, relatedSubjects: stri
   ].join('\n\n');
   const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
     model: TASK_LLM_MODEL, maxTokens: 3000,
-    system: '기존 교육과정 목록에서만 항목을 선택합니다. 답변의 추천과 일치하지 않는 항목은 선택하지 않습니다. 모든 수학 용어는 영어로 표현합니다.',
+    system: '기존 교육과정 목록에서만 항목을 선택합니다. 답변의 추천과 일치하지 않는 항목은 선택하지 않습니다. 모든 수학 용어는 한국어로 표현합니다.',
     prompt, schema: selectionSchema,
   });
   if (!result.ok) return Response.json({ applicable: false }, { status: 502 });
@@ -221,7 +221,7 @@ export async function POST(req: Request) {
     const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
       model: TASK_LLM_MODEL,
       maxTokens: 4000,
-      system: '답변을 카드 입력에 옮길 수 있는지 판정합니다. 입력된 답변만 근거로 값을 추출하고 모든 수학 용어는 영어로 표현합니다.',
+      system: '답변을 카드 입력에 옮길 수 있는지 판정합니다. 입력된 답변만 근거로 값을 추출하고 모든 수학 용어는 한국어로 표현합니다.',
       prompt,
       schema: responseSchema,
     });

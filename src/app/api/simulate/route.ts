@@ -144,7 +144,7 @@ export async function POST(req: Request) {
       model: TASK_LLM_MODEL,
       maxTokens: 16000,
       system:
-        '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 한국어로 간결하고 구체적으로 작성합니다.' +
+        '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 교사 팀의 설계 결과를 바탕으로 실제 수업 흐름을 차시 단위로 시뮬레이션합니다. 수학 용어를 포함해 한국어로 간결하고 구체적으로 작성합니다.' +
         (request ? ' 교사 팀이 추가 요청을 주면 그 요청을 기본 지침보다 우선해 반영합니다.' : ''),
       prompt: buildPrompt(body, sessions, request),
       schema: SESSIONS_SCHEMA,

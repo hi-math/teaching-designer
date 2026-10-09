@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const result = await requestJson(new OpenAI({ apiKey: process.env.CHATGPT_API_KEY }), {
       model: TASK_LLM_MODEL,
       maxTokens: 8000,
-      system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 수업의 차시별 활동에 맞는 학습 지원 도구를 제안합니다. 학교에서 실제로 쓰기 쉬운 도구를 고르고, 한국어로 간결하게 씁니다.',
+      system: '당신은 협력적 수업설계를 돕는 AI \'Minerva\'입니다. 중학교 수업의 차시별 활동에 맞는 학습 지원 도구를 제안합니다. 학교에서 실제로 쓰기 쉬운 도구를 고르고, 수학 용어를 포함해 한국어로 간결하게 씁니다.',
       prompt: `아래 ${sessions.length}개 차시 각각에 맞는 학습 지원 도구를 1~2개씩 제안하세요. 결과의 차시 순서와 개수는 아래와 같아야 합니다.\n\n${lines.join('\n\n')}`,
       schema: TOOLS_SCHEMA,
     });

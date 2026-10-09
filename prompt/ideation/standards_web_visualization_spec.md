@@ -87,7 +87,7 @@ gzip 크기는 로컬 압축으로 확인한 값이다. 실제 응답 크기는 
 - `grade_group: "중1-3"`과 `order`를 특정 학년, 난이도 또는 학습 순서로 변환하지 않는다.
 - `content`, `explanation`, `application_notes`는 원문 보기를 제공한다. 표시용 공백 정리가 필요하면 별도 문자열을 만든다.
 - `derived_annotations`는 원문과 구분하여 “분석된 주제·역량” 영역에 표시한다.
-- 새로 작성하는 mathematical terminology는 English로 작성한다. 제공된 성취기준 원문과 식별자는 그대로 보존한다.
+- 새로 작성하는 수학 용어는 한국어로 작성한다. 제공된 성취기준 원문과 식별자는 그대로 보존한다.
 
 ### 3.2 Edge 및 weight 규칙
 

@@ -175,6 +175,18 @@ describe("with AI 추천 (우선순위 큐)", () => {
     expect(mock.json).not.toHaveBeenCalled();
   });
 
+  it("이유·문장에 섞여 나온 카드 ID 는 교과·내용으로 바꾼다 (빠뜨려 쓴 ID 도)", async () => {
+    const d = draft();
+    const ideaId = d.ideas[0].id;
+    const pick = science[1];
+    mock.json.mockResolvedValueOnce({ ok: true, value: { ideas: [
+      { ideaId: pick.id, elementId: "el_a", standardId: "", strength: 3, reason: `${ideaId.slice(0, -1)}와 el_a, ${pick.id}를 [9과01-01]로 잇는다`, score: 3 },
+    ], fits: [{ id: ideaId, score: 2, reason: "id_0123456789ab 와 겹침" }] } });
+    const body = await (await recommend(request({ lessonId, focus: "ideas", draft: d }))).json();
+    expect(body.ideas[0].reason).toBe("과학 핵심아이디어와 ‘폭염의 원인’, 과학 핵심아이디어를 [9과01-01]로 잇는다");
+    expect(body.fits[0].reason).toBe("핵심아이디어 와 겹침");
+  });
+
   it("이미 담은 항목은 후보에서 빼고 조건의 교과로 좁힌다", async () => {
     mock.json.mockResolvedValue({ ok: true, value: { ideas: [], standards: [], fits: [] } });
     await recommend(request({ lessonId, focus: "ideas", draft: draft() }));
@@ -260,6 +272,9 @@ describe("적합성 자동 판단", () => {
     ] } });
     const res = await judgeFit(fitRequest({ lessonId, draft: d, ids: ["el_a", d.ideas[0].id, "el_gone"] }));
     expect((await res.json()).fits).toEqual([{ id: "el_a", score: 2, reason: "주제의 한 갈래" }]);
+    mock.json.mockResolvedValueOnce({ ok: true, value: { fits: [{ id: "el_a", score: 3, reason: `${d.ideas[0].id}의 원인 탐구로 이어짐` }] } });
+    const again = await judgeFit(fitRequest({ lessonId, draft: d, ids: ["el_a"] }));
+    expect((await again.json()).fits[0].reason).toBe("과학 핵심아이디어의 원인 탐구로 이어짐");
     expect(enumOf(0, "fits", "id")).toEqual(["el_a", d.ideas[0].id]);
   });
 

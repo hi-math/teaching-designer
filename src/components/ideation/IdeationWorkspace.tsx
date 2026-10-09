@@ -398,7 +398,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
     </>
   );
   const aiButton = (focus: RecommendFocus) => (
-    <button type="button" className={aiBtn} disabled={readonly || recRun?.status === "loading"} onClick={() => runRecommend(focus)}>
+    <button type="button" className={aiBtn} disabled={!!busy || recRun?.status === "loading"} onClick={() => runRecommend(focus)}>
       {recRun?.status === "loading" && recRun.focus === focus ? <SpinnerIcon /> : <SparklesIcon />}with AI
     </button>
   );
@@ -461,7 +461,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
         {/* ── 주제 설계 ── */}
         <Pane title="주제 설계"
           actions={isHost && <button type="button" className={btn} disabled={readonly || draft.elements.length >= LIMITS.elements} onClick={addElement}>+ 하위요소 추가</button>}
-          tools={isHost && aiButton("topic")}>
+          tools={aiButton("topic")}>
           {recBlock("topic", "elements")}
           <label className="block">
             <span className="mb-1 block text-[12px] font-semibold text-[#757b82]">수업주제</span>
@@ -489,7 +489,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
         {/* ── 핵심아이디어 ── */}
         <Pane title="핵심아이디어"
           actions={isHost && <button type="button" className={btn} disabled={readonly} onClick={() => setModal("ideas")}>핵심아이디어 추가</button>}
-          tools={isHost && aiButton("ideas")}>
+          tools={aiButton("ideas")}>
           {recBlock("ideas", "ideas")}
           {draft.ideas.map((idea) => {
             const origin = ideaOrigin(idea);
@@ -523,7 +523,7 @@ export default function IdeationWorkspace(props: IdeationWorkspaceProps) {
         {/* ── 성취기준 ── */}
         <Pane title="성취기준"
           actions={isHost && <button type="button" className={btn} disabled={readonly} onClick={() => setModal("standards")}>성취기준 추가</button>}
-          tools={isHost && aiButton("standards")}>
+          tools={aiButton("standards")}>
           {recBlock("standards", "standards")}
           {draft.standards.map((s) => {
             const subject = s.subject || enrich[s.code]?.subject || "";

@@ -44,9 +44,10 @@ beforeEach(() => {
 });
 
 describe("with AI 추천 (우선순위 큐)", () => {
-  it("로그인·소유자 확인을 AI 호출보다 먼저 한다", async () => {
+  it("로그인·참여자 확인을 AI 호출보다 먼저 한다 (with AI 는 참여자도)", async () => {
     mock.authorize.mockResolvedValue({ error: Response.json({ error: "로그인 필요" }, { status: 401 }) });
     expect((await recommend(request({ lessonId, focus: "topic", draft: draft() }))).status).toBe(401);
+    expect(mock.authorize).toHaveBeenCalledWith(lessonId, "member");
     expect(mock.json).not.toHaveBeenCalled();
   });
 
@@ -257,6 +258,7 @@ describe("적합성 자동 판단", () => {
   it("로그인·소유자 확인을 먼저 하고, 주제가 없으면 AI 를 부르지 않는다", async () => {
     mock.authorize.mockResolvedValueOnce({ error: Response.json({ error: "로그인 필요" }, { status: 401 }) });
     expect((await judgeFit(fitRequest({ lessonId, draft: draft(), ids: ["el_a"] }))).status).toBe(401);
+    expect(mock.authorize).toHaveBeenCalledWith(lessonId);
     const noTopic = { ...draft(), topic: "" };
     expect((await judgeFit(fitRequest({ lessonId, draft: noTopic, ids: ["el_a"] }))).status).toBe(400);
     expect(mock.json).not.toHaveBeenCalled();

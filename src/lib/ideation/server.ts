@@ -24,12 +24,18 @@ export function readDataVersion(): Promise<string> {
   return version;
 }
 
-export async function authorizeIdeation(lessonId: unknown) {
+/** 저장·반영·자동 판단은 소유자만, with AI 추천은 참여자도 ("member") */
+export async function authorizeIdeation(lessonId: unknown, access: "owner" | "member" = "owner") {
   if (typeof lessonId !== "string" || !/^[0-9a-f-]{36}$/i.test(lessonId)) return { error: Response.json({ error: "수업 ID가 올바르지 않습니다." }, { status: 400 }) };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: Response.json({ error: "로그인이 필요합니다." }, { status: 401 }) };
   const { data: lesson } = await supabase.from("lessons").select("id,owner_id").eq("id", lessonId).single();
-  if (!lesson || lesson.owner_id !== user.id) return { error: Response.json({ error: "수업 소유자만 아이디어를 저장하고 반영할 수 있습니다." }, { status: 403 }) };
-  return { supabase, user, lesson };
+  if (lesson && lesson.owner_id === user.id) return { supabase, user, lesson };
+  if (lesson && access === "member") {
+    const { data: member } = await supabase.from("lesson_members").select("id").eq("lesson_id", lessonId).eq("user_id", user.id).maybeSingle();
+    if (member) return { supabase, user, lesson };
+    return { error: Response.json({ error: "이 수업의 참여자만 사용할 수 있습니다." }, { status: 403 }) };
+  }
+  return { error: Response.json({ error: "수업 소유자만 아이디어를 저장하고 반영할 수 있습니다." }, { status: 403 }) };
 }

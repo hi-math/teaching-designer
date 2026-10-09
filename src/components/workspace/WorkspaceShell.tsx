@@ -646,7 +646,19 @@ function WorkModal({ title, onClose }: { title: string; onClose: () => void }) {
 
 // ─── 권한관리 모달 ────────────────────────────────────────────────
 
-type Permissions = { phaseNav: boolean; complete: boolean; skip: boolean; opinion: boolean; titleEdit: boolean };
+type Permissions = { complete: boolean; skip: boolean; opinion: boolean; titleEdit: boolean };
+
+// 단계는 각자 본다 — 마지막으로 본 단계를 이 브라우저에만 기억한다 (다른 참여자를 따라 옮기지 않는다)
+const phaseKey = (lessonId: string) => `minerva_phase_${lessonId}`;
+function rememberPhase(lessonId: string, phase: string) {
+  try { localStorage.setItem(phaseKey(lessonId), phase); } catch { /* 저장이 막혀도 이동은 된다 */ }
+}
+function rememberedPhase(lessonId: string): string | null {
+  try {
+    const phase = localStorage.getItem(phaseKey(lessonId));
+    return phase && PHASES.some((p) => p.code === phase) ? phase : null;
+  } catch { return null; }
+}
 
 function PermissionsModal({
   permissions,
@@ -666,7 +678,6 @@ function PermissionsModal({
   const toggle = (key: keyof Permissions) => onChange({ ...permissions, [key]: !permissions[key] });
 
   const items: { key: keyof Permissions; label: string; desc: string }[] = [
-    { key: "phaseNav",  label: "단계 이동",  desc: "참여자가 단계를 이동할 수 있습니다." },
     { key: "complete",  label: "완료",       desc: "참여자가 완료 버튼을 누를 수 있습니다." },
     { key: "skip",      label: "건너뛰기",   desc: "참여자가 건너뛰기 버튼을 누를 수 있습니다." },
     { key: "opinion",   label: "의견묻기",   desc: "참여자가 의견묻기 버튼을 누를 수 있습니다." },
@@ -863,7 +874,7 @@ export default function WorkspaceShell({
   const [isHost, setIsHost] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<Permissions>({
-    phaseNav: false, complete: false, skip: false, opinion: false, titleEdit: false,
+    complete: false, skip: false, opinion: false, titleEdit: false,
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const workspaceChannelRef = useRef<any>(null);
@@ -929,7 +940,7 @@ export default function WorkspaceShell({
 
       if (lessonRes.data) {
         setProjectTitle(lessonRes.data.title);
-        setActivePhase(lessonRes.data.current_phase ?? "T");
+        setActivePhase(rememberedPhase(lessonId) ?? lessonRes.data.current_phase ?? "T");
         setTargetGrade(lessonRes.data.target_grade ?? "");
         setRelatedSubjects(lessonRes.data.related_subjects ?? "");
         setNumClasses(lessonRes.data.num_classes ?? null);
@@ -1092,14 +1103,11 @@ export default function WorkspaceShell({
           if (status === "SUBSCRIBED") opinionChannelRef.current = opinionChannel;
         });
 
-      // Workspace Broadcast: permissions + phase_change + title_change
+      // Workspace Broadcast: permissions + title_change (단계는 각자 보므로 맞추지 않는다)
       workspaceChannel = supabaseRt
         .channel(`workspace:${lessonId}`)
         .on("broadcast", { event: "permissions" }, ({ payload }) => {
           setPermissions(payload as Permissions);
-        })
-        .on("broadcast", { event: "phase_change" }, ({ payload }) => {
-          setActivePhase((payload as { phase: string }).phase);
         })
         .on("broadcast", { event: "title_change" }, ({ payload }) => {
           setProjectTitle((payload as { title: string }).title);
@@ -1189,7 +1197,6 @@ export default function WorkspaceShell({
             const row = payload.new as {
               id: string;
               title?: string;
-              current_phase?: string;
               permissions?: Permissions;
               target_grade?: string | null;
               related_subjects?: string | null;
@@ -1206,7 +1213,6 @@ export default function WorkspaceShell({
             if (row.num_classes !== undefined) setNumClasses(row.num_classes);
             if (row.num_students !== undefined) setNumStudents(row.num_students);
             if (row.total_sessions !== undefined) setTotalSessions(row.total_sessions);
-            if (row.current_phase !== undefined) setActivePhase((prev) => prev === row.current_phase ? prev : row.current_phase!);
             if (row.permissions !== undefined) setPermissions((prev) => JSON.stringify(prev) === JSON.stringify(row.permissions) ? prev : row.permissions!);
           }
         )
@@ -1699,6 +1705,7 @@ export default function WorkspaceShell({
     if (applied) {
       changeWorkMode("design");
       setActivePhase("A");
+      rememberPhase(lessonId, "A");
       setActiveSection("A-a");
       setSelectedActivityCode("A-2");
       void createSnapshot("auto");
@@ -2090,11 +2097,10 @@ export default function WorkspaceShell({
     setOpinionResponses((prev) => ({ ...prev, [opinionKey]: { ...(prev[opinionKey] ?? {}), [myId]: resp } }));
   }, [lessonId]);
 
-  // ── 단계 변경 (DB 저장 + Broadcast) ────────────────────────────
-  const handlePhaseChange = useCallback(async (phase: string) => {
+  // ── 단계 변경 — 각자 보는 단계만 바꾼다 (다른 참여자에게 알리지 않는다) ──────
+  const handlePhaseChange = useCallback((phase: string) => {
     setActivePhase(phase);
-    await createClient().from("lessons").update({ current_phase: phase }).eq("id", lessonId);
-    workspaceChannelRef.current?.send({ type: "broadcast", event: "phase_change", payload: { phase } });
+    rememberPhase(lessonId, phase);
   }, [lessonId]);
 
   // ── 권한 변경 (소유자만) ─────────────────────────────────────
@@ -2599,7 +2605,7 @@ export default function WorkspaceShell({
                         key={opinionKey}
                         onClick={() => {
                           if (workMode !== "design") changeWorkMode("design");
-                          setActivePhase(phaseCode);
+                          handlePhaseChange(phaseCode);
                           setSelectedActivityCode(actCode);
                           setNotifOpen(false);
                         }}
@@ -2898,15 +2904,12 @@ export default function WorkspaceShell({
                       return (
                         <div key={phase.code} className="flex items-center gap-2">
                           <button
-                            onClick={() => {
-                              if (!isHost && !permissions.phaseNav) return;
-                              handlePhaseChange(phase.code);
-                            }}
-                            className={`relative flex w-40 items-center gap-2.5 rounded-full pl-2 pr-4 py-2 transition-all ${!isHost && !permissions.phaseNav ? "cursor-default" : ""}`}
+                            onClick={() => handlePhaseChange(phase.code)}
+                            className="relative flex w-40 items-center gap-2.5 rounded-full pl-2 pr-4 py-2 transition-all"
                             style={{
                               backgroundColor: status === 'active' ? '#D1260F' : '#f1f4f9',
                             }}
-                            onMouseEnter={(e) => { if (status !== 'active' && (isHost || permissions.phaseNav)) e.currentTarget.style.backgroundColor = '#e8eaf0'; }}
+                            onMouseEnter={(e) => { if (status !== 'active') e.currentTarget.style.backgroundColor = '#e8eaf0'; }}
                             onMouseLeave={(e) => { if (status !== 'active') e.currentTarget.style.backgroundColor = '#f1f4f9'; }}
                           >
                             <span className="relative shrink-0">

@@ -17,6 +17,7 @@ import { FIT_SCALE, idReplacer, ideaSubjectOfStandard, standardInSubject } from 
 // 인접 영역에는 있는데 이 영역에 아직 없는 교과(missingSubjects)는 후보에 꼭 넣고 먼저 탐색해 앞쪽에 둔다.
 // 수업주제가 비어 있으면 주제 설계는 하위요소 대신 핵심아이디어·성취기준을 아우르는 수업주제 후보를 추천한다.
 // 공식 데이터는 후보 ID 로만 고르게 하고(enum), 돌아온 ID·연결 대상은 데이터와 초안에 다시 대조한다.
+// 참여자도 부를 수 있다 — 추천을 보기만 하고, 담는 것(초안 변경·저장)은 소유자만 한다.
 
 export const maxDuration = 120;
 
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     if (raw.length > 400_000) return Response.json({ error: "입력 내용이 너무 깁니다." }, { status: 413 });
     let body;
     try { body = JSON.parse(raw); } catch { return Response.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 }); }
-    const auth = await authorizeIdeation(body?.lessonId);
+    const auth = await authorizeIdeation(body?.lessonId, "member");
     if (auth.error) return auth.error;
     const focus = body.focus as RecommendFocus;
     const draft = readDraft(body.draft);

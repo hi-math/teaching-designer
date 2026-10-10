@@ -1,27 +1,27 @@
 {
-  "datasetVersion": "28b4eb2bfc69014e",
+  "datasetVersion": "bd82c30634447aa0",
   "datasetVersionFormula": "SHA256(nodesFileHash + \"|\" + edgesFileHash + \"|\" + schemaVersion), 앞 16자",
   "schemaVersion": "2.0",
-  "generatedDate": "2026-10-02",
-  "sourceSha256": "9a1d8fe9ddc48445ce6c96da5aeca1b759914913074e0128c4c24c3333b8e7ef",
+  "generatedDate": "2026-10-10",
+  "sourceSha256": "1acae4c7c3f46c56f7b2f105bea0c28317740695352c131fe482649146ba44be",
   "layoutAlgorithmVersion": "force-1",
-  "nodeCount": 655,
-  "edgeCount": 4958,
+  "nodeCount": 714,
+  "edgeCount": 5466,
   "files": {
     "nodes": {
-      "url": "/standard/graph/28b4eb2bfc69014e/nodes.json",
-      "sha256": "172f0653fbc47d3c067a32f9609f37d746bc24d01c7563d48357946d4d8a466c",
-      "bytes": 2155496
+      "url": "/standard/graph/bd82c30634447aa0/nodes.json",
+      "sha256": "b0dd65908467d72b691d504726838007dd8cae01ff1956aa9b517069a8af4595",
+      "bytes": 2339900
     },
     "edges": {
-      "url": "/standard/graph/28b4eb2bfc69014e/edges.json",
-      "sha256": "543c5f1883bf5916623de15a0abe67f3dbdad7ebc4d4fddf575035cddcc8fd2c",
-      "bytes": 6367553
+      "url": "/standard/graph/bd82c30634447aa0/edges.json",
+      "sha256": "366b1eff3a6b0317d7b193e896997c6c2a49db1cecbb513f0dcfee42a41a55ef",
+      "bytes": 7048815
     },
     "overviewLayout": {
-      "url": "/standard/graph/28b4eb2bfc69014e/overview-layout.json",
-      "sha256": "b06241e31cebbbf001d364ed5400c2c6d1ad531758e28e9dbdba98d0e18e0745",
-      "bytes": 40701
+      "url": "/standard/graph/bd82c30634447aa0/overview-layout.json",
+      "sha256": "f1be54483e8b084a9f2ef5c41dae0cf91be60918d8a61a597f10a848d6874f88",
+      "bytes": 44289
     }
   }
 }

@@ -14,15 +14,15 @@ const filters = (patch: Partial<GraphFilterState> = {}): GraphFilterState => ({ 
 
 describe("weight filter (전체 유형)", () => {
   it.each([
-    [1, 4958, 0],
-    [2, 3852, 8],
-    [3, 2162, 71],
-    [4, 784, 217],
-    [5, 269, 457],
+    [1, 5466, 0],
+    [2, 4195, 8],
+    [3, 2281, 73],
+    [4, 798, 258],
+    [5, 269, 516],
   ])("minimum %i → edge %i, 관계 없는 node %i", (w, edges, isolated) => {
     const r = selectOverview(index, filters({ minimumWeight: w as Weight }));
     expect(r.edgeIds).toHaveLength(edges);
-    expect(r.nodeIds).toHaveLength(655);
+    expect(r.nodeIds).toHaveLength(714);
     expect(r.isolated.size).toBe(isolated);
   });
 
@@ -31,16 +31,16 @@ describe("weight filter (전체 유형)", () => {
     expect(new Set(r.edgeIds).size).toBe(r.edgeIds.length);
   });
 
-  it("FILTER-06 다른 교과 edge 2,945", () => {
+  it("FILTER-06 다른 교과 edge 3,348", () => {
     const r = selectOverview(index, filters({ minimumWeight: 1, subjectRelation: "cross" }));
-    expect(r.edgeIds).toHaveLength(2945);
+    expect(r.edgeIds).toHaveLength(3348);
   });
 
   it("관계 유형을 하나도 고르지 않으면 edge 없음, node 는 유지", () => {
     const r = selectOverview(index, filters({ relationTypes: [] }));
     expect(r.noTypes).toBe(true);
     expect(r.edgeIds).toHaveLength(0);
-    expect(r.nodeIds).toHaveLength(655);
+    expect(r.nodeIds).toHaveLength(714);
   });
 });
 

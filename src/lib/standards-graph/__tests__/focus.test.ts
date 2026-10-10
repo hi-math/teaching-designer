@@ -15,7 +15,7 @@ const opts = { hops: 1 as const, limit: 30, showNeighborEdges: false };
 
 describe("중심 탐색", () => {
   it.each([
-    [1, 9],
+    [1, 11],
     [3, 3],
   ])("FOCUS-01 [9국01-09] minimum %i → 관계 %i개", (w, count) => {
     const f = filters({ minimumWeight: w as Weight });

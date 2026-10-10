@@ -194,8 +194,8 @@ const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
 // 교과 배지 색 (StandardsModal/IdeasModal과 동일)
 const LANGUAGE = new Set(['국어','영어','한문','생활 독일어','생활 러시아어','생활 베트남어','생활 스페인어','생활 아랍어','생활 일본어','생활 중국어','생활 프랑스어']);
 const MATH     = new Set(['수학']);
-const SCIENCE  = new Set(['과학','정보','기술·가정']);
-const SOCIAL   = new Set(['사회','역사','도덕']);
+const SCIENCE  = new Set(['과학','정보','기술·가정','환경','보건']);
+const SOCIAL   = new Set(['사회','역사','도덕','진로와 직업']);
 const ARTS     = new Set(['체육','음악','미술']);
 
 export function getSubjectBadge(subject: string): { bg: string; text: string } {

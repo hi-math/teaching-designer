@@ -51,6 +51,9 @@ export const SUBJECT_ORDER: string[] = [
   "생활 러시아어",
   "생활 아랍어",
   "생활 베트남어",
+  "환경",
+  "보건",
+  "진로와 직업",
 ];
 
 export const SUBJECT_PALETTE: Record<string, SubjectColor> = {
@@ -75,6 +78,10 @@ export const SUBJECT_PALETTE: Record<string, SubjectColor> = {
   "생활 러시아어": { fill: "#847df0", family: "language" },
   "생활 아랍어": { fill: "#8d86fa", family: "language" },
   "생활 베트남어": { fill: "#9692fe", family: "language" },
+  // 중학교 선택 교과(별책18) — 범례 묶음은 가까운 계열에 둔다
+  환경: { fill: "#0e7f62", family: "science" },
+  보건: { fill: "#5cc4a2", family: "science" },
+  "진로와 직업": { fill: "#c66a12", family: "social" },
 };
 
 /** 매핑에 없는 교과(새 데이터 버전)는 중립 회색으로 표시한다 */

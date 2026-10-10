@@ -23,7 +23,8 @@ export function getCoreIdeas(): IdeaItem[] {
 export function standardCandidates(answer: string, relatedSubjects = '', limit = 100): Standard[] {
   const standards = getStandards();
   const codes = new Set([...answer.matchAll(/\[+([^\[\]\n]+)\]+/g)].map(match => `[${match[1].trim()}]`));
-  const subjects = relatedSubjects.split(/[,/·\s]+/).filter(Boolean);
+  // "진로와 직업"·"기술·가정"처럼 띄어 쓰거나 가운뎃점이 든 교과명도 통째로 맞춘다 (낱말로 쪼갠 것도 함께)
+  const subjects = [...new Set(relatedSubjects.split(/[,/]+/).flatMap((s) => [s.trim(), ...s.trim().split(/\s+/)]).filter(Boolean))];
   const terms = answer.split(/[\s,.;:!?()[\]{}]+/).filter(term => term.length >= 2).slice(0, 80);
   const exact = standards.filter(item => codes.has(item.code));
   const ranked = standards

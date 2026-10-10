@@ -6,6 +6,7 @@ import { IDEATION_ROW, ideaSubject, ideaText, readDraft, type IdeationDraft } fr
 import chromium from "@sparticuz/chromium-min";
 import { chromium as playwrightChromium } from "playwright-core";
 import { existsSync } from "fs";
+import { renderPdf } from "@/lib/pdfRender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -1164,37 +1165,20 @@ export async function GET(req: Request) {
     };
     const html = buildHtml(renderData);
 
-    // 5) Playwright → PDF
-    const browser = await launchBrowser();
-    try {
-      const page = await (await browser.newContext()).newPage();
-      await page.setContent(html, { waitUntil: "networkidle" });
-      // 폰트 로드 대기 (최대 5초)
-      await Promise.race([
-        page.evaluate(() => (document as unknown as { fonts?: { ready: Promise<void> } }).fonts?.ready),
-        new Promise((r) => setTimeout(r, 5000)),
-      ]);
-      const pdf = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true,
-        margin: { top: "0", bottom: "0", left: "0", right: "0" }, // CSS @page가 마진 관리
-      });
-      const safeTitle = (lesson.title ?? "report")
-        .replace(/[^\w가-힣\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "_");
-      return new Response(new Uint8Array(pdf), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${encodeURIComponent(safeTitle)}.pdf"`,
-          "Cache-Control": "no-store",
-        },
-      });
-    } finally {
-      await browser.close();
-    }
+    // 5) Playwright → PDF (실패하면 /tmp 의 Chromium 을 새로 풀어 한 번 더 — lib/pdfRender.ts)
+    const pdf = await renderPdf(html, launchBrowser, req.signal);
+    const safeTitle = (lesson.title ?? "report")
+      .replace(/[^\w가-힣\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "_");
+    return new Response(new Uint8Array(pdf), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(safeTitle)}.pdf"`,
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (err) {
     console.error("[pdf]", err);
     return Response.json({ error: (err as Error).message }, { status: 500 });
